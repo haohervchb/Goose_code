@@ -1,0 +1,160 @@
+#include "session.h"
+#include "util/json_util.h"
+#include "util/strbuf.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <dirent.h>
+#include <sys/stat.h>
+
+static char *session_path(const char *dir, const char *id) {
+    size_t len = strlen(dir) + strlen(id) + 16;
+    char *p = malloc(len);
+    snprintf(p, len, "%s/%s.json", dir, id);
+    return p;
+}
+
+Session *session_new(void) {
+    Session *s = calloc(1, sizeof(*s));
+    char ts[64];
+    struct timespec ts_now;
+    clock_gettime(CLOCK_REALTIME, &ts_now);
+    snprintf(ts, sizeof(ts), "%ld_%ld", (long)ts_now.tv_sec, (long)ts_now.tv_nsec);
+    s->id = strdup(ts);
+    s->messages = cJSON_CreateArray();
+    return s;
+}
+
+Session *session_load(const char *session_dir, const char *id) {
+    char *path = session_path(session_dir, id);
+    char *data = json_read_file(path);
+    free(path);
+    if (!data) return NULL;
+
+    cJSON *json = cJSON_Parse(data);
+    free(data);
+    if (!json) return NULL;
+
+    Session *s = calloc(1, sizeof(*s));
+    s->id = strdup(id);
+    s->messages = cJSON_GetObjectItem(json, "messages");
+    if (s->messages) s->messages = cJSON_Duplicate(s->messages, 1);
+    else s->messages = cJSON_CreateArray();
+    s->total_input_tokens = json_get_int(json, "input_tokens", 0);
+    s->total_output_tokens = json_get_int(json, "output_tokens", 0);
+    s->turn_count = json_get_int(json, "turn_count", 0);
+    cJSON_Delete(json);
+    return s;
+}
+
+int session_save(const char *session_dir, Session *sess) {
+    char *path = session_path(session_dir, sess->id);
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "version", SESSION_VERSION);
+    cJSON_AddStringToObject(json, "id", sess->id);
+    cJSON_AddItemToObject(json, "messages", cJSON_Duplicate(sess->messages, 1));
+    cJSON_AddNumberToObject(json, "input_tokens", sess->total_input_tokens);
+    cJSON_AddNumberToObject(json, "output_tokens", sess->total_output_tokens);
+    cJSON_AddNumberToObject(json, "turn_count", sess->turn_count);
+    int rc = json_write_file(path, json);
+    cJSON_Delete(json);
+    free(path);
+    return rc;
+}
+
+void session_free(Session *sess) {
+    if (!sess) return;
+    free(sess->id);
+    if (sess->messages) cJSON_Delete(sess->messages);
+    free(sess);
+}
+
+void session_add_message(Session *sess, cJSON *msg) {
+    cJSON_AddItemToArray(sess->messages, cJSON_Duplicate(msg, 1));
+    sess->turn_count++;
+}
+
+void session_add_tool_result(Session *sess, const char *tool_call_id, const char *result) {
+    cJSON *msg = json_build_tool_result(tool_call_id, result);
+    cJSON_AddItemToArray(sess->messages, msg);
+}
+
+int session_needs_compact(Session *sess, int context_window) {
+    if (!sess || !sess->messages) return 0;
+    int msg_count = cJSON_GetArraySize(sess->messages);
+    return msg_count > (context_window / 1000);
+}
+
+char *session_compact(Session *sess, int keep_recent) {
+    if (!sess || !sess->messages) return NULL;
+    int total = cJSON_GetArraySize(sess->messages);
+    if (total <= keep_recent + 1) return NULL;
+
+    int compact_to = total - keep_recent;
+    StrBuf summary = strbuf_from("[Previous conversation summarized: ");
+
+    for (int i = 1; i < compact_to && i < total; i++) {
+        cJSON *msg = cJSON_GetArrayItem(sess->messages, i);
+        const char *role = json_get_string(msg, "role");
+        const char *content = json_get_string(msg, "content");
+        if (role && content) {
+            if (strcmp(role, "user") == 0) {
+                strbuf_append_fmt(&summary, "User: %.100s... ", content);
+            } else if (strcmp(role, "assistant") == 0) {
+                strbuf_append_fmt(&summary, "Assistant: %.100s... ", content);
+            }
+        }
+    }
+    strbuf_append(&summary, "]");
+
+    cJSON *compact_msg = json_build_message("system", summary.data);
+    cJSON_ReplaceItemInArray(sess->messages, 0, compact_msg);
+
+    for (int i = compact_to; i < total; i++) {
+        cJSON *item = cJSON_GetArrayItem(sess->messages, i);
+        if (item) {
+            cJSON_DetachItemFromArray(sess->messages, i);
+            cJSON_AddItemToArray(sess->messages, item);
+        }
+    }
+
+    while (cJSON_GetArraySize(sess->messages) > keep_recent + 1) {
+        cJSON_DeleteItemFromArray(sess->messages, 1);
+    }
+
+    char *result = strbuf_detach(&summary);
+    strbuf_free(&summary);
+    return result;
+}
+
+char *session_list(const char *session_dir) {
+    DIR *dir = opendir(session_dir);
+    if (!dir) return strdup("No sessions found.");
+
+    StrBuf out = strbuf_from("Saved sessions:\n");
+    struct dirent *ent;
+    int count = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        size_t nlen = strlen(ent->d_name);
+        if (nlen > 5 && strcmp(ent->d_name + nlen - 5, ".json") == 0) {
+            char id[256];
+            strncpy(id, ent->d_name, nlen - 5);
+            id[nlen - 5] = '\0';
+
+            char *path = session_path(session_dir, id);
+            Session *s = session_load(session_dir, id);
+            if (s) {
+                strbuf_append_fmt(&out, "  %-40s  %d msgs  in=%ld out=%ld\n",
+                                  s->id, cJSON_GetArraySize(s->messages),
+                                  s->total_input_tokens, s->total_output_tokens);
+                session_free(s);
+                count++;
+            }
+            free(path);
+        }
+    }
+    closedir(dir);
+    if (count == 0) strbuf_append(&out, "  (none)\n");
+    return strbuf_detach(&out);
+}

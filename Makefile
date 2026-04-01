@@ -1,0 +1,80 @@
+CC      = gcc
+CFLAGS  = -Wall -Wextra -Wpedantic -O2 -std=c11 -D_GNU_SOURCE
+LDFLAGS = -lcurl  -lpthread 
+
+SRCDIR  = src
+OBJDIR  = build
+BINDIR  = .
+
+UTIL_SRCS = $(SRCDIR)/util/cJSON.c \
+            $(SRCDIR)/util/strbuf.c \
+            $(SRCDIR)/util/http.c \
+            $(SRCDIR)/util/sse.c \
+            $(SRCDIR)/util/json_util.c \
+            $(SRCDIR)/util/terminal.c \
+            $(SRCDIR)/util/markdown.c
+
+TOOL_SRCS = $(SRCDIR)/tools/tools.c \
+            $(SRCDIR)/tools/bash.c \
+            $(SRCDIR)/tools/file_read.c \
+            $(SRCDIR)/tools/file_write.c \
+            $(SRCDIR)/tools/file_edit.c \
+            $(SRCDIR)/tools/glob_search.c \
+            $(SRCDIR)/tools/grep_search.c \
+            $(SRCDIR)/tools/web_fetch.c \
+            $(SRCDIR)/tools/web_search.c \
+            $(SRCDIR)/tools/todo_write.c \
+            $(SRCDIR)/tools/skill.c \
+            $(SRCDIR)/tools/agent_tool.c \
+            $(SRCDIR)/tools/tool_search.c \
+            $(SRCDIR)/tools/notebook_edit.c \
+            $(SRCDIR)/tools/sleep.c \
+            $(SRCDIR)/tools/send_message.c \
+            $(SRCDIR)/tools/config_tool.c \
+            $(SRCDIR)/tools/structured_out.c \
+            $(SRCDIR)/tools/repl_tool.c \
+            $(SRCDIR)/tools/powershell.c
+
+CMD_SRCS  = $(SRCDIR)/commands/commands.c \
+            $(SRCDIR)/commands/cmd_help.c \
+            $(SRCDIR)/commands/cmd_model.c \
+            $(SRCDIR)/commands/cmd_session.c \
+            $(SRCDIR)/commands/cmd_compact.c \
+            $(SRCDIR)/commands/cmd_permissions.c \
+            $(SRCDIR)/commands/cmd_clear.c \
+            $(SRCDIR)/commands/cmd_cost.c \
+            $(SRCDIR)/commands/cmd_exit.c \
+            $(SRCDIR)/commands/cmd_tools.c
+
+CORE_SRCS = $(SRCDIR)/api.c \
+            $(SRCDIR)/config.c \
+            $(SRCDIR)/session.c \
+            $(SRCDIR)/compact.c \
+            $(SRCDIR)/permissions.c \
+            $(SRCDIR)/prompt.c \
+            $(SRCDIR)/agent.c \
+            $(SRCDIR)/main.c
+
+ALL_SRCS  = $(UTIL_SRCS) $(TOOL_SRCS) $(CMD_SRCS) $(CORE_SRCS)
+ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
+
+TARGET    = $(BINDIR)/goosecode
+
+.PHONY: all clean test
+
+all: $(TARGET)
+
+$(TARGET): $(ALL_OBJS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -I$(SRCDIR) -c -o $@ $<
+
+test: $(TARGET)
+	@echo "Running tests..."
+	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/session.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET) build/test_runner
