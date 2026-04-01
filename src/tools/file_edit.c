@@ -10,13 +10,13 @@ char *tool_execute_edit_file(const char *args, const GooseConfig *cfg) {
     cJSON *json = cJSON_Parse(args);
     if (!json) return strdup("Error: invalid JSON arguments");
 
-    const char *path = json_get_string(json, "path");
+    const char *path = json_get_string(json, "file_path");
     const char *old_str = json_get_string(json, "old_string");
     const char *new_str = json_get_string(json, "new_string");
     cJSON_Delete(json);
 
     if (!path || !old_str || !new_str)
-        return strdup("Error: 'path', 'old_string', and 'new_string' arguments required");
+        return strdup("Error: 'file_path', 'old_string', and 'new_string' arguments required");
 
     FILE *f = fopen(path, "r");
     if (!f) {

@@ -230,10 +230,39 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, web_search);
 
+    cJSON *todo_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_params, "type", "object");
+    cJSON *todo_props = cJSON_CreateObject();
+    
+    cJSON *todo_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_item, "type", "object");
+    cJSON *todo_item_props = cJSON_CreateObject();
+    cJSON *todo_content = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_content, "type", "string");
+    cJSON_AddStringToObject(todo_content, "description", "Content of the todo item");
+    cJSON_AddItemToObject(todo_item_props, "content", todo_content);
+    cJSON *todo_status = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_status, "type", "string");
+    cJSON_AddStringToObject(todo_status, "description", "Status: pending, in_progress, completed");
+    cJSON_AddItemToObject(todo_item_props, "status", todo_status);
+    cJSON_AddItemToObject(todo_item, "properties", todo_item_props);
+    cJSON *todo_item_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(todo_item_req, cJSON_CreateString("content"));
+    cJSON_AddItemToObject(todo_item, "required", todo_item_req);
+    
+    cJSON *todo_array = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_array, "type", "array");
+    cJSON_AddItemToObject(todo_array, "items", todo_item);
+    cJSON_AddItemToObject(todo_props, "todos", todo_array);
+    cJSON_AddItemToObject(todo_params, "properties", todo_props);
+    cJSON *todo_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(todo_req, cJSON_CreateString("todos"));
+    cJSON_AddItemToObject(todo_params, "required", todo_req);
+
     Tool todo_write = {
         .name = strdup("todo_write"),
         .description = strdup("Create, update, or view a todo list."),
-        .parameters_schema = NULL,
+        .parameters_schema = todo_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
         .execute = tool_execute_todo_write

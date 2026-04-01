@@ -12,11 +12,11 @@ char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
     cJSON *json = cJSON_Parse(args);
     if (!json) return strdup("Error: invalid JSON arguments");
 
-    const char *path = json_get_string(json, "path");
+    const char *path = json_get_string(json, "file_path");
     const char *content = json_get_string(json, "content");
     cJSON_Delete(json);
 
-    if (!path) return strdup("Error: 'path' argument required");
+    if (!path) return strdup("Error: 'file_path' argument required");
     if (!content) return strdup("Error: 'content' argument required");
 
     char *dir = strdup(path);

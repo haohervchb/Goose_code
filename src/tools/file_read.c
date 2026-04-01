@@ -11,12 +11,12 @@ char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
     cJSON *json = cJSON_Parse(args);
     if (!json) return strdup("Error: invalid JSON arguments");
 
-    const char *path = json_get_string(json, "path");
+    const char *path = json_get_string(json, "file_path");
     int offset = json_get_int(json, "offset", 0);
     int limit = json_get_int(json, "limit", 0);
     cJSON_Delete(json);
 
-    if (!path) return strdup("Error: 'path' argument required");
+    if (!path) return strdup("Error: 'file_path' argument required");
 
     FILE *f = fopen(path, "r");
     if (!f) {
