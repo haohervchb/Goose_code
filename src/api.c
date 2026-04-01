@@ -185,6 +185,7 @@ ApiStatus api_chat_completions(const ApiConfig *cfg, const cJSON *messages, cons
             HttpResponse http_resp = http_post_stream(url, cfg->api_key, body, stream_chunk_cb, &sctx);
             resp->finish_reason_stop = sctx.finish_reason_stop;
             resp->finish_reason_tool_calls = sctx.finish_reason_tool_calls;
+            sse_parser_free(&sctx.parser);
             if (http_resp.error) {
                 resp->error = strdup(http_resp.error);
                 status = API_ERROR_NETWORK;

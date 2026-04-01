@@ -36,6 +36,7 @@ typedef struct {
 } SseParser;
 
 void sse_parser_init(SseParser *p);
+void sse_parser_free(SseParser *p);
 SseEvent sse_parse_line(SseParser *p, const char *line, size_t len);
 void sse_event_free(SseEvent *e);
 

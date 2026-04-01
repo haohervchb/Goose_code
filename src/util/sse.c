@@ -8,6 +8,15 @@ void sse_parser_init(SseParser *p) {
     memset(p, 0, sizeof(*p));
 }
 
+void sse_parser_free(SseParser *p) {
+    free(p->pending_args);
+    p->pending_args = NULL;
+    p->pending_args_cap = 0;
+    p->pending_args_len = 0;
+    p->pending_tool_name[0] = '\0';
+    p->data_len = 0;
+}
+
 static void trim_trailing(char *s) {
     size_t len = strlen(s);
     while (len > 0 && (s[len-1] == '\n' || s[len-1] == '\r' || s[len-1] == ' ')) {
