@@ -49,7 +49,7 @@ export OPENAI_MODEL=llama3
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API endpoint |
 | `OPENAI_MODEL` | `gpt-4o` | Model to use |
 | `GOOSECODE_PERMS` | `prompt` | Default permission mode |
-| `GOOSECODE_MAX_TURNS` | `16` | Max tool-use iterations |
+| `GOOSECODE_MAX_TURNS` | `64` | Max tool-use iterations |
 
 ### Permission Modes
 

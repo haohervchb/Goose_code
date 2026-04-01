@@ -52,7 +52,7 @@ GooseConfig config_load(void) {
     cfg.permission_mode = PERM_PROMPT;
     cfg.max_tokens = 8192;
     cfg.temperature = 0.7;
-    cfg.max_turns = 16;
+    cfg.max_turns = 64;
     cfg.context_window = 128000;
     cfg.verbose = 0;
 
