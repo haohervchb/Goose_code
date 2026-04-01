@@ -21,23 +21,34 @@ typedef struct {
     int finish_reason_tool_calls;
 } SseEvent;
 
+#define SSE_MAX_TOOL_CALLS 16
+
+typedef struct {
+    int used;
+    int index;
+    char id[128];
+    char name[128];
+    char *args;
+    size_t args_len;
+    size_t args_cap;
+} SsePendingToolCall;
+
 typedef struct {
     char line[8192];
     size_t line_len;
     char event_type[64];
     char data_buf[65536];
     size_t data_len;
-    char pending_tool_id[128];
-    char pending_tool_name[128];
-    int pending_tool_idx;
-    char *pending_args;
-    size_t pending_args_len;
-    size_t pending_args_cap;
+    SsePendingToolCall pending_tools[SSE_MAX_TOOL_CALLS];
+    SseEvent queued_events[SSE_MAX_TOOL_CALLS];
+    int queued_event_count;
+    int queued_event_index;
 } SseParser;
 
 void sse_parser_init(SseParser *p);
 void sse_parser_free(SseParser *p);
 SseEvent sse_parse_line(SseParser *p, const char *line, size_t len);
+SseEvent sse_parser_next_event(SseParser *p);
 void sse_event_free(SseEvent *e);
 
 #endif

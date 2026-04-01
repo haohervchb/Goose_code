@@ -89,6 +89,40 @@ static void pending_tool_append(StreamCtx *sctx, const char *data, size_t dlen) 
     pt->args_len += dlen;
 }
 
+static int sse_event_present(const SseEvent *ev) {
+    return ev->text || ev->tool_call_id || ev->tool_name || ev->tool_args ||
+           ev->error || ev->finish_reason_stop || ev->finish_reason_tool_calls ||
+           ev->type == SSE_EVENT_DONE;
+}
+
+static void stream_handle_event(StreamCtx *sctx, SseEvent *ev) {
+    if (ev->type == SSE_EVENT_TEXT && ev->text && sctx->cb->on_text) {
+        sctx->cb->on_text(ev->text, strlen(ev->text), sctx->cb->ctx);
+    } else if (ev->type == SSE_EVENT_TOOL_CALL && ev->tool_call_id && ev->tool_name) {
+        if (sctx->pending_tool.name[0] &&
+            strcmp(sctx->pending_tool.id, ev->tool_call_id) != 0) {
+            pending_tool_emit(sctx);
+        }
+        if (sctx->pending_tool.name[0] == '\0') {
+            strncpy(sctx->pending_tool.id, ev->tool_call_id, sizeof(sctx->pending_tool.id) - 1);
+            strncpy(sctx->pending_tool.name, ev->tool_name, sizeof(sctx->pending_tool.name) - 1);
+        }
+        if (ev->tool_args && strlen(ev->tool_args) > 0) {
+            pending_tool_append(sctx, ev->tool_args, strlen(ev->tool_args));
+        }
+    } else if (ev->type == SSE_EVENT_DONE && sctx->cb->on_done) {
+        if (sctx->pending_tool.name[0]) {
+            pending_tool_emit(sctx);
+        }
+        sctx->cb->on_done(sctx->cb->ctx);
+    } else if (ev->type == SSE_EVENT_ERROR && ev->error) {
+        fprintf(stderr, "SSE error: %s\n", ev->error);
+    }
+
+    if (ev->finish_reason_stop) sctx->finish_reason_stop = 1;
+    if (ev->finish_reason_tool_calls) sctx->finish_reason_tool_calls = 1;
+}
+
 static void stream_chunk_cb(const char *chunk, size_t len, void *userdata) {
     StreamCtx *sctx = (StreamCtx *)userdata;
     if (!sctx->initialized) {
@@ -111,33 +145,18 @@ static void stream_chunk_cb(const char *chunk, size_t len, void *userdata) {
         }
 
         SseEvent ev = sse_parse_line(&sctx->parser, p, line_len);
-        if (ev.type != 0 || ev.text || ev.tool_call_id || ev.error || ev.finish_reason_stop) {
-            if (ev.type == SSE_EVENT_TEXT && ev.text && sctx->cb->on_text) {
-                sctx->cb->on_text(ev.text, strlen(ev.text), sctx->cb->ctx);
-            } else if (ev.type == SSE_EVENT_TOOL_CALL && ev.tool_call_id && ev.tool_name) {
-                if (sctx->pending_tool.name[0] &&
-                    strcmp(sctx->pending_tool.id, ev.tool_call_id) != 0) {
-                    pending_tool_emit(sctx);
-                }
-                if (sctx->pending_tool.name[0] == '\0') {
-                    strncpy(sctx->pending_tool.id, ev.tool_call_id, sizeof(sctx->pending_tool.id) - 1);
-                    strncpy(sctx->pending_tool.name, ev.tool_name, sizeof(sctx->pending_tool.name) - 1);
-                }
-                if (ev.tool_args && strlen(ev.tool_args) > 0) {
-                    pending_tool_append(sctx, ev.tool_args, strlen(ev.tool_args));
-                }
-            } else if (ev.type == SSE_EVENT_DONE && sctx->cb->on_done) {
-                if (sctx->pending_tool.name[0]) {
-                    pending_tool_emit(sctx);
-                }
-                sctx->cb->on_done(sctx->cb->ctx);
-            } else if (ev.type == SSE_EVENT_ERROR && ev.error) {
-                fprintf(stderr, "SSE error: %s\n", ev.error);
-            }
-            if (ev.finish_reason_stop) sctx->finish_reason_stop = 1;
-            if (ev.finish_reason_tool_calls) sctx->finish_reason_tool_calls = 1;
+        if (sse_event_present(&ev)) {
+            stream_handle_event(sctx, &ev);
             sse_event_free(&ev);
         }
+
+        for (;;) {
+            SseEvent queued = sse_parser_next_event(&sctx->parser);
+            if (!sse_event_present(&queued)) break;
+            stream_handle_event(sctx, &queued);
+            sse_event_free(&queued);
+        }
+
         p = nl ? nl + 1 : end;
     }
 }

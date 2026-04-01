@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "../src/util/strbuf.h"
 #include "../src/util/json_util.h"
+#include "../src/util/sse.h"
 #include "../src/permissions.h"
 #include "../src/config.h"
 
@@ -137,6 +138,52 @@ void test_config_perm_mode_from_str(void) {
     printf("  PASS: test_config_perm_mode_from_str\n");
 }
 
+void test_sse_multi_tool_calls_by_index(void) {
+    tests_run++;
+
+    SseParser parser;
+    sse_parser_init(&parser);
+
+    const char *chunk1 =
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function\":{\"name\":\"bash\",\"arguments\":\"{\\\"command\\\":\\\"ls -la /tmp\\\"}\"}}]}}]}";
+    const char *chunk2 =
+        "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":1,\"id\":\"call_2\",\"function\":{\"name\":\"bash\",\"arguments\":\"{\\\"command\\\":\\\"pwd\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
+
+    SseEvent ev = sse_parse_line(&parser, chunk1, strlen(chunk1));
+    assert(ev.text == NULL && ev.tool_call_id == NULL && ev.finish_reason_tool_calls == 0);
+    sse_event_free(&ev);
+
+    ev = sse_parse_line(&parser, "", 0);
+    assert(ev.text == NULL && ev.tool_call_id == NULL && ev.finish_reason_tool_calls == 0);
+    sse_event_free(&ev);
+
+    ev = sse_parse_line(&parser, chunk2, strlen(chunk2));
+    assert(ev.text == NULL && ev.tool_call_id == NULL && ev.finish_reason_tool_calls == 0);
+    sse_event_free(&ev);
+
+    ev = sse_parse_line(&parser, "", 0);
+    assert(ev.tool_call_id != NULL && strcmp(ev.tool_call_id, "call_1") == 0);
+    assert(ev.tool_name != NULL && strcmp(ev.tool_name, "bash") == 0);
+    assert(ev.tool_args != NULL && strcmp(ev.tool_args, "{\"command\":\"ls -la /tmp\"}") == 0);
+    assert(ev.finish_reason_tool_calls == 1);
+    sse_event_free(&ev);
+
+    ev = sse_parser_next_event(&parser);
+    assert(ev.tool_call_id != NULL && strcmp(ev.tool_call_id, "call_2") == 0);
+    assert(ev.tool_name != NULL && strcmp(ev.tool_name, "bash") == 0);
+    assert(ev.tool_args != NULL && strcmp(ev.tool_args, "{\"command\":\"pwd\"}") == 0);
+    assert(ev.finish_reason_tool_calls == 1);
+    sse_event_free(&ev);
+
+    ev = sse_parser_next_event(&parser);
+    assert(ev.text == NULL && ev.tool_call_id == NULL && ev.finish_reason_tool_calls == 0);
+    sse_event_free(&ev);
+
+    sse_parser_free(&parser);
+    tests_passed++;
+    printf("  PASS: test_sse_multi_tool_calls_by_index\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -150,6 +197,7 @@ int main(void) {
     test_perm_deny_list();
     test_config_perm_mode_str();
     test_config_perm_mode_from_str();
+    test_sse_multi_tool_calls_by_index();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
