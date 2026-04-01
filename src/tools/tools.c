@@ -213,20 +213,60 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, grep_search);
 
+    cJSON *web_fetch_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_fetch_params, "type", "object");
+    cJSON *web_fetch_props = cJSON_CreateObject();
+    cJSON *web_fetch_url = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_fetch_url, "type", "string");
+    cJSON_AddStringToObject(web_fetch_url, "description", "Fully qualified URL to fetch");
+    cJSON_AddItemToObject(web_fetch_props, "url", web_fetch_url);
+    cJSON *web_fetch_prompt = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_fetch_prompt, "type", "string");
+    cJSON_AddStringToObject(web_fetch_prompt, "description", "Optional extraction guidance for the fetched page");
+    cJSON_AddItemToObject(web_fetch_props, "prompt", web_fetch_prompt);
+    cJSON_AddItemToObject(web_fetch_params, "properties", web_fetch_props);
+    cJSON *web_fetch_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(web_fetch_req, cJSON_CreateString("url"));
+    cJSON_AddItemToObject(web_fetch_params, "required", web_fetch_req);
     Tool web_fetch = {
         .name = strdup("web_fetch"),
         .description = strdup("Fetch content from a URL."),
-        .parameters_schema = NULL,
+        .parameters_schema = web_fetch_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_web_fetch
     };
     tool_registry_register(reg, web_fetch);
 
+    cJSON *web_search_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_params, "type", "object");
+    cJSON *web_search_props = cJSON_CreateObject();
+    cJSON *web_search_query = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_query, "type", "string");
+    cJSON_AddStringToObject(web_search_query, "description", "Search query");
+    cJSON_AddItemToObject(web_search_props, "query", web_search_query);
+    cJSON *web_search_allowed = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_allowed, "type", "array");
+    cJSON *web_search_domain_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_domain_item, "type", "string");
+    cJSON_AddItemToObject(web_search_allowed, "items", web_search_domain_item);
+    cJSON_AddStringToObject(web_search_allowed, "description", "Optional domain allowlist");
+    cJSON_AddItemToObject(web_search_props, "allowed_domains", web_search_allowed);
+    cJSON *web_search_blocked = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_blocked, "type", "array");
+    cJSON *web_search_blocked_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(web_search_blocked_item, "type", "string");
+    cJSON_AddItemToObject(web_search_blocked, "items", web_search_blocked_item);
+    cJSON_AddStringToObject(web_search_blocked, "description", "Optional domain denylist");
+    cJSON_AddItemToObject(web_search_props, "blocked_domains", web_search_blocked);
+    cJSON_AddItemToObject(web_search_params, "properties", web_search_props);
+    cJSON *web_search_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(web_search_req, cJSON_CreateString("query"));
+    cJSON_AddItemToObject(web_search_params, "required", web_search_req);
     Tool web_search = {
         .name = strdup("web_search"),
         .description = strdup("Search the web using DuckDuckGo."),
-        .parameters_schema = NULL,
+        .parameters_schema = web_search_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_web_search
@@ -272,60 +312,174 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, todo_write);
 
+    cJSON *skill_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(skill_params, "type", "object");
+    cJSON *skill_props = cJSON_CreateObject();
+    cJSON *skill_name = cJSON_CreateObject();
+    cJSON_AddStringToObject(skill_name, "type", "string");
+    cJSON_AddStringToObject(skill_name, "description", "Skill name to load");
+    cJSON_AddItemToObject(skill_props, "name", skill_name);
+    cJSON_AddItemToObject(skill_params, "properties", skill_props);
+    cJSON *skill_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(skill_req, cJSON_CreateString("name"));
+    cJSON_AddItemToObject(skill_params, "required", skill_req);
     Tool skill = {
         .name = strdup("skill"),
         .description = strdup("Load a skill/skill file for specialized instructions."),
-        .parameters_schema = NULL,
+        .parameters_schema = skill_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_skill
     };
     tool_registry_register(reg, skill);
 
+    cJSON *agent_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_params, "type", "object");
+    cJSON *agent_props = cJSON_CreateObject();
+    cJSON *agent_prompt = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_prompt, "type", "string");
+    cJSON_AddStringToObject(agent_prompt, "description", "Prompt to hand to the sub-agent");
+    cJSON_AddItemToObject(agent_props, "prompt", agent_prompt);
+    cJSON *agent_name = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_name, "type", "string");
+    cJSON_AddStringToObject(agent_name, "description", "Optional sub-agent name");
+    cJSON_AddItemToObject(agent_props, "name", agent_name);
+    cJSON *agent_desc = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_desc, "type", "string");
+    cJSON_AddStringToObject(agent_desc, "description", "Short description of the delegated task");
+    cJSON_AddItemToObject(agent_props, "description", agent_desc);
+    cJSON *agent_type = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_type, "type", "string");
+    cJSON_AddStringToObject(agent_type, "description", "Sub-agent type such as general or explore");
+    cJSON_AddItemToObject(agent_props, "subagent_type", agent_type);
+    cJSON *agent_model = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_model, "type", "string");
+    cJSON_AddStringToObject(agent_model, "description", "Optional model override");
+    cJSON_AddItemToObject(agent_props, "model", agent_model);
+    cJSON_AddItemToObject(agent_params, "properties", agent_props);
+    cJSON *agent_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(agent_req, cJSON_CreateString("prompt"));
+    cJSON_AddItemToArray(agent_req, cJSON_CreateString("description"));
+    cJSON_AddItemToObject(agent_params, "required", agent_req);
     Tool agent_tool = {
         .name = strdup("agent"),
         .description = strdup("Spawn a sub-agent to handle a complex task."),
-        .parameters_schema = NULL,
+        .parameters_schema = agent_params,
         .required_mode = PERM_DANGER_FULL_ACCESS,
         .is_read_only = 0,
         .execute = tool_execute_agent_tool
     };
     tool_registry_register(reg, agent_tool);
 
+    cJSON *tool_search_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(tool_search_params, "type", "object");
+    cJSON *tool_search_props = cJSON_CreateObject();
+    cJSON *tool_search_query = cJSON_CreateObject();
+    cJSON_AddStringToObject(tool_search_query, "type", "string");
+    cJSON_AddStringToObject(tool_search_query, "description", "Optional search query for matching tools");
+    cJSON_AddItemToObject(tool_search_props, "query", tool_search_query);
+    cJSON *tool_search_max = cJSON_CreateObject();
+    cJSON_AddStringToObject(tool_search_max, "type", "integer");
+    cJSON_AddStringToObject(tool_search_max, "description", "Maximum number of results to return");
+    cJSON_AddItemToObject(tool_search_props, "max_results", tool_search_max);
+    cJSON_AddItemToObject(tool_search_params, "properties", tool_search_props);
     Tool tool_search = {
         .name = strdup("tool_search"),
         .description = strdup("List all available tools and their descriptions."),
-        .parameters_schema = NULL,
+        .parameters_schema = tool_search_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_tool_search
     };
     tool_registry_register(reg, tool_search);
 
+    cJSON *notebook_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_params, "type", "object");
+    cJSON *notebook_props = cJSON_CreateObject();
+    cJSON *notebook_path = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_path, "type", "string");
+    cJSON_AddStringToObject(notebook_path, "description", "Path to the notebook file");
+    cJSON_AddItemToObject(notebook_props, "notebook_path", notebook_path);
+    cJSON *notebook_cell = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_cell, "type", "string");
+    cJSON_AddStringToObject(notebook_cell, "description", "Optional cell id to edit");
+    cJSON_AddItemToObject(notebook_props, "cell_id", notebook_cell);
+    cJSON *notebook_source = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_source, "type", "string");
+    cJSON_AddStringToObject(notebook_source, "description", "New cell source content");
+    cJSON_AddItemToObject(notebook_props, "new_source", notebook_source);
+    cJSON *notebook_cell_type = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_cell_type, "type", "string");
+    cJSON_AddStringToObject(notebook_cell_type, "description", "Optional new cell type");
+    cJSON_AddItemToObject(notebook_props, "cell_type", notebook_cell_type);
+    cJSON *notebook_mode = cJSON_CreateObject();
+    cJSON_AddStringToObject(notebook_mode, "type", "string");
+    cJSON_AddStringToObject(notebook_mode, "description", "Edit mode, typically replace");
+    cJSON_AddItemToObject(notebook_props, "edit_mode", notebook_mode);
+    cJSON_AddItemToObject(notebook_params, "properties", notebook_props);
+    cJSON *notebook_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(notebook_req, cJSON_CreateString("notebook_path"));
+    cJSON_AddItemToArray(notebook_req, cJSON_CreateString("new_source"));
+    cJSON_AddItemToObject(notebook_params, "required", notebook_req);
     Tool notebook_edit = {
         .name = strdup("notebook_edit"),
         .description = strdup("Edit a Jupyter notebook cell."),
-        .parameters_schema = NULL,
+        .parameters_schema = notebook_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
         .execute = tool_execute_notebook_edit
     };
     tool_registry_register(reg, notebook_edit);
 
+    cJSON *sleep_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(sleep_params, "type", "object");
+    cJSON *sleep_props = cJSON_CreateObject();
+    cJSON *sleep_duration = cJSON_CreateObject();
+    cJSON_AddStringToObject(sleep_duration, "type", "integer");
+    cJSON_AddStringToObject(sleep_duration, "description", "Duration to sleep in milliseconds");
+    cJSON_AddItemToObject(sleep_props, "duration_ms", sleep_duration);
+    cJSON_AddItemToObject(sleep_params, "properties", sleep_props);
     Tool sleep = {
         .name = strdup("sleep"),
         .description = strdup("Wait for a specified duration."),
-        .parameters_schema = NULL,
+        .parameters_schema = sleep_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_sleep
     };
     tool_registry_register(reg, sleep);
 
+    cJSON *send_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_params, "type", "object");
+    cJSON *send_props = cJSON_CreateObject();
+    cJSON *send_message_prop = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_message_prop, "type", "string");
+    cJSON_AddStringToObject(send_message_prop, "description", "Message to show the user");
+    cJSON_AddItemToObject(send_props, "message", send_message_prop);
+    cJSON *send_status_prop = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_status_prop, "type", "string");
+    cJSON_AddStringToObject(send_status_prop, "description", "Optional status prefix");
+    cJSON_AddItemToObject(send_props, "status", send_status_prop);
+    cJSON *send_attachments_prop = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_attachments_prop, "type", "array");
+    cJSON *send_attachment_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_attachment_item, "type", "object");
+    cJSON *send_attachment_props = cJSON_CreateObject();
+    cJSON *send_attachment_path = cJSON_CreateObject();
+    cJSON_AddStringToObject(send_attachment_path, "type", "string");
+    cJSON_AddStringToObject(send_attachment_path, "description", "Attachment path");
+    cJSON_AddItemToObject(send_attachment_props, "path", send_attachment_path);
+    cJSON_AddItemToObject(send_attachment_item, "properties", send_attachment_props);
+    cJSON_AddItemToObject(send_attachments_prop, "items", send_attachment_item);
+    cJSON_AddItemToObject(send_props, "attachments", send_attachments_prop);
+    cJSON_AddItemToObject(send_params, "properties", send_props);
+    cJSON *send_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(send_req, cJSON_CreateString("message"));
+    cJSON_AddItemToObject(send_params, "required", send_req);
     Tool send_message = {
         .name = strdup("send_message"),
         .description = strdup("Send a message to the user."),
-        .parameters_schema = NULL,
+        .parameters_schema = send_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_send_message
@@ -408,40 +562,94 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, ask_user_question);
 
+    cJSON *config_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(config_params, "type", "object");
+    cJSON *config_props = cJSON_CreateObject();
+    cJSON *config_setting = cJSON_CreateObject();
+    cJSON_AddStringToObject(config_setting, "type", "string");
+    cJSON_AddStringToObject(config_setting, "description", "Setting name to read or update");
+    cJSON_AddItemToObject(config_props, "setting", config_setting);
+    cJSON *config_value = cJSON_CreateObject();
+    cJSON_AddStringToObject(config_value, "type", "string");
+    cJSON_AddStringToObject(config_value, "description", "Optional new value for the setting");
+    cJSON_AddItemToObject(config_props, "value", config_value);
+    cJSON_AddItemToObject(config_params, "properties", config_props);
     Tool config_tool = {
         .name = strdup("config"),
         .description = strdup("View or modify configuration settings."),
-        .parameters_schema = NULL,
+        .parameters_schema = config_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_config_tool
     };
     tool_registry_register(reg, config_tool);
 
+    cJSON *structured_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(structured_params, "type", "object");
+    cJSON *structured_props = cJSON_CreateObject();
+    cJSON *structured_schema = cJSON_CreateObject();
+    cJSON_AddStringToObject(structured_schema, "type", "string");
+    cJSON_AddStringToObject(structured_schema, "description", "Schema description for the desired output");
+    cJSON_AddItemToObject(structured_props, "schema", structured_schema);
+    cJSON *structured_data = cJSON_CreateObject();
+    cJSON_AddStringToObject(structured_data, "type", "string");
+    cJSON_AddStringToObject(structured_data, "description", "JSON or text payload to format");
+    cJSON_AddItemToObject(structured_props, "data", structured_data);
+    cJSON_AddItemToObject(structured_params, "properties", structured_props);
     Tool structured_out = {
         .name = strdup("structured_output"),
         .description = strdup("Format output as structured JSON."),
-        .parameters_schema = NULL,
+        .parameters_schema = structured_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
         .execute = tool_execute_structured_out
     };
     tool_registry_register(reg, structured_out);
 
+    cJSON *repl_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(repl_params, "type", "object");
+    cJSON *repl_props = cJSON_CreateObject();
+    cJSON *repl_language = cJSON_CreateObject();
+    cJSON_AddStringToObject(repl_language, "type", "string");
+    cJSON_AddStringToObject(repl_language, "description", "Interpreter language such as python or node");
+    cJSON_AddItemToObject(repl_props, "language", repl_language);
+    cJSON *repl_code = cJSON_CreateObject();
+    cJSON_AddStringToObject(repl_code, "type", "string");
+    cJSON_AddStringToObject(repl_code, "description", "Code to execute in the REPL");
+    cJSON_AddItemToObject(repl_props, "code", repl_code);
+    cJSON_AddItemToObject(repl_params, "properties", repl_props);
+    cJSON *repl_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(repl_req, cJSON_CreateString("code"));
+    cJSON_AddItemToObject(repl_params, "required", repl_req);
     Tool repl_tool = {
         .name = strdup("repl"),
         .description = strdup("Execute code in a REPL environment."),
-        .parameters_schema = NULL,
+        .parameters_schema = repl_params,
         .required_mode = PERM_DANGER_FULL_ACCESS,
         .is_read_only = 0,
         .execute = tool_execute_repl_tool
     };
     tool_registry_register(reg, repl_tool);
 
+    cJSON *powershell_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(powershell_params, "type", "object");
+    cJSON *powershell_props = cJSON_CreateObject();
+    cJSON *powershell_command = cJSON_CreateObject();
+    cJSON_AddStringToObject(powershell_command, "type", "string");
+    cJSON_AddStringToObject(powershell_command, "description", "PowerShell command to execute");
+    cJSON_AddItemToObject(powershell_props, "command", powershell_command);
+    cJSON *powershell_timeout = cJSON_CreateObject();
+    cJSON_AddStringToObject(powershell_timeout, "type", "integer");
+    cJSON_AddStringToObject(powershell_timeout, "description", "Approximate timeout in seconds");
+    cJSON_AddItemToObject(powershell_props, "timeout", powershell_timeout);
+    cJSON_AddItemToObject(powershell_params, "properties", powershell_props);
+    cJSON *powershell_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(powershell_req, cJSON_CreateString("command"));
+    cJSON_AddItemToObject(powershell_params, "required", powershell_req);
     Tool powershell = {
         .name = strdup("powershell"),
         .description = strdup("Execute a PowerShell command."),
-        .parameters_schema = NULL,
+        .parameters_schema = powershell_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
         .execute = tool_execute_powershell

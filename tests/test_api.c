@@ -302,6 +302,24 @@ static int tool_defs_include_name(cJSON *defs, const char *name) {
     return 0;
 }
 
+static cJSON *tool_def_for_name(cJSON *defs, const char *name) {
+    cJSON *item;
+    cJSON_ArrayForEach(item, defs) {
+        cJSON *fn = json_get_object(item, "function");
+        const char *tool_name = fn ? json_get_string(fn, "name") : NULL;
+        if (tool_name && strcmp(tool_name, name) == 0) return item;
+    }
+    return NULL;
+}
+
+static int required_array_contains(cJSON *required, const char *name) {
+    cJSON *item;
+    cJSON_ArrayForEach(item, required) {
+        if (cJSON_IsString(item) && strcmp(item->valuestring, name) == 0) return 1;
+    }
+    return 0;
+}
+
 void test_tool_definitions_hide_blocked_tools(void) {
     tests_run++;
 
@@ -354,6 +372,85 @@ void test_tool_definitions_respect_allow_and_deny_lists(void) {
     printf("  PASS: test_tool_definitions_respect_allow_and_deny_lists\n");
 }
 
+void test_tool_definitions_include_repl_and_powershell_schemas(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    cJSON *repl_def = tool_def_for_name(defs, "repl");
+    cJSON *powershell_def = tool_def_for_name(defs, "powershell");
+    assert(repl_def != NULL);
+    assert(powershell_def != NULL);
+
+    cJSON *repl_fn = json_get_object(repl_def, "function");
+    cJSON *repl_params = json_get_object(repl_fn, "parameters");
+    cJSON *repl_props = json_get_object(repl_params, "properties");
+    cJSON *repl_required = json_get_array(repl_params, "required");
+    assert(json_get_object(repl_props, "code") != NULL);
+    assert(required_array_contains(repl_required, "code"));
+
+    cJSON *powershell_fn = json_get_object(powershell_def, "function");
+    cJSON *powershell_params = json_get_object(powershell_fn, "parameters");
+    cJSON *powershell_props = json_get_object(powershell_params, "properties");
+    cJSON *powershell_required = json_get_array(powershell_params, "required");
+    assert(json_get_object(powershell_props, "command") != NULL);
+    assert(required_array_contains(powershell_required, "command"));
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_tool_definitions_include_repl_and_powershell_schemas\n");
+}
+
+void test_tool_definitions_include_message_and_config_schemas(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    cJSON *send_def = tool_def_for_name(defs, "send_message");
+    cJSON *config_def = tool_def_for_name(defs, "config");
+    assert(send_def != NULL);
+    assert(config_def != NULL);
+
+    cJSON *send_fn = json_get_object(send_def, "function");
+    cJSON *send_params = json_get_object(send_fn, "parameters");
+    cJSON *send_props = json_get_object(send_params, "properties");
+    cJSON *send_required = json_get_array(send_params, "required");
+    assert(json_get_object(send_props, "message") != NULL);
+    assert(required_array_contains(send_required, "message"));
+
+    cJSON *config_fn = json_get_object(config_def, "function");
+    cJSON *config_params = json_get_object(config_fn, "parameters");
+    cJSON *config_props = json_get_object(config_params, "properties");
+    assert(json_get_object(config_props, "setting") != NULL);
+    assert(json_get_object(config_props, "value") != NULL);
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_tool_definitions_include_message_and_config_schemas\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -373,6 +470,8 @@ int main(void) {
     test_ask_user_question_reprompts_invalid_choice();
     test_tool_definitions_hide_blocked_tools();
     test_tool_definitions_respect_allow_and_deny_lists();
+    test_tool_definitions_include_repl_and_powershell_schemas();
+    test_tool_definitions_include_message_and_config_schemas();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
