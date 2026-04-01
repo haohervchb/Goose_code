@@ -4,6 +4,7 @@
 #include "config.h"
 #include "permissions.h"
 #include "util/cJSON.h"
+#include <stdio.h>
 
 typedef struct {
     char *name;
@@ -43,6 +44,8 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg);
 char *tool_execute_notebook_edit(const char *args, const GooseConfig *cfg);
 char *tool_execute_sleep(const char *args, const GooseConfig *cfg);
 char *tool_execute_send_message(const char *args, const GooseConfig *cfg);
+char *tool_execute_ask_user_question(const char *args, const GooseConfig *cfg);
+char *tool_execute_ask_user_question_with_io(const char *args, FILE *input, FILE *output);
 char *tool_execute_config_tool(const char *args, const GooseConfig *cfg);
 char *tool_execute_structured_out(const char *args, const GooseConfig *cfg);
 char *tool_execute_repl_tool(const char *args, const GooseConfig *cfg);

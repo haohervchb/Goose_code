@@ -7,6 +7,7 @@
 #include "../src/util/sse.h"
 #include "../src/permissions.h"
 #include "../src/config.h"
+#include "../src/tools/tools.h"
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -184,6 +185,113 @@ void test_sse_multi_tool_calls_by_index(void) {
     printf("  PASS: test_sse_multi_tool_calls_by_index\n");
 }
 
+void test_ask_user_question_single_select(void) {
+    tests_run++;
+
+    const char *args =
+        "{\"questions\":[{\"question\":\"Pick a color\",\"header\":\"Color\",\"multiple\":false,\"options\":[{\"label\":\"Red\",\"description\":\"Warm\"},{\"label\":\"Blue\",\"description\":\"Cool\"}]}]}";
+    FILE *input = fmemopen((void *)"2\n", 2, "r");
+    assert(input != NULL);
+
+    char *output_buf = NULL;
+    size_t output_len = 0;
+    FILE *output = open_memstream(&output_buf, &output_len);
+    assert(output != NULL);
+
+    char *result = tool_execute_ask_user_question_with_io(args, input, output);
+    fflush(output);
+
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *answers = json_get_array(json, "answers");
+    assert(answers != NULL && cJSON_GetArraySize(answers) == 1);
+    cJSON *answer = cJSON_GetArrayItem(answers, 0);
+    cJSON *selections = json_get_array(answer, "selections");
+    assert(selections != NULL && cJSON_GetArraySize(selections) == 1);
+    cJSON *selection = cJSON_GetArrayItem(selections, 0);
+    assert(cJSON_IsString(selection) && strcmp(selection->valuestring, "Blue") == 0);
+    assert(strstr(output_buf, "Pick a color") != NULL);
+
+    cJSON_Delete(json);
+    free(result);
+    fclose(input);
+    fclose(output);
+    free(output_buf);
+
+    tests_passed++;
+    printf("  PASS: test_ask_user_question_single_select\n");
+}
+
+void test_ask_user_question_multiple_and_custom(void) {
+    tests_run++;
+
+    const char *args =
+        "{\"questions\":[{\"question\":\"Choose toppings\",\"header\":\"Pizza\",\"multiple\":true,\"options\":[{\"label\":\"Cheese\",\"description\":\"Classic\"},{\"label\":\"Mushroom\",\"description\":\"Earthy\"}],\"custom\":true}]}";
+    FILE *input = fmemopen((void *)"1, olives\n", 11, "r");
+    assert(input != NULL);
+
+    char *output_buf = NULL;
+    size_t output_len = 0;
+    FILE *output = open_memstream(&output_buf, &output_len);
+    assert(output != NULL);
+
+    char *result = tool_execute_ask_user_question_with_io(args, input, output);
+    fflush(output);
+
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *answers = json_get_array(json, "answers");
+    assert(answers != NULL && cJSON_GetArraySize(answers) == 1);
+    cJSON *answer = cJSON_GetArrayItem(answers, 0);
+    cJSON *selections = json_get_array(answer, "selections");
+    assert(selections != NULL && cJSON_GetArraySize(selections) == 2);
+    assert(strcmp(cJSON_GetArrayItem(selections, 0)->valuestring, "Cheese") == 0);
+    assert(strcmp(cJSON_GetArrayItem(selections, 1)->valuestring, "olives") == 0);
+
+    cJSON_Delete(json);
+    free(result);
+    fclose(input);
+    fclose(output);
+    free(output_buf);
+
+    tests_passed++;
+    printf("  PASS: test_ask_user_question_multiple_and_custom\n");
+}
+
+void test_ask_user_question_reprompts_invalid_choice(void) {
+    tests_run++;
+
+    const char *args =
+        "{\"questions\":[{\"question\":\"Pick one\",\"header\":\"Test\",\"multiple\":false,\"custom\":false,\"options\":[{\"label\":\"One\",\"description\":\"First\"},{\"label\":\"Two\",\"description\":\"Second\"}]}]}";
+    FILE *input = fmemopen((void *)"9\n2\n", 4, "r");
+    assert(input != NULL);
+
+    char *output_buf = NULL;
+    size_t output_len = 0;
+    FILE *output = open_memstream(&output_buf, &output_len);
+    assert(output != NULL);
+
+    char *result = tool_execute_ask_user_question_with_io(args, input, output);
+    fflush(output);
+
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *answers = json_get_array(json, "answers");
+    cJSON *answer = cJSON_GetArrayItem(answers, 0);
+    cJSON *selections = json_get_array(answer, "selections");
+    assert(strcmp(cJSON_GetArrayItem(selections, 0)->valuestring, "Two") == 0);
+    assert(strstr(output_buf, "Choice out of range.") != NULL);
+
+    cJSON_Delete(json);
+    free(result);
+    fclose(input);
+    fclose(output);
+    free(output_buf);
+
+    tests_passed++;
+    printf("  PASS: test_ask_user_question_reprompts_invalid_choice\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -198,6 +306,9 @@ int main(void) {
     test_config_perm_mode_str();
     test_config_perm_mode_from_str();
     test_sse_multi_tool_calls_by_index();
+    test_ask_user_question_single_select();
+    test_ask_user_question_multiple_and_custom();
+    test_ask_user_question_reprompts_invalid_choice();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

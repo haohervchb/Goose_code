@@ -3,6 +3,7 @@
 #include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static char *cmd_tools_exec(const char *args, const GooseConfig *cfg, Session *sess) {
     (void)args; (void)cfg; (void)sess;
@@ -23,6 +24,7 @@ static char *cmd_tools_exec(const char *args, const GooseConfig *cfg, Session *s
     strbuf_append(&out, "  notebook_edit   - Edit Jupyter notebooks\n");
     strbuf_append(&out, "  sleep           - Wait for a duration\n");
     strbuf_append(&out, "  send_message    - Send message to user\n");
+    strbuf_append(&out, "  ask_user_question - Ask the user a structured question\n");
     strbuf_append(&out, "  config          - Manage configuration\n");
     strbuf_append(&out, "  structured_output - Format structured output\n");
     strbuf_append(&out, "  repl            - Execute code in REPL\n");

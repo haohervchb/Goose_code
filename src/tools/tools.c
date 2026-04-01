@@ -329,6 +329,82 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, send_message);
 
+    cJSON *question_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_params, "type", "object");
+    cJSON *question_props = cJSON_CreateObject();
+    cJSON *questions_array = cJSON_CreateObject();
+    cJSON_AddStringToObject(questions_array, "type", "array");
+    cJSON *question_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_item, "type", "object");
+    cJSON *question_item_props = cJSON_CreateObject();
+
+    cJSON *question_text = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_text, "type", "string");
+    cJSON_AddStringToObject(question_text, "description", "Question to ask the user");
+    cJSON_AddItemToObject(question_item_props, "question", question_text);
+
+    cJSON *question_header = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_header, "type", "string");
+    cJSON_AddStringToObject(question_header, "description", "Short header for the question");
+    cJSON_AddItemToObject(question_item_props, "header", question_header);
+
+    cJSON *question_multiple = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_multiple, "type", "boolean");
+    cJSON_AddStringToObject(question_multiple, "description", "Allow multiple selections");
+    cJSON_AddItemToObject(question_item_props, "multiple", question_multiple);
+
+    cJSON *question_custom = cJSON_CreateObject();
+    cJSON_AddStringToObject(question_custom, "type", "boolean");
+    cJSON_AddStringToObject(question_custom, "description", "Allow custom typed answers");
+    cJSON_AddItemToObject(question_item_props, "custom", question_custom);
+
+    cJSON *options_array = cJSON_CreateObject();
+    cJSON_AddStringToObject(options_array, "type", "array");
+    cJSON *option_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(option_item, "type", "object");
+    cJSON *option_props = cJSON_CreateObject();
+
+    cJSON *option_label = cJSON_CreateObject();
+    cJSON_AddStringToObject(option_label, "type", "string");
+    cJSON_AddStringToObject(option_label, "description", "Display label for the option");
+    cJSON_AddItemToObject(option_props, "label", option_label);
+
+    cJSON *option_description = cJSON_CreateObject();
+    cJSON_AddStringToObject(option_description, "type", "string");
+    cJSON_AddStringToObject(option_description, "description", "Short explanation of the option");
+    cJSON_AddItemToObject(option_props, "description", option_description);
+
+    cJSON_AddItemToObject(option_item, "properties", option_props);
+    cJSON *option_required = cJSON_CreateArray();
+    cJSON_AddItemToArray(option_required, cJSON_CreateString("label"));
+    cJSON_AddItemToObject(option_item, "required", option_required);
+    cJSON_AddItemToObject(options_array, "items", option_item);
+    cJSON_AddItemToObject(question_item_props, "options", options_array);
+
+    cJSON_AddItemToObject(question_item, "properties", question_item_props);
+    cJSON *question_required = cJSON_CreateArray();
+    cJSON_AddItemToArray(question_required, cJSON_CreateString("question"));
+    cJSON_AddItemToArray(question_required, cJSON_CreateString("header"));
+    cJSON_AddItemToArray(question_required, cJSON_CreateString("options"));
+    cJSON_AddItemToArray(question_required, cJSON_CreateString("multiple"));
+    cJSON_AddItemToObject(question_item, "required", question_required);
+    cJSON_AddItemToObject(questions_array, "items", question_item);
+    cJSON_AddItemToObject(question_props, "questions", questions_array);
+    cJSON_AddItemToObject(question_params, "properties", question_props);
+    cJSON *question_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(question_req, cJSON_CreateString("questions"));
+    cJSON_AddItemToObject(question_params, "required", question_req);
+
+    Tool ask_user_question = {
+        .name = strdup("ask_user_question"),
+        .description = strdup("Ask the user a structured question and wait for an answer."),
+        .parameters_schema = question_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_ask_user_question
+    };
+    tool_registry_register(reg, ask_user_question);
+
     Tool config_tool = {
         .name = strdup("config"),
         .description = strdup("View or modify configuration settings."),

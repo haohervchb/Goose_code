@@ -3,6 +3,7 @@
 #include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 char *tool_execute_structured_out(const char *args, const GooseConfig *cfg) {
     (void)cfg;

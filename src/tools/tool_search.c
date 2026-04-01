@@ -54,6 +54,7 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg) {
         {"notebook_edit", "Edit cells in Jupyter notebooks"},
         {"sleep", "Wait for a specified duration"},
         {"send_message", "Send messages to the user with attachments"},
+        {"ask_user_question", "Ask the user structured questions and wait for a reply"},
         {"config", "View or modify runtime configuration"},
         {"structured_output", "Format structured output responses"},
         {"repl", "Execute code in a REPL (Python, Node.js, Ruby, Perl)"},

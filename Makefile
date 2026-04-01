@@ -30,6 +30,7 @@ TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/notebook_edit.c \
             $(SRCDIR)/tools/sleep.c \
             $(SRCDIR)/tools/send_message.c \
+            $(SRCDIR)/tools/ask_user_question.c \
             $(SRCDIR)/tools/config_tool.c \
             $(SRCDIR)/tools/structured_out.c \
             $(SRCDIR)/tools/repl_tool.c \

@@ -3,6 +3,7 @@
 #include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 char *tool_execute_send_message(const char *args, const GooseConfig *cfg) {
     (void)cfg;
@@ -11,10 +12,12 @@ char *tool_execute_send_message(const char *args, const GooseConfig *cfg) {
 
     const char *message = json_get_string(json, "message");
     const char *status = json_get_string(json, "status");
-    cJSON *attachments = json_get_object(json, "attachments");
-    cJSON_Delete(json);
+    cJSON *attachments = json_get_array(json, "attachments");
 
-    if (!message) return strdup("Error: 'message' argument required");
+    if (!message) {
+        cJSON_Delete(json);
+        return strdup("Error: 'message' argument required");
+    }
 
     StrBuf out = strbuf_new();
     if (status) strbuf_append_fmt(&out, "[%s] ", status);
@@ -34,5 +37,6 @@ char *tool_execute_send_message(const char *args, const GooseConfig *cfg) {
 
     char *result = strdup("Message sent to user.");
     strbuf_free(&out);
+    cJSON_Delete(json);
     return result;
 }

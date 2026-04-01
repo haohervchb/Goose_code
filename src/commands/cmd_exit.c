@@ -2,6 +2,7 @@
 #include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static char *cmd_exit_exec(const char *args, const GooseConfig *cfg, Session *sess) {
     (void)args;
