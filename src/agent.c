@@ -200,7 +200,7 @@ int agent_run_turn(Agent *agent, const char *user_input) {
     session_add_message(agent->session, user_msg);
     cJSON_Delete(user_msg);
 
-    cJSON *tools_def = tool_registry_get_definitions(&agent->tools);
+    cJSON *tools_def = tool_registry_get_definitions(&agent->tools, &agent->config);
 
     int turn = 0;
     int max_turns = agent->config.max_turns;

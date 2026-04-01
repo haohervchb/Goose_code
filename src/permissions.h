@@ -15,6 +15,8 @@ PermissionCheckResult permissions_check(const GooseConfig *cfg, const char *tool
                                          const char *tool_args, PermissionMode tool_required_mode);
 int permissions_tool_allowed(const GooseConfig *cfg, const char *tool_name);
 int permissions_tool_denied(const GooseConfig *cfg, const char *tool_name);
+int permissions_tool_visible(const GooseConfig *cfg, const char *tool_name,
+                             PermissionMode tool_required_mode);
 const char *permissions_check_str(PermissionCheckResult r);
 
 #endif

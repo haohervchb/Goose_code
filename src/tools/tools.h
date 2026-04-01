@@ -25,7 +25,7 @@ ToolRegistry tool_registry_init(void);
 void tool_registry_register(ToolRegistry *reg, Tool tool);
 void tool_registry_register_all(ToolRegistry *reg);
 void tool_registry_free(ToolRegistry *reg);
-cJSON *tool_registry_get_definitions(const ToolRegistry *reg);
+cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig *cfg);
 Tool *tool_registry_find(const ToolRegistry *reg, const char *name);
 char *tool_registry_execute(ToolRegistry *reg, const char *name, const char *args,
                             const GooseConfig *cfg, PermissionCheckResult *perm);

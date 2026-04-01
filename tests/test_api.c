@@ -292,6 +292,68 @@ void test_ask_user_question_reprompts_invalid_choice(void) {
     printf("  PASS: test_ask_user_question_reprompts_invalid_choice\n");
 }
 
+static int tool_defs_include_name(cJSON *defs, const char *name) {
+    cJSON *item;
+    cJSON_ArrayForEach(item, defs) {
+        cJSON *fn = json_get_object(item, "function");
+        const char *tool_name = fn ? json_get_string(fn, "name") : NULL;
+        if (tool_name && strcmp(tool_name, name) == 0) return 1;
+    }
+    return 0;
+}
+
+void test_tool_definitions_hide_blocked_tools(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_READ_ONLY;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    assert(defs != NULL);
+    assert(tool_defs_include_name(defs, "read_file"));
+    assert(!tool_defs_include_name(defs, "bash"));
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_tool_definitions_hide_blocked_tools\n");
+}
+
+void test_tool_definitions_respect_allow_and_deny_lists(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_READ_ONLY;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+    cJSON_AddItemToArray(cfg.allowed_tools, cJSON_CreateString("bash"));
+    cJSON_AddItemToArray(cfg.denied_tools, cJSON_CreateString("read_file"));
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    assert(defs != NULL);
+    assert(tool_defs_include_name(defs, "bash"));
+    assert(!tool_defs_include_name(defs, "read_file"));
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_tool_definitions_respect_allow_and_deny_lists\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -309,6 +371,8 @@ int main(void) {
     test_ask_user_question_single_select();
     test_ask_user_question_multiple_and_custom();
     test_ask_user_question_reprompts_invalid_choice();
+    test_tool_definitions_hide_blocked_tools();
+    test_tool_definitions_respect_allow_and_deny_lists();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

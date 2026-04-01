@@ -46,6 +46,12 @@ PermissionCheckResult permissions_check(const GooseConfig *cfg, const char *tool
     }
 }
 
+int permissions_tool_visible(const GooseConfig *cfg, const char *tool_name,
+                             PermissionMode tool_required_mode) {
+    PermissionCheckResult check = permissions_check(cfg, tool_name, "{}", tool_required_mode);
+    return check != PERM_CHECK_BLOCK;
+}
+
 const char *permissions_check_str(PermissionCheckResult r) {
     switch (r) {
         case PERM_CHECK_ALLOW: return "allowed";

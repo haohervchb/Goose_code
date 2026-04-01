@@ -36,12 +36,15 @@ void tool_registry_free(ToolRegistry *reg) {
     reg->cap = 0;
 }
 
-cJSON *tool_registry_get_definitions(const ToolRegistry *reg) {
+cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig *cfg) {
     cJSON *defs = cJSON_CreateArray();
     for (int i = 0; i < reg->count; i++) {
         Tool *t = reg->tools[i];
+        if (cfg && !permissions_tool_visible(cfg, t->name, t->required_mode)) {
+            continue;
+        }
         cJSON *def = json_build_tool_def_openai(t->name, t->description,
-                                                  t->parameters_schema ? cJSON_Duplicate(t->parameters_schema, 1) : NULL);
+                                                   t->parameters_schema ? cJSON_Duplicate(t->parameters_schema, 1) : NULL);
         cJSON_AddItemToArray(defs, def);
     }
     return defs;

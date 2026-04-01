@@ -99,10 +99,10 @@ GooseConfig config_load(void) {
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(proj, "max_tokens", cfg.max_tokens);
         cfg.max_turns = json_get_int(proj, "max_turns", cfg.max_turns);
-        cJSON *mt = json_get_object(proj, "allowed_tools");
+        cJSON *mt = json_get_array(proj, "allowed_tools");
         if (mt) { cJSON_Delete(cfg.allowed_tools); cfg.allowed_tools = cJSON_Duplicate(mt, 1); }
-        cJSON *dt = json_get_object(proj, "denied_tools");
-        if (mt) { cJSON_Delete(cfg.denied_tools); cfg.denied_tools = cJSON_Duplicate(dt, 1); }
+        cJSON *dt = json_get_array(proj, "denied_tools");
+        if (dt) { cJSON_Delete(cfg.denied_tools); cfg.denied_tools = cJSON_Duplicate(dt, 1); }
         cJSON_Delete(proj);
     }
     free(proj_settings);
