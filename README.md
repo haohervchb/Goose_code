@@ -1,5 +1,7 @@
 # goosecode
 
+A claude code like thingy, Vibed by GPT-5.4 with C, just for fun.
+
 `goosecode` is a local AI coding agent written in C with an OpenAI-compatible API client, a tool loop, slash commands, sessions, subagents, MCP support, and a terminal-first workflow.
 
 It works with:
