@@ -561,6 +561,7 @@ int agent_run_repl(Agent *agent) {
             free(result);
             agent_refresh_api_config(agent);
             prompt_sections_clear_cache();
+            tool_schema_cache_clear();
             free(owned_cmd_args);
         } else {
             int rc = agent_run_turn(agent, input);

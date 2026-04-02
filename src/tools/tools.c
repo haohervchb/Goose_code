@@ -1,10 +1,48 @@
 #include "tools/tools.h"
 #include "util/json_util.h"
+#include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static _Thread_local Session *g_tool_session = NULL;
+
+typedef struct {
+    char *key;
+    cJSON *defs;
+} ToolSchemaCacheEntry;
+
+static ToolSchemaCacheEntry *g_tool_schema_cache = NULL;
+static int g_tool_schema_cache_count = 0;
+static int g_tool_schema_cache_cap = 0;
+
+static char *tool_schema_cache_key(const GooseConfig *cfg) {
+    StrBuf key = strbuf_new();
+    strbuf_append_fmt(&key, "%s|%s|%d|", cfg->provider ? cfg->provider : "", cfg->base_url ? cfg->base_url : "", cfg->permission_mode);
+    char *allowed = cfg->allowed_tools ? json_to_string(cfg->allowed_tools) : strdup("[]");
+    char *denied = cfg->denied_tools ? json_to_string(cfg->denied_tools) : strdup("[]");
+    strbuf_append(&key, allowed);
+    strbuf_append_char(&key, '|');
+    strbuf_append(&key, denied);
+    free(allowed);
+    free(denied);
+    return strbuf_detach(&key);
+}
+
+void tool_schema_cache_clear(void) {
+    for (int i = 0; i < g_tool_schema_cache_count; i++) {
+        free(g_tool_schema_cache[i].key);
+        if (g_tool_schema_cache[i].defs) cJSON_Delete(g_tool_schema_cache[i].defs);
+    }
+    free(g_tool_schema_cache);
+    g_tool_schema_cache = NULL;
+    g_tool_schema_cache_count = 0;
+    g_tool_schema_cache_cap = 0;
+}
+
+int tool_schema_cache_size(void) {
+    return g_tool_schema_cache_count;
+}
 
 void tool_context_set_session(Session *sess) {
     g_tool_session = sess;
@@ -47,6 +85,15 @@ void tool_registry_free(ToolRegistry *reg) {
 }
 
 cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig *cfg) {
+    char *cache_key = cfg ? tool_schema_cache_key(cfg) : strdup("default");
+    for (int i = 0; i < g_tool_schema_cache_count; i++) {
+        if (strcmp(g_tool_schema_cache[i].key, cache_key) == 0) {
+            cJSON *cached = cJSON_Duplicate(g_tool_schema_cache[i].defs, 1);
+            free(cache_key);
+            return cached;
+        }
+    }
+
     cJSON *defs = cJSON_CreateArray();
     for (int i = 0; i < reg->count; i++) {
         Tool *t = reg->tools[i];
@@ -57,6 +104,15 @@ cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig 
                                                    t->parameters_schema ? cJSON_Duplicate(t->parameters_schema, 1) : NULL);
         cJSON_AddItemToArray(defs, def);
     }
+
+    if (g_tool_schema_cache_count + 1 > g_tool_schema_cache_cap) {
+        int new_cap = g_tool_schema_cache_cap ? g_tool_schema_cache_cap * 2 : 8;
+        g_tool_schema_cache = realloc(g_tool_schema_cache, (size_t)new_cap * sizeof(*g_tool_schema_cache));
+        g_tool_schema_cache_cap = new_cap;
+    }
+    g_tool_schema_cache[g_tool_schema_cache_count].key = cache_key;
+    g_tool_schema_cache[g_tool_schema_cache_count].defs = cJSON_Duplicate(defs, 1);
+    g_tool_schema_cache_count++;
     return defs;
 }
 
