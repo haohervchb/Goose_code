@@ -1883,6 +1883,34 @@ void test_tool_schema_cache_reuse_and_invalidation(void) {
     printf("  PASS: test_tool_schema_cache_reuse_and_invalidation\n");
 }
 
+void test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.provider = strdup("openai");
+    cfg.base_url = strdup("https://api.openai.com/v1");
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+    cfg.permission_mode = PERM_ALLOW;
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+    tool_schema_cache_clear();
+
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    assert(defs != NULL);
+    assert(tool_defs_include_name(defs, "tool_search"));
+    assert(!tool_defs_include_name(defs, "lsp"));
+    assert(!tool_defs_include_name(defs, "list_mcp_resources"));
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search\n");
+}
+
 void test_bash_tool_honors_timeout_on_quiet_command(void) {
     tests_run++;
 
@@ -2309,6 +2337,7 @@ int main(void) {
     test_session_truncates_oversized_tool_results();
     test_tool_result_batch_budget_persists_largest_results();
     test_tool_schema_cache_reuse_and_invalidation();
+    test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search();
     test_bash_tool_honors_timeout_on_quiet_command();
     test_bash_tool_accepts_string_timeout();
     test_tool_definitions_include_bash_timeout_schema();

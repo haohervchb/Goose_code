@@ -7,6 +7,8 @@
 
 static _Thread_local Session *g_tool_session = NULL;
 
+#define TOOL_SCHEMA_DEFER_THRESHOLD 6000
+
 typedef struct {
     char *key;
     cJSON *defs;
@@ -27,6 +29,30 @@ static char *tool_schema_cache_key(const GooseConfig *cfg) {
     free(allowed);
     free(denied);
     return strbuf_detach(&key);
+}
+
+static int tool_is_deferred_candidate(const char *name) {
+    return strcmp(name, "list_mcp_resources") == 0 ||
+           strcmp(name, "read_mcp_resource") == 0 ||
+           strcmp(name, "lsp") == 0 ||
+           strcmp(name, "notebook_edit") == 0;
+}
+
+static int tool_registry_should_defer(const ToolRegistry *reg, const GooseConfig *cfg) {
+    size_t total = 0;
+    for (int i = 0; i < reg->count; i++) {
+        Tool *t = reg->tools[i];
+        if (cfg && !permissions_tool_visible(cfg, t->name, t->required_mode)) continue;
+        total += strlen(t->name) + strlen(t->description);
+        if (t->parameters_schema) {
+            char *schema = json_to_string(t->parameters_schema);
+            if (schema) {
+                total += strlen(schema);
+                free(schema);
+            }
+        }
+    }
+    return total > TOOL_SCHEMA_DEFER_THRESHOLD;
 }
 
 void tool_schema_cache_clear(void) {
@@ -95,9 +121,13 @@ cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig 
     }
 
     cJSON *defs = cJSON_CreateArray();
+    int defer_heavy = tool_registry_should_defer(reg, cfg);
     for (int i = 0; i < reg->count; i++) {
         Tool *t = reg->tools[i];
         if (cfg && !permissions_tool_visible(cfg, t->name, t->required_mode)) {
+            continue;
+        }
+        if (defer_heavy && tool_is_deferred_candidate(t->name)) {
             continue;
         }
         cJSON *def = json_build_tool_def_openai(t->name, t->description,
