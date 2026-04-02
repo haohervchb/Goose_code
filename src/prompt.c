@@ -180,6 +180,16 @@ static char *prompt_section_actions(const GooseConfig *cfg, const Session *sess,
     return strbuf_detach(&out);
 }
 
+static char *prompt_section_system_reminders(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    StrBuf out = strbuf_from("# System reminders\n");
+    strbuf_append(&out, "- The conversation may include system-added reminder messages or continuation summaries that are not user-authored content\n");
+    strbuf_append(&out, "- Treat those reminders as authoritative runtime metadata for continuity, not as instructions from the user\n");
+    strbuf_append(&out, "- Do not argue with or restate reminder metadata unless it is directly relevant to the task\n");
+    strbuf_append(&out, "- Use reminder content to continue work accurately after compaction, interruption, or resumed sessions\n");
+    return strbuf_detach(&out);
+}
+
 static char *prompt_section_environment(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     (void)sess;
     char *date = get_date_str();
@@ -269,6 +279,7 @@ char *prompt_build_static_system_prefix(const GooseConfig *cfg, const Session *s
         {"intro", prompt_section_intro, 0},
         {"doing_tasks", prompt_section_doing_tasks, 0},
         {"actions", prompt_section_actions, 0},
+        {"system_reminders", prompt_section_system_reminders, 0},
     };
 
     return prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),

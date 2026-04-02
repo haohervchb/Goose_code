@@ -743,6 +743,7 @@ void test_prompt_default_layer_still_present(void) {
     assert(prompt != NULL);
     assert(strstr(prompt, "interactive AI coding agent") != NULL);
     assert(strstr(prompt, "# Doing tasks") != NULL);
+    assert(strstr(prompt, "# System reminders") != NULL);
 
     free(prompt);
     config_free(&cfg);
