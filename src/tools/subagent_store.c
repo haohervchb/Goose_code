@@ -44,6 +44,8 @@ SubagentRecord *subagent_record_load(const GooseConfig *cfg, const char *task_id
     if (s) record->model = strdup(s);
     s = json_get_string(json, "working_dir");
     if (s) record->working_dir = strdup(s);
+    s = json_get_string(json, "workspace_mode");
+    if (s) record->workspace_mode = strdup(s);
     s = json_get_string(json, "result");
     if (s) record->result = strdup(s);
     s = json_get_string(json, "error");
@@ -64,6 +66,7 @@ char *subagent_record_save(const GooseConfig *cfg, const SubagentRecord *record)
     if (record->subagent_type) cJSON_AddStringToObject(json, "subagent_type", record->subagent_type);
     if (record->model) cJSON_AddStringToObject(json, "model", record->model);
     if (record->working_dir) cJSON_AddStringToObject(json, "working_dir", record->working_dir);
+    if (record->workspace_mode) cJSON_AddStringToObject(json, "workspace_mode", record->workspace_mode);
     if (record->result) cJSON_AddStringToObject(json, "result", record->result);
     if (record->error) cJSON_AddStringToObject(json, "error", record->error);
     cJSON_AddItemToObject(json, "messages", record->messages ? cJSON_Duplicate(record->messages, 1) : cJSON_CreateArray());
@@ -83,6 +86,7 @@ void subagent_record_free(SubagentRecord *record) {
     free(record->subagent_type);
     free(record->model);
     free(record->working_dir);
+    free(record->workspace_mode);
     free(record->result);
     free(record->error);
     if (record->messages) cJSON_Delete(record->messages);

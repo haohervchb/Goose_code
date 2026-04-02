@@ -479,6 +479,14 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(agent_model, "type", "string");
     cJSON_AddStringToObject(agent_model, "description", "Optional model override");
     cJSON_AddItemToObject(agent_props, "model", agent_model);
+    cJSON *agent_working_dir = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_working_dir, "type", "string");
+    cJSON_AddStringToObject(agent_working_dir, "description", "Optional working directory override for the subagent");
+    cJSON_AddItemToObject(agent_props, "working_dir", agent_working_dir);
+    cJSON *agent_use_worktree = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_use_worktree, "type", "boolean");
+    cJSON_AddStringToObject(agent_use_worktree, "description", "Create an isolated git worktree for the subagent when possible");
+    cJSON_AddItemToObject(agent_props, "use_worktree", agent_use_worktree);
     cJSON *agent_task_id = cJSON_CreateObject();
     cJSON_AddStringToObject(agent_task_id, "type", "string");
     cJSON_AddStringToObject(agent_task_id, "description", "Optional existing subagent task_id to resume");

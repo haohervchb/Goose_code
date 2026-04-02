@@ -11,6 +11,7 @@ typedef struct {
     char *subagent_type;
     char *model;
     char *working_dir;
+    char *workspace_mode;
     char *result;
     char *error;
     cJSON *messages;

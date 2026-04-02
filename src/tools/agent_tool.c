@@ -5,6 +5,9 @@
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include <ctype.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +31,116 @@ static void replace_owned_string(char **slot, const char *value) {
 
 static void set_record_status(SubagentRecord *record, const char *status) {
     replace_owned_string(&record->status, status);
+}
+
+static int parse_bool_arg(const cJSON *json, const char *key, int default_value) {
+    cJSON *item = cJSON_GetObjectItem((cJSON *)json, key);
+    if (!item) return default_value;
+    if (cJSON_IsBool(item)) return cJSON_IsTrue(item);
+    return default_value;
+}
+
+static char *quote_arg(const char *value) {
+    size_t len = strlen(value);
+    size_t extra = 2;
+    for (size_t i = 0; i < len; i++) {
+        if (value[i] == '\'') extra += 3;
+    }
+
+    char *out = malloc(len + extra + 1);
+    char *p = out;
+    *p++ = '\'';
+    for (size_t i = 0; i < len; i++) {
+        if (value[i] == '\'') {
+            memcpy(p, "'\\''", 4);
+            p += 4;
+        } else {
+            *p++ = value[i];
+        }
+    }
+    *p++ = '\'';
+    *p = '\0';
+    return out;
+}
+
+static char *run_capture_cmd(const char *cmd) {
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return NULL;
+
+    StrBuf out = strbuf_new();
+    char buf[512];
+    while (fgets(buf, sizeof(buf), fp)) {
+        strbuf_append(&out, buf);
+    }
+
+    int rc = pclose(fp);
+    if (rc != 0) {
+        strbuf_free(&out);
+        return NULL;
+    }
+
+    while (out.len > 0 && (out.data[out.len - 1] == '\n' || out.data[out.len - 1] == '\r')) {
+        out.data[--out.len] = '\0';
+    }
+
+    return strbuf_detach(&out);
+}
+
+static char *git_repo_root(const char *working_dir) {
+    char *quoted = quote_arg(working_dir);
+    char cmd[4096];
+    snprintf(cmd, sizeof(cmd), "git -C %s rev-parse --show-toplevel 2>/dev/null", quoted);
+    free(quoted);
+    return run_capture_cmd(cmd);
+}
+
+static int path_exists(const char *path) {
+    struct stat st;
+    return stat(path, &st) == 0;
+}
+
+static char *make_worktree_path(const GooseConfig *cfg, const char *task_id) {
+    size_t len = strlen(cfg->worktree_dir) + strlen(task_id) + 16;
+    char *path = malloc(len);
+    snprintf(path, len, "%s/%s", cfg->worktree_dir, task_id);
+    return path;
+}
+
+static char *ensure_subagent_working_dir(SubagentRecord *record, const GooseConfig *cfg,
+                                         const char *requested_working_dir, int use_worktree) {
+    if (record->working_dir && record->working_dir[0]) return NULL;
+
+    const char *base_dir = (requested_working_dir && requested_working_dir[0]) ? requested_working_dir : cfg->working_dir;
+    if (!use_worktree) {
+        replace_owned_string(&record->working_dir, base_dir);
+        replace_owned_string(&record->workspace_mode, "direct");
+        return NULL;
+    }
+
+    char *repo_root = git_repo_root(base_dir);
+    if (!repo_root) return strdup("Error: use_worktree requires a git repository working directory");
+
+    char *worktree_path = make_worktree_path(cfg, record->task_id);
+    if (!path_exists(worktree_path)) {
+        char *quoted_repo = quote_arg(repo_root);
+        char *quoted_path = quote_arg(worktree_path);
+        char cmd[8192];
+        snprintf(cmd, sizeof(cmd), "git -C %s worktree add --detach %s HEAD >/dev/null 2>&1", quoted_repo, quoted_path);
+        int rc = system(cmd);
+        free(quoted_repo);
+        free(quoted_path);
+        if (rc != 0 || !path_exists(worktree_path)) {
+            free(repo_root);
+            free(worktree_path);
+            return strdup("Error: failed to create git worktree for subagent");
+        }
+    }
+
+    replace_owned_string(&record->working_dir, worktree_path);
+    replace_owned_string(&record->workspace_mode, "git_worktree");
+    free(repo_root);
+    free(worktree_path);
+    return NULL;
 }
 
 static int subagent_tool_allowed(const Tool *tool, const GooseConfig *cfg, const char *subagent_type) {
@@ -169,6 +282,8 @@ static char *subagent_result_json(const SubagentRecord *record) {
     if (record->description) cJSON_AddStringToObject(result, "description", record->description);
     if (record->subagent_type) cJSON_AddStringToObject(result, "subagent_type", record->subagent_type);
     if (record->model) cJSON_AddStringToObject(result, "model", record->model);
+    if (record->working_dir) cJSON_AddStringToObject(result, "working_dir", record->working_dir);
+    if (record->workspace_mode) cJSON_AddStringToObject(result, "workspace_mode", record->workspace_mode);
     if (record->result) cJSON_AddStringToObject(result, "result", record->result);
     if (record->error) cJSON_AddStringToObject(result, "error", record->error);
     char *out = json_to_string(result);
@@ -263,6 +378,8 @@ char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
     const char *subagent_type = json_get_string(json, "subagent_type");
     const char *model = json_get_string(json, "model");
     const char *task_id = json_get_string(json, "task_id");
+    const char *requested_working_dir = json_get_string(json, "working_dir");
+    int use_worktree = parse_bool_arg(json, "use_worktree", 0);
 
     const char *effective_type = subagent_type ? subagent_type : "general";
     if (!subagent_type_valid(effective_type)) {
@@ -293,7 +410,6 @@ char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
         replace_owned_string(&record->description, description);
         replace_owned_string(&record->subagent_type, effective_type);
         replace_owned_string(&record->model, model ? model : cfg->model);
-        replace_owned_string(&record->working_dir, cfg->working_dir);
     }
 
     if (description && description[0] && !record->description) {
@@ -309,8 +425,11 @@ char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
     } else if (!record->model) {
         replace_owned_string(&record->model, cfg->model);
     }
-    if (!record->working_dir) {
-        replace_owned_string(&record->working_dir, cfg->working_dir);
+    char *workdir_err = ensure_subagent_working_dir(record, cfg, requested_working_dir, use_worktree);
+    if (workdir_err) {
+        subagent_record_free(record);
+        cJSON_Delete(json);
+        return workdir_err;
     }
 
     if (prompt && prompt[0]) {

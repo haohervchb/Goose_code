@@ -23,6 +23,7 @@ typedef struct {
     char *working_dir;
     char *session_dir;
     char *subagent_dir;
+    char *worktree_dir;
     char *todo_store;
     char *skill_dir;
     cJSON *mcp_servers;

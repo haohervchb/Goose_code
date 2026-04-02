@@ -747,6 +747,8 @@ void test_subagent_record_persistence(void) {
     record->model = strdup("test-model");
     free(record->working_dir);
     record->working_dir = strdup("/tmp/work");
+    free(record->workspace_mode);
+    record->workspace_mode = strdup("git_worktree");
     free(record->result);
     record->result = strdup("done");
     cJSON_AddItemToArray(record->messages, json_build_message("user", "inspect files"));
@@ -758,6 +760,7 @@ void test_subagent_record_persistence(void) {
     assert(loaded != NULL);
     assert(strcmp(loaded->description, "Explore the repository") == 0);
     assert(strcmp(loaded->subagent_type, "explore") == 0);
+    assert(strcmp(loaded->workspace_mode, "git_worktree") == 0);
     assert(strcmp(loaded->result, "done") == 0);
     assert(cJSON_GetArraySize(loaded->messages) == 1);
 
@@ -789,6 +792,8 @@ void test_agent_tool_schema_includes_task_id(void) {
     cJSON *params = json_get_object(fn, "parameters");
     cJSON *props = json_get_object(params, "properties");
     assert(json_get_object(props, "task_id") != NULL);
+    assert(json_get_object(props, "working_dir") != NULL);
+    assert(json_get_object(props, "use_worktree") != NULL);
 
     cJSON_Delete(defs);
     tool_registry_free(&reg);
