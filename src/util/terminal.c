@@ -10,6 +10,18 @@
 static struct termios orig_termios;
 static int term_saved = 0;
 
+static const char *term_basename(const char *path) {
+    if (!path || !path[0]) return ".";
+    const char *slash = strrchr(path, '/');
+    if (!slash || !slash[1]) return path;
+    return slash + 1;
+}
+
+static void term_print_rule(size_t width) {
+    for (size_t i = 0; i < width; i++) putchar('-');
+    putchar('\n');
+}
+
 void term_init(void) {
     struct termios raw;
     tcgetattr(STDIN_FILENO, &orig_termios);
@@ -78,6 +90,48 @@ void term_clear_screen(void) {
 
 void term_print_colored(const char *text, const char *color) {
     printf("%s%s%s", color, text, TERM_RESET);
+}
+
+char *term_format_prompt(const char *working_dir, int plan_mode) {
+    StrBuf out = strbuf_new();
+    const char *repo = term_basename(working_dir);
+
+    strbuf_append(&out, TERM_BOLD "goosecode" TERM_RESET);
+    strbuf_append(&out, TERM_DIM "[" TERM_RESET);
+    strbuf_append(&out, TERM_CYAN);
+    strbuf_append(&out, repo && repo[0] ? repo : ".");
+    strbuf_append(&out, TERM_RESET TERM_DIM "]" TERM_RESET);
+    if (plan_mode) {
+        strbuf_append(&out, TERM_DIM "[" TERM_RESET TERM_YELLOW "plan" TERM_RESET TERM_DIM "]" TERM_RESET);
+    }
+    strbuf_append(&out, TERM_BOLD "> " TERM_RESET);
+    return strbuf_detach(&out);
+}
+
+void term_print_block_header(const char *label, const char *color) {
+    if (!label) return;
+    printf("\n%s%s%s\n", color ? color : "", label, TERM_RESET);
+    if (color) printf("%s", color);
+    term_print_rule(strlen(label));
+    if (color) printf("%s", TERM_RESET);
+    fflush(stdout);
+}
+
+void term_print_tool_call(const char *name, const char *args) {
+    printf("\n" TERM_CYAN "[tool] %s" TERM_RESET "\n", name ? name : "unknown");
+    if (args && args[0]) {
+        printf(TERM_DIM "  %s\n" TERM_RESET, args);
+    }
+    fflush(stdout);
+}
+
+void term_print_tool_result(const char *name, int is_error) {
+    printf("\n%s[result] %s%s%s\n",
+           is_error ? TERM_RED : TERM_CYAN,
+           name ? name : "unknown",
+           is_error ? " (error)" : "",
+           TERM_RESET);
+    fflush(stdout);
 }
 
 void term_print_banner(void) {

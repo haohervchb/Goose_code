@@ -184,8 +184,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (prompt) {
-        printf(TERM_BOLD "goosecode: " TERM_RESET);
-        printf("Processing: %s\n\n", prompt);
+        term_print_block_header("request", TERM_BLUE);
+        printf("%s\n", prompt);
         int rc = agent_run_turn(g_agent, prompt);
         printf("\n");
         session_save(g_agent->config.session_dir, g_agent->session);

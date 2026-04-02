@@ -11,6 +11,7 @@
 #include "../src/config.h"
 #include "../src/session.h"
 #include "../src/prompt.h"
+#include "../src/util/terminal.h"
 #include "../src/tools/tools.h"
 #include "../src/tools/subagent_store.h"
 #include "../src/commands/commands.h"
@@ -37,6 +38,18 @@ void test_strbuf_fmt(void) {
     strbuf_free(&sb);
     tests_passed++;
     printf("  PASS: test_strbuf_fmt\n");
+}
+
+void test_terminal_prompt_format(void) {
+    tests_run++;
+    char *prompt = term_format_prompt("/tmp/example-repo", 1);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "goosecode") != NULL);
+    assert(strstr(prompt, "example-repo") != NULL);
+    assert(strstr(prompt, "plan") != NULL);
+    free(prompt);
+    tests_passed++;
+    printf("  PASS: test_terminal_prompt_format\n");
 }
 
 void test_strbuf_trim(void) {
@@ -1475,6 +1488,7 @@ int main(void) {
 
     test_strbuf_basic();
     test_strbuf_fmt();
+    test_terminal_prompt_format();
     test_strbuf_trim();
     test_json_build_message();
     test_json_tool_def();

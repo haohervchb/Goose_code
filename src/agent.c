@@ -114,7 +114,7 @@ static void stream_tool_cb(const char *id, const char *name, const char *args, v
     col->ids[idx] = strdup(id);
     col->names[idx] = strdup(name);
     col->args[idx] = args ? strdup(args) : strdup("{}");
-    printf("\n[Tool call: %s(%s)]\n", name, args ? args : "");
+    term_print_tool_call(name, args ? args : "");
 }
 
 static void stream_done_cb(void *ctx) {
@@ -241,8 +241,7 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         cJSON_AddStringToObject(result_obj, "content", tasks[i].result);
         cJSON_AddItemToArray(results, result_obj);
 
-        printf(TERM_CYAN "\n[Tool result: %s%s]\n" TERM_RESET,
-               calls->names[i], tasks[i].is_error ? " (error)" : "");
+        term_print_tool_result(calls->names[i], tasks[i].is_error);
         session_add_tool_result(agent->session, calls->ids[i], tasks[i].result);
         free(tasks[i].result);
     }
@@ -268,7 +267,9 @@ int agent_run_turn(Agent *agent, const char *user_input) {
 
     while (turn < max_turns && agent->running) {
         if (turn > 0) {
-            printf(TERM_DIM "\n--- Turn %d ---\n" TERM_RESET, turn + 1);
+            char label[32];
+            snprintf(label, sizeof(label), "turn %d", turn + 1);
+            term_print_block_header(label, TERM_DIM);
         }
 
         if (session_needs_compact(agent->session, agent->config.context_window)) {
@@ -284,8 +285,7 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         cJSON *messages = prompt_build_messages_with_tools(
             agent->system_message, agent->session->messages, NULL);
 
-        printf(TERM_GREEN "assistant: " TERM_RESET);
-        fflush(stdout);
+        term_print_block_header("assistant", TERM_GREEN);
 
         ToolCallCollector calls = {0, NULL, NULL, NULL};
         ApiStreamCallbacks cbs = {stream_text_cb, stream_tool_cb, stream_done_cb, &calls};
@@ -365,10 +365,9 @@ int agent_run_repl(Agent *agent) {
     term_print_banner();
 
     while (agent->running) {
-        printf(TERM_BOLD "goosecode> " TERM_RESET);
-        fflush(stdout);
-
-        char *input = term_read_line("");
+        char *prompt = term_format_prompt(agent->config.working_dir, agent->session && agent->session->plan_mode);
+        char *input = term_read_line(prompt);
+        free(prompt);
         if (!input) {
             printf("\n");
             agent->running = 0;
