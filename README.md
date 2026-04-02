@@ -5,8 +5,8 @@ A claude code like thingy, Vibed by GPT-5.4 with C, just for fun.
 `goosecode` is a local AI coding agent written in C with an OpenAI-compatible API client, a tool loop, slash commands, sessions, subagents, MCP support, and a terminal-first workflow.
 
 It works with:
-- local OpenAI-compatible servers such as Ollama, vLLM, LM Studio, text-generation-webui proxies, or custom gateways
-- hosted OpenAI-compatible providers such as OpenAI, OpenRouter, Together, Fireworks, Groq, or self-hosted proxies
+- local OpenAI-compatible servers such as Ollama, vLLM, llama.cpp, ik-llama, LM Studio, text-generation-webui proxies, or custom gateways
+- hosted OpenAI-compatible providers such as OpenAI, Together, Fireworks, Groq, or self-hosted proxies
 
 ## What It Can Do
 
@@ -18,11 +18,12 @@ It works with:
 - MCP resource listing/reading
 - LSP queries
 - local git workflow commands like `/branch`, `/commit`, and `/review`
+- provider presets and first-run provider setup
 
 ## Current Surface Area
 
 - Tools: 29
-- Slash commands: 16
+- Slash commands: 17
 
 Main tools include:
 - `bash`
@@ -40,6 +41,7 @@ Main tools include:
 Main slash commands include:
 - `/help`
 - `/model`
+- `/provider`
 - `/session`
 - `/compact`
 - `/plan`
@@ -108,6 +110,7 @@ Binary output:
 ### Common CLI Flags
 
 ```text
+--provider <provider>
 --model <model>
 --base-url <url>
 --permission <mode>
@@ -128,6 +131,9 @@ Binary output:
 # override model for one run
 ./goosecode --model gpt-4o-mini "summarize this repository"
 
+# choose a provider preset for one run
+./goosecode --provider ollama
+
 # resume a saved session
 ./goosecode --session 1775092052_390207107
 
@@ -138,6 +144,33 @@ Binary output:
 ## Connecting To Providers
 
 `goosecode` talks to any server that exposes an OpenAI-compatible `/v1` API.
+
+### Built-in Provider Presets
+
+You can switch providers directly inside the REPL:
+
+```text
+/provider list
+/provider set openai
+/provider set ollama
+/provider set vllm
+/provider set llama.cpp
+/provider set ik-llama
+/provider test
+/model list
+/model set <name>
+```
+
+`/provider set ...` now prompts for:
+- base URL
+- model name
+- API key when needed or optional
+
+Provider settings are saved per provider, so switching back to a previous provider restores its last saved `base_url`, `model`, and `api_key` instead of overwriting everything.
+
+First-run behavior:
+- if no environment variables or settings files are present, goosecode opens a guided provider setup flow before the REPL starts
+- the REPL banner also shows the active provider, model, and base URL so it is obvious what you are connected to
 
 ### Environment Variables
 
@@ -166,10 +199,19 @@ export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_MODEL=llama3
 ./goosecode
 
-# LM Studio or vLLM
-export OPENAI_BASE_URL=http://localhost:1234/v1
+# vLLM
+export OPENAI_BASE_URL=http://localhost:8000/v1
 export OPENAI_MODEL=your-model-name
 ./goosecode
+
+# llama.cpp or ik-llama
+export OPENAI_BASE_URL=http://localhost:8080/v1
+export OPENAI_MODEL=your-model-name
+./goosecode
+
+# or use the built-in provider presets interactively
+./goosecode
+# then run /provider set ollama or /provider set vllm
 ```
 
 Notes:
@@ -188,12 +230,6 @@ Examples:
 export OPENAI_BASE_URL=https://api.openai.com/v1
 export OPENAI_API_KEY=sk-...
 export OPENAI_MODEL=gpt-4o
-./goosecode
-
-# OpenRouter
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-export OPENAI_API_KEY=sk-or-...
-export OPENAI_MODEL=openai/gpt-4o-mini
 ./goosecode
 
 # Together / Fireworks / Groq / any compatible host
@@ -221,12 +257,15 @@ Example project config:
 
 ```json
 {
+  "provider": "vllm",
   "base_url": "http://localhost:8083/v1",
   "model": "cyankiwi/Qwen3.5-122B-A10B-AWQ-8bit",
   "permission_mode": "allow",
   "max_turns": 64
 }
 ```
+
+User settings also keep a `provider_profiles` map internally so each provider can remember its own last-used values.
 
 ## Permissions
 
@@ -265,6 +304,11 @@ Editor controls:
 Examples:
 
 ```text
+/provider list
+/provider set ollama
+/provider test
+/model list
+/model set llama3
 /tasks create investigate parser failure
 /plan set
 1. Reproduce
