@@ -1,6 +1,7 @@
 #ifndef SESSION_H
 #define SESSION_H
 
+#include "config.h"
 #include "util/cJSON.h"
 
 #define SESSION_VERSION 1
@@ -20,7 +21,7 @@ Session *session_load(const char *session_dir, const char *id);
 int session_save(const char *session_dir, Session *sess);
 void session_free(Session *sess);
 void session_add_message(Session *sess, cJSON *msg);
-void session_add_tool_result(Session *sess, const char *tool_call_id, const char *result);
+void session_add_tool_result(Session *sess, const GooseConfig *cfg, const char *tool_call_id, const char *result);
 void session_set_plan_mode(Session *sess, int enabled);
 void session_set_plan(Session *sess, const char *plan);
 void session_clear_plan(Session *sess);

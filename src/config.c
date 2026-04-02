@@ -97,6 +97,7 @@ GooseConfig config_load(void) {
 
     cfg.session_dir = config_path(home, ".goosecode/sessions");
     cfg.session_memory_dir = config_path(home, ".goosecode/session-memory");
+    cfg.tool_result_dir = config_path(home, ".goosecode/tool-results");
     cfg.subagent_dir = config_path(home, ".goosecode/subagents");
     cfg.worktree_dir = config_path(home, ".goosecode/worktrees");
     char *root_dir = config_path(home, ".goosecode");
@@ -104,6 +105,7 @@ GooseConfig config_load(void) {
     free(root_dir);
     ensure_dir(cfg.session_dir);
     ensure_dir(cfg.session_memory_dir);
+    ensure_dir(cfg.tool_result_dir);
     ensure_dir(cfg.subagent_dir);
     ensure_dir(cfg.worktree_dir);
 
@@ -260,6 +262,7 @@ void config_free(GooseConfig *cfg) {
     free(cfg->working_dir);
     free(cfg->session_dir);
     free(cfg->session_memory_dir);
+    free(cfg->tool_result_dir);
     free(cfg->subagent_dir);
     free(cfg->worktree_dir);
     free(cfg->todo_store);

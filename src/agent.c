@@ -326,7 +326,7 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         cJSON_AddItemToArray(results, result_obj);
 
         term_print_tool_result(calls->names[i], tasks[i].is_error);
-        session_add_tool_result(agent->session, calls->ids[i], tasks[i].result);
+        session_add_tool_result(agent->session, &agent->config, calls->ids[i], tasks[i].result);
         free(tasks[i].result);
     }
 

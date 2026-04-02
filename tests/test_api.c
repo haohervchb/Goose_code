@@ -1761,20 +1761,38 @@ void test_subagents_command_list_show_clean_and_prune(void) {
 void test_session_truncates_oversized_tool_results(void) {
     tests_run++;
 
+    char base_dir[] = "/tmp/goosecode_tool_results_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char tool_dir[1024];
+    snprintf(tool_dir, sizeof(tool_dir), "%s/tool-results", base_dir);
+    assert(mkdir(tool_dir, 0755) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.tool_result_dir = tool_dir;
     Session *sess = session_new();
     char *large = malloc(20001);
     memset(large, 'A', 20000);
     large[20000] = '\0';
 
-    session_add_tool_result(sess, "call_1", large);
+    session_add_tool_result(sess, &cfg, "call_1", large);
     cJSON *msg = cJSON_GetArrayItem(sess->messages, 0);
     const char *content = json_get_string(msg, "content");
     assert(content != NULL);
-    assert(strlen(content) < 13000);
-    assert(strstr(content, "Tool result truncated") != NULL);
+    assert(strstr(content, "persisted-output") != NULL);
+    assert(strstr(content, "Full output saved to:") != NULL);
+
+    char expected_path[2048];
+    snprintf(expected_path, sizeof(expected_path), "%s/%s/call_1.txt", tool_dir, sess->id);
+    char *saved = json_read_file(expected_path);
+    assert(saved != NULL);
+    assert(strlen(saved) == 20000);
+    free(saved);
 
     free(large);
     session_free(sess);
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
 
     tests_passed++;
     printf("  PASS: test_session_truncates_oversized_tool_results\n");
