@@ -1553,6 +1553,132 @@ void test_session_truncates_oversized_tool_results(void) {
     printf("  PASS: test_session_truncates_oversized_tool_results\n");
 }
 
+void test_bash_tool_honors_timeout_on_quiet_command(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    char *result = tool_execute_bash("{\"command\":\"sleep 2\",\"timeout\":1}", &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "[Command timed out]") != NULL);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_bash_tool_honors_timeout_on_quiet_command\n");
+}
+
+void test_file_write_nested_and_read_edit_cycle(void) {
+    tests_run++;
+
+    char base_dir[] = "/tmp/goosecode_tool_files_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char nested_path[2048];
+    snprintf(nested_path, sizeof(nested_path), "%s/a/b/c/test.txt", base_dir);
+
+    GooseConfig cfg = {0};
+    char args[4096];
+    snprintf(args, sizeof(args), "{\"file_path\":\"%s\",\"content\":\"hello world\\n\"}", nested_path);
+    char *result = tool_execute_write_file(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "Successfully wrote") != NULL);
+    free(result);
+
+    snprintf(args, sizeof(args), "{\"file_path\":\"%s\"}", nested_path);
+    result = tool_execute_read_file(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "hello world") != NULL);
+    free(result);
+
+    snprintf(args, sizeof(args), "{\"file_path\":\"%s\",\"old_string\":\"world\",\"new_string\":\"goose\"}", nested_path);
+    result = tool_execute_edit_file(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "Successfully edited") != NULL);
+    free(result);
+
+    snprintf(args, sizeof(args), "{\"file_path\":\"%s\"}", nested_path);
+    result = tool_execute_read_file(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "hello goose") != NULL);
+    free(result);
+
+    char cmd[4096];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_file_write_nested_and_read_edit_cycle\n");
+}
+
+void test_grep_search_handles_quoted_pattern(void) {
+    tests_run++;
+
+    char base_dir[] = "/tmp/goosecode_tool_grep_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char file_path[2048];
+    snprintf(file_path, sizeof(file_path), "%s/quote.txt", base_dir);
+    FILE *f = fopen(file_path, "w");
+    assert(f != NULL);
+    fputs("it's quoted\n", f);
+    fclose(f);
+
+    GooseConfig cfg = {0};
+    char args[4096];
+    snprintf(args, sizeof(args), "{\"pattern\":\"it's\",\"path\":\"%s\"}", base_dir);
+    char *result = tool_execute_grep_search(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "it's quoted") != NULL);
+    free(result);
+
+    char cmd[4096];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_grep_search_handles_quoted_pattern\n");
+}
+
+void test_structured_output_formats_json_payload(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    char *result = tool_execute_structured_out("{\"schema\":\"demo\",\"data\":\"{\\\"ok\\\":true}\"}", &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "\"ok\":\ttrue") != NULL || strstr(result, "\"ok\": true") != NULL);
+    assert(strstr(result, "Schema: demo") != NULL);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_structured_output_formats_json_payload\n");
+}
+
+void test_notebook_edit_updates_cell_source(void) {
+    tests_run++;
+
+    char path[] = "/tmp/goosecode_notebook_XXXXXX.ipynb";
+    int fd = mkstemps(path, 6);
+    assert(fd != -1);
+    FILE *f = fdopen(fd, "w");
+    assert(f != NULL);
+    fputs("{\"cells\":[{\"id\":\"cell-1\",\"cell_type\":\"code\",\"source\":\"print(1)\"}],\"metadata\":{},\"nbformat\":4,\"nbformat_minor\":5}", f);
+    fclose(f);
+
+    GooseConfig cfg = {0};
+    char args[4096];
+    snprintf(args, sizeof(args), "{\"notebook_path\":\"%s\",\"cell_id\":\"cell-1\",\"new_source\":\"print(2)\"}", path);
+    char *result = tool_execute_notebook_edit(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "Successfully edited cell 'cell-1'") != NULL);
+    free(result);
+
+    char *saved = json_read_file(path);
+    assert(saved != NULL);
+    assert(strstr(saved, "print(2)") != NULL);
+    free(saved);
+    remove(path);
+
+    tests_passed++;
+    printf("  PASS: test_notebook_edit_updates_cell_source\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1606,6 +1732,11 @@ int main(void) {
     test_review_command_clean_tree();
     test_subagents_command_list_show_clean_and_prune();
     test_session_truncates_oversized_tool_results();
+    test_bash_tool_honors_timeout_on_quiet_command();
+    test_file_write_nested_and_read_edit_cycle();
+    test_grep_search_handles_quoted_pattern();
+    test_structured_output_formats_json_payload();
+    test_notebook_edit_updates_cell_source();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

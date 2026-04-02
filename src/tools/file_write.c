@@ -7,6 +7,27 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+static int ensure_parent_dirs(const char *path) {
+    char *dir = strdup(path);
+    char *slash = strrchr(dir, '/');
+    if (!slash) {
+        free(dir);
+        return 0;
+    }
+
+    *slash = '\0';
+    for (char *p = dir + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(dir, 0755);
+            *p = '/';
+        }
+    }
+    mkdir(dir, 0755);
+    free(dir);
+    return 0;
+}
+
 char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
     (void)cfg;
     cJSON *json = cJSON_Parse(args);
@@ -24,13 +45,7 @@ char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
         return strdup("Error: 'content' argument required");
     }
 
-    char *dir = strdup(path);
-    char *slash = strrchr(dir, '/');
-    if (slash) {
-        *slash = '\0';
-        mkdir(dir, 0755);
-    }
-    free(dir);
+    ensure_parent_dirs(path);
 
     FILE *f = fopen(path, "w");
     if (!f) {

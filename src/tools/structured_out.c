@@ -12,7 +12,6 @@ char *tool_execute_structured_out(const char *args, const GooseConfig *cfg) {
 
     const char *schema = json_get_string(json, "schema");
     const char *data = json_get_string(json, "data");
-    cJSON_Delete(json);
 
     StrBuf out = strbuf_new();
     if (data) {
@@ -31,5 +30,7 @@ char *tool_execute_structured_out(const char *args, const GooseConfig *cfg) {
     if (schema) {
         strbuf_append_fmt(&out, "\n\nSchema: %s", schema);
     }
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

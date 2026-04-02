@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
 
 static char *run_command(const char *cmd, int timeout_sec) {
     int pipefd[2];
@@ -25,9 +26,40 @@ static char *run_command(const char *cmd, int timeout_sec) {
     }
 
     close(pipefd[1]);
+    int flags = fcntl(pipefd[0], F_GETFL, 0);
+    fcntl(pipefd[0], F_SETFL, flags | O_NONBLOCK);
 
     StrBuf output = strbuf_new();
     char buf[4096];
+    int status;
+    int timed_out = 0;
+    int exited = 0;
+    int ticks = timeout_sec > 0 ? timeout_sec * 10 : 1200;
+
+    for (int i = 0; i < ticks; i++) {
+        ssize_t n;
+        while ((n = read(pipefd[0], buf, sizeof(buf) - 1)) > 0) {
+            buf[n] = '\0';
+            strbuf_append(&output, buf);
+            if (output.len > 500000) break;
+        }
+
+        pid_t w = waitpid(pid, &status, WNOHANG);
+        if (w > 0) {
+            exited = 1;
+            break;
+        }
+        usleep(100000);
+    }
+
+    if (!exited && waitpid(pid, &status, WNOHANG) == 0) {
+        kill(pid, SIGTERM);
+        usleep(500000);
+        kill(pid, SIGKILL);
+        waitpid(pid, &status, 0);
+        timed_out = 1;
+    }
+
     ssize_t n;
     while ((n = read(pipefd[0], buf, sizeof(buf) - 1)) > 0) {
         buf[n] = '\0';
@@ -35,20 +67,6 @@ static char *run_command(const char *cmd, int timeout_sec) {
         if (output.len > 500000) break;
     }
     close(pipefd[0]);
-
-    int status;
-    int timed_out = 0;
-    for (int i = 0; i < timeout_sec * 10; i++) {
-        if (waitpid(pid, &status, WNOHANG) > 0) break;
-        usleep(100000);
-    }
-    if (waitpid(pid, &status, WNOHANG) == 0) {
-        kill(pid, SIGTERM);
-        usleep(500000);
-        kill(pid, SIGKILL);
-        waitpid(pid, &status, 0);
-        timed_out = 1;
-    }
 
     if (timed_out) strbuf_append(&output, "\n[Command timed out]");
     if (WIFEXITED(status)) {
