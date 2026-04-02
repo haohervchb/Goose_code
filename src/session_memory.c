@@ -1,8 +1,112 @@
 #include "session_memory.h"
 #include "util/json_util.h"
+#include "util/strbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define SESSION_MEMORY_MAX_SECTION_CHARS 8000
+
+static char *extract_last_role_content(const Session *sess, const char *role) {
+    if (!sess || !sess->messages) return strdup("");
+    int total = cJSON_GetArraySize(sess->messages);
+    for (int i = total - 1; i >= 0; i--) {
+        cJSON *msg = cJSON_GetArrayItem(sess->messages, i);
+        const char *msg_role = json_get_string(msg, "role");
+        const char *content = json_get_string(msg, "content");
+        if (msg_role && content && strcmp(msg_role, role) == 0) return strdup(content);
+    }
+    return strdup("");
+}
+
+static char *apply_section_update(const char *notes, const char *section_header, const char *replacement) {
+    const char *section_pos = strstr(notes, section_header);
+    if (!section_pos) return strdup(notes);
+
+    const char *after_header = section_pos + strlen(section_header);
+    const char *desc_end = strchr(after_header, '\n');
+    if (!desc_end) return strdup(notes);
+    desc_end++;
+    const char *next_section = strstr(desc_end, "\n# ");
+    const char *section_end = next_section ? next_section + 1 : notes + strlen(notes);
+
+    StrBuf out = strbuf_new();
+    strbuf_append_len(&out, notes, (size_t)(section_pos - notes));
+    strbuf_append(&out, section_header);
+    strbuf_append_len(&out, after_header, (size_t)(desc_end - after_header));
+    if (replacement && replacement[0]) {
+        strbuf_append_char(&out, '\n');
+        strbuf_append(&out, replacement);
+        if (out.len > 0 && out.data[out.len - 1] != '\n') strbuf_append_char(&out, '\n');
+        strbuf_append_char(&out, '\n');
+    }
+    strbuf_append(&out, section_end);
+    return strbuf_detach(&out);
+}
+
+static int session_memory_fallback_update(const GooseConfig *cfg, const Session *sess, const char *current_notes) {
+    char *notes_path = session_memory_path(cfg, sess);
+    char *last_user = extract_last_role_content(sess, "user");
+    char *last_assistant = extract_last_role_content(sess, "assistant");
+    (void)current_notes;
+
+    const char *state_text = (last_assistant && last_assistant[0]) ? last_assistant : last_user;
+    const char *result_text = (last_assistant && last_assistant[0]) ? last_assistant : last_user;
+
+    char *template_notes = session_memory_default_template();
+    char *updated = apply_section_update(template_notes, "# Current State\n", state_text);
+    free(template_notes);
+    char *tmp = apply_section_update(updated, "# Task Specification\n", last_user);
+    free(updated);
+    updated = tmp;
+    tmp = apply_section_update(updated, "# Key Results\n", result_text);
+    free(updated);
+    updated = tmp;
+    tmp = apply_section_update(updated, "# Worklog\n", last_user);
+    free(updated);
+    updated = tmp;
+
+    FILE *f = fopen(notes_path, "w");
+    free(notes_path);
+    free(last_user);
+    free(last_assistant);
+    if (!f) {
+        free(updated);
+        return -1;
+    }
+    fputs(updated, f);
+    fclose(f);
+    free(updated);
+    return 0;
+}
+
+static int session_memory_output_looks_valid(const char *text) {
+    if (!text) return 0;
+    while (*text == ' ' || *text == '\n' || *text == '\r' || *text == '\t') text++;
+    if (strncmp(text, "# Session Title", 15) != 0) return 0;
+    if (!strstr(text, "# Current State")) return 0;
+    if (!strstr(text, "# Worklog")) return 0;
+    return 1;
+}
+
+static char *substitute_var(const char *template_text, const char *needle, const char *replacement) {
+    StrBuf out = strbuf_new();
+    const char *scan = template_text;
+    size_t needle_len = strlen(needle);
+
+    while (1) {
+        const char *pos = strstr(scan, needle);
+        if (!pos) {
+            strbuf_append(&out, scan);
+            break;
+        }
+        strbuf_append_len(&out, scan, (size_t)(pos - scan));
+        strbuf_append(&out, replacement ? replacement : "");
+        scan = pos + needle_len;
+    }
+
+    return strbuf_detach(&out);
+}
 
 char *session_memory_default_template(void) {
     return strdup(
@@ -26,6 +130,25 @@ char *session_memory_default_template(void) {
         "_Repeat any exact answer, table, or deliverable the user asked for._\n\n"
         "# Worklog\n"
         "_Step-by-step terse log of what was attempted and done._\n");
+}
+
+char *session_memory_default_update_prompt(void) {
+    return strdup(
+        "IMPORTANT: This message and these instructions are NOT part of the actual user conversation. Do NOT include references to note-taking or these instructions in the notes content.\n\n"
+        "Based on the user conversation above, update the session notes file.\n\n"
+        "The file {{notesPath}} has already been read for you. Here are its current contents:\n"
+        "<current_notes_content>\n"
+        "{{currentNotes}}\n"
+        "</current_notes_content>\n\n"
+        "Your only task is to output the full updated notes file as markdown. Do not call tools.\n\n"
+        "CRITICAL RULES:\n"
+        "- Preserve all section headers exactly\n"
+        "- Preserve the italic template description lines exactly\n"
+        "- Only change the content below those description lines\n"
+        "- Do not add new sections\n"
+        "- Keep sections concise and info-dense\n"
+        "- Always update Current State to reflect the most recent work\n"
+        "- Keep each section under roughly 2000 words/characters when possible\n");
 }
 
 char *session_memory_path(const GooseConfig *cfg, const Session *sess) {
@@ -63,4 +186,66 @@ char *session_memory_load(const GooseConfig *cfg, const Session *sess) {
     char *content = json_read_file(path);
     free(path);
     return content;
+}
+
+char *session_memory_build_update_prompt(const char *current_notes, const char *notes_path) {
+    char *tmpl = session_memory_default_update_prompt();
+    char *with_notes = substitute_var(tmpl, "{{currentNotes}}", current_notes ? current_notes : "");
+    free(tmpl);
+    char *with_path = substitute_var(with_notes, "{{notesPath}}", notes_path ? notes_path : "");
+    free(with_notes);
+
+    if (current_notes && strlen(current_notes) > SESSION_MEMORY_MAX_SECTION_CHARS) {
+        StrBuf out = strbuf_from(with_path);
+        free(with_path);
+        strbuf_append(&out, "\n\nIMPORTANT: The notes file is large. Condense verbose sections while preserving Current State, Errors and Corrections, Files and Functions, and Worklog.\n");
+        return strbuf_detach(&out);
+    }
+    return with_path;
+}
+
+int session_memory_update(const GooseConfig *cfg, const Session *sess, const ApiConfig *api_cfg) {
+    char *notes_path = session_memory_path(cfg, sess);
+    char *current_notes = session_memory_load(cfg, sess);
+    if (!current_notes) current_notes = session_memory_default_template();
+
+    char *update_prompt = session_memory_build_update_prompt(current_notes, notes_path);
+    char *conversation_text = json_to_string(sess->messages);
+    if (!conversation_text) {
+        free(notes_path);
+        free(current_notes);
+        free(update_prompt);
+        return -1;
+    }
+
+    cJSON *req_messages = cJSON_CreateArray();
+    cJSON_AddItemToArray(req_messages, json_build_message("system", update_prompt));
+    cJSON_AddItemToArray(req_messages, json_build_message("user", conversation_text));
+    free(conversation_text);
+    free(update_prompt);
+
+    ApiResponse resp = api_send_message(api_cfg, req_messages, NULL);
+    cJSON_Delete(req_messages);
+    if (resp.status != API_OK || !session_memory_output_looks_valid(resp.text_content.data)) {
+        api_response_free(&resp);
+        int rc = session_memory_fallback_update(cfg, sess, current_notes);
+        free(notes_path);
+        free(current_notes);
+        return rc;
+    }
+
+    FILE *f = fopen(notes_path, "w");
+    if (!f) {
+        api_response_free(&resp);
+        free(notes_path);
+        free(current_notes);
+        return -1;
+    }
+    fputs(resp.text_content.data, f);
+    fclose(f);
+
+    api_response_free(&resp);
+    free(notes_path);
+    free(current_notes);
+    return 0;
 }

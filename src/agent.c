@@ -434,8 +434,14 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         }
 
         if (resp.finish_reason_stop) {
+            if (resp.text_content.data && resp.text_content.len > 0) {
+                cJSON *assistant_msg = json_build_message("assistant", resp.text_content.data);
+                session_add_message(agent->session, assistant_msg);
+                cJSON_Delete(assistant_msg);
+            }
             collector_free(&calls);
             api_response_free(&resp);
+            session_memory_update(&agent->config, agent->session, &agent->api_cfg);
             printf("\n");
             break;
         }
@@ -461,6 +467,11 @@ int agent_run_turn(Agent *agent, const char *user_input) {
             execute_tools_parallel(agent, &calls, &tool_results);
             if (tool_results) cJSON_Delete(tool_results);
         } else {
+            if (resp.text_content.data && resp.text_content.len > 0) {
+                cJSON *assistant_msg = json_build_message("assistant", resp.text_content.data);
+                session_add_message(agent->session, assistant_msg);
+                cJSON_Delete(assistant_msg);
+            }
             break;
         }
 
@@ -469,6 +480,7 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         turn++;
     }
 
+    session_memory_update(&agent->config, agent->session, &agent->api_cfg);
     cJSON_Delete(tools_def);
     return 0;
 }

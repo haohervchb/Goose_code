@@ -2049,6 +2049,18 @@ void test_session_memory_template_and_ensure(void) {
     printf("  PASS: test_session_memory_template_and_ensure\n");
 }
 
+void test_session_memory_build_update_prompt_substitutes_values(void) {
+    tests_run++;
+    char *prompt = session_memory_build_update_prompt("# Session Title\nCurrent notes", "/tmp/session.md");
+    assert(prompt != NULL);
+    assert(strstr(prompt, "/tmp/session.md") != NULL);
+    assert(strstr(prompt, "Current notes") != NULL);
+    assert(strstr(prompt, "Preserve all section headers exactly") != NULL);
+    free(prompt);
+    tests_passed++;
+    printf("  PASS: test_session_memory_build_update_prompt_substitutes_values\n");
+}
+
 void test_compact_prompt_includes_no_tools_rule(void) {
     tests_run++;
     char *prompt = compact_get_prompt();
@@ -2175,6 +2187,7 @@ int main(void) {
     test_provider_apply_preset_sets_defaults();
     test_provider_settings_are_saved_per_provider();
     test_session_memory_template_and_ensure();
+    test_session_memory_build_update_prompt_substitutes_values();
     test_compact_prompt_includes_no_tools_rule();
     test_compact_formatter_extracts_summary();
     test_partial_compact_prompt_scope();
