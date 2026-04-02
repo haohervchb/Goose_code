@@ -6,12 +6,15 @@
 
 static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *sess) {
     (void)sess;
+    GooseConfig *mutable_cfg = (GooseConfig *)cfg;
     StrBuf out = strbuf_new();
 
     if (!args || !args[0]) {
         strbuf_append(&out, "Current configuration:\n");
+        strbuf_append_fmt(&out, "  provider: %s\n", cfg->provider ? cfg->provider : provider_profile_detect(cfg)->name);
         strbuf_append_fmt(&out, "  model: %s\n", cfg->model);
         strbuf_append_fmt(&out, "  base_url: %s\n", cfg->base_url);
+        strbuf_append_fmt(&out, "  api_key: %s\n", (cfg->api_key && cfg->api_key[0]) ? "configured" : "not configured");
         strbuf_append_fmt(&out, "  permission_mode: %s\n", config_perm_mode_str(cfg->permission_mode));
         strbuf_append_fmt(&out, "  max_tokens: %d\n", cfg->max_tokens);
         strbuf_append_fmt(&out, "  max_turns: %d\n", cfg->max_turns);
@@ -28,12 +31,41 @@ static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *
         return strbuf_detach(&out);
     }
 
-    if (strcmp(first, "model") == 0) {
-        if (rest && rest[0]) strbuf_append_fmt(&out, "Model set to: %s (runtime only)\n", rest);
+    if (strcmp(first, "provider") == 0) {
+        if (rest && rest[0]) {
+            if (provider_apply_preset(mutable_cfg, rest, 0) != 0) {
+                strbuf_append(&out, "Unknown provider preset. Use /provider list\n");
+            } else {
+                config_save_user_settings(mutable_cfg);
+                strbuf_append_fmt(&out, "Provider set to: %s\n", mutable_cfg->provider);
+                strbuf_append_fmt(&out, "Base URL: %s\n", mutable_cfg->base_url);
+            }
+        } else strbuf_append_fmt(&out, "Current provider: %s\n", cfg->provider ? cfg->provider : provider_profile_detect(cfg)->name);
+    } else if (strcmp(first, "model") == 0) {
+        if (rest && rest[0]) {
+            free(mutable_cfg->model);
+            mutable_cfg->model = strdup(rest);
+            config_save_user_settings(mutable_cfg);
+            strbuf_append_fmt(&out, "Model set to: %s\n", rest);
+        }
         else strbuf_append_fmt(&out, "Current model: %s\n", cfg->model);
     } else if (strcmp(first, "base_url") == 0) {
-        if (rest && rest[0]) strbuf_append_fmt(&out, "Base URL set to: %s (runtime only)\n", rest);
+        if (rest && rest[0]) {
+            free(mutable_cfg->base_url);
+            mutable_cfg->base_url = strdup(rest);
+            config_save_user_settings(mutable_cfg);
+            strbuf_append_fmt(&out, "Base URL set to: %s\n", rest);
+        }
         else strbuf_append_fmt(&out, "Current base URL: %s\n", cfg->base_url);
+    } else if (strcmp(first, "api_key") == 0) {
+        if (rest && rest[0]) {
+            free(mutable_cfg->api_key);
+            mutable_cfg->api_key = strdup(rest);
+            config_save_user_settings(mutable_cfg);
+            strbuf_append(&out, "API key updated and saved.\n");
+        } else {
+            strbuf_append_fmt(&out, "API key: %s\n", (cfg->api_key && cfg->api_key[0]) ? "configured" : "not configured");
+        }
     } else if (strcmp(first, "permission_mode") == 0) {
         if (rest && rest[0]) strbuf_append_fmt(&out, "Permission mode set to: %s (runtime only)\n", rest);
         else strbuf_append_fmt(&out, "Current permission mode: %s\n", config_perm_mode_str(cfg->permission_mode));
@@ -48,7 +80,7 @@ static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *
         else strbuf_append_fmt(&out, "Current working directory: %s\n", cfg->working_dir);
     } else {
         strbuf_append_fmt(&out, "Unknown setting: %s\n", first);
-        strbuf_append(&out, "Supported: model, base_url, permission_mode, max_tokens, max_turns, working_dir\n");
+        strbuf_append(&out, "Supported: provider, model, base_url, api_key, permission_mode, max_tokens, max_turns, working_dir\n");
     }
 
     free(work);

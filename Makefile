@@ -55,6 +55,7 @@ CMD_SRCS  = $(SRCDIR)/commands/commands.c \
             $(SRCDIR)/commands/cmd_exit.c \
             $(SRCDIR)/commands/cmd_plan.c \
             $(SRCDIR)/commands/cmd_config.c \
+            $(SRCDIR)/commands/cmd_provider.c \
             $(SRCDIR)/commands/cmd_branch.c \
             $(SRCDIR)/commands/cmd_commit.c \
             $(SRCDIR)/commands/cmd_review.c \
@@ -64,6 +65,7 @@ CMD_SRCS  = $(SRCDIR)/commands/commands.c \
 
 CORE_SRCS = $(SRCDIR)/api.c \
             $(SRCDIR)/config.c \
+            $(SRCDIR)/provider.c \
             $(SRCDIR)/session.c \
             $(SRCDIR)/compact.c \
             $(SRCDIR)/permissions.c \
@@ -90,7 +92,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 
 test: $(TARGET)
 	@echo "Running tests..."
-	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/session.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
+	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/session.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) build/test_runner

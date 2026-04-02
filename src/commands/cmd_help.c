@@ -16,6 +16,7 @@ static char *cmd_help_exec(const char *args, const GooseConfig *cfg, Session *se
     strbuf_append(&out, "  /compact           Compact the conversation context\n");
     strbuf_append(&out, "  /plan [subcommand] Manage plan mode and stored plan\n");
     strbuf_append(&out, "  /config [key]      Show or inspect runtime configuration\n");
+    strbuf_append(&out, "  /provider [subcommand] Show, set, and test provider presets\n");
     strbuf_append(&out, "  /branch [subcommand] Show, list, create, or switch branches\n");
     strbuf_append(&out, "  /commit [message]  Create a git commit from current changes\n");
     strbuf_append(&out, "  /review            Review current git changes locally\n");
@@ -24,6 +25,12 @@ static char *cmd_help_exec(const char *args, const GooseConfig *cfg, Session *se
     strbuf_append(&out, "  /permissions       Show current permission mode\n");
     strbuf_append(&out, "  /cost              Show token usage and cost\n");
     strbuf_append(&out, "  /tools             List available tools\n");
+    strbuf_append(&out, "\nProvider quick start:\n");
+    strbuf_append(&out, "  /provider list\n");
+    strbuf_append(&out, "  /provider set ollama\n");
+    strbuf_append(&out, "  /provider test\n");
+    strbuf_append(&out, "  /model list\n");
+    strbuf_append(&out, "  /model set llama3\n");
     strbuf_append(&out, "\nSlash commands are processed locally. "
                          "All other input is sent to the AI model.\n");
     return strbuf_detach(&out);

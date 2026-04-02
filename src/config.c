@@ -36,6 +36,13 @@ static cJSON *load_json_file(const char *path) {
     return json;
 }
 
+char *config_user_settings_path(void) {
+    char *home = config_get_home_dir();
+    char *path = config_path(home, ".goosecode/settings.json");
+    free(home);
+    return path;
+}
+
 static void merge_mcp_servers(cJSON **target, cJSON *source) {
     if (!source || !cJSON_IsArray(source)) return;
     if (!*target) *target = cJSON_CreateArray();
@@ -44,6 +51,35 @@ static void merge_mcp_servers(cJSON **target, cJSON *source) {
     cJSON_ArrayForEach(item, source) {
         cJSON_AddItemToArray(*target, cJSON_Duplicate(item, 1));
     }
+}
+
+static void json_set_string(cJSON *obj, const char *key, const char *value) {
+    cJSON *item = cJSON_CreateString(value ? value : "");
+    cJSON *existing = cJSON_GetObjectItem(obj, key);
+    if (existing) cJSON_ReplaceItemInObject(obj, key, item);
+    else cJSON_AddItemToObject(obj, key, item);
+}
+
+static cJSON *json_get_or_add_object(cJSON *obj, const char *key) {
+    cJSON *existing = cJSON_GetObjectItem(obj, key);
+    if (existing && cJSON_IsObject(existing)) return existing;
+    cJSON *created = cJSON_CreateObject();
+    if (existing) cJSON_ReplaceItemInObject(obj, key, created);
+    else cJSON_AddItemToObject(obj, key, created);
+    return created;
+}
+
+static void load_provider_settings_from_json(cJSON *json, const char *provider,
+                                             GooseConfig *cfg, int override_model,
+                                             int override_base, int override_key) {
+    cJSON *profiles = json_get_object(json, "provider_profiles");
+    cJSON *entry = profiles ? json_get_object(profiles, provider) : NULL;
+    if (!entry) return;
+
+    const char *v;
+    if (override_model && (v = json_get_string(entry, "model"))) { free(cfg->model); cfg->model = strdup(v); }
+    if (override_base && (v = json_get_string(entry, "base_url"))) { free(cfg->base_url); cfg->base_url = strdup(v); }
+    if (override_key && (v = json_get_string(entry, "api_key"))) { if (cfg->api_key) free(cfg->api_key); cfg->api_key = strdup(v); }
 }
 
 GooseConfig config_load(void) {
@@ -73,6 +109,10 @@ GooseConfig config_load(void) {
     cfg.skill_dir = config_path(home, ".goosecode/skills");
     ensure_dir(cfg.skill_dir);
 
+    const char *env_provider = getenv("GOOSECODE_PROVIDER");
+    if (env_provider) cfg.provider = strdup(env_provider);
+    else cfg.provider = strdup("openai");
+
     const char *env_base = getenv("OPENAI_BASE_URL");
     if (env_base) cfg.base_url = strdup(env_base);
     else cfg.base_url = strdup("https://api.openai.com/v1");
@@ -99,6 +139,7 @@ GooseConfig config_load(void) {
     cJSON *proj = load_json_file(proj_settings);
     if (proj) {
         const char *v;
+        v = json_get_string(proj, "provider"); if (v && !env_provider) { free(cfg.provider); cfg.provider = strdup(v); }
         v = json_get_string(proj, "model"); if (v) { free(cfg.model); cfg.model = strdup(v); }
         v = json_get_string(proj, "base_url"); if (v) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
@@ -114,6 +155,7 @@ GooseConfig config_load(void) {
         if (mt) { cJSON_Delete(cfg.allowed_tools); cfg.allowed_tools = cJSON_Duplicate(mt, 1); }
         cJSON *dt = json_get_array(proj, "denied_tools");
         if (dt) { cJSON_Delete(cfg.denied_tools); cfg.denied_tools = cJSON_Duplicate(dt, 1); }
+        load_provider_settings_from_json(proj, cfg.provider, &cfg, !env_model, !env_base, !env_key);
         cJSON_Delete(proj);
     }
     free(proj_settings);
@@ -122,6 +164,7 @@ GooseConfig config_load(void) {
     cJSON *user = load_json_file(user_settings);
     if (user) {
         const char *v;
+        v = json_get_string(user, "provider"); if (v && !env_provider) { free(cfg.provider); cfg.provider = strdup(v); }
         v = json_get_string(user, "model"); if (v && !env_model) { free(cfg.model); cfg.model = strdup(v); }
         v = json_get_string(user, "base_url"); if (v && !env_base) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(user, "api_key"); if (v) { if (cfg.api_key) free(cfg.api_key); cfg.api_key = strdup(v); }
@@ -130,14 +173,72 @@ GooseConfig config_load(void) {
         cfg.max_turns = json_get_int(user, "max_turns", cfg.max_turns);
         cJSON *ms = json_get_array(user, "mcp_servers");
         if (ms) merge_mcp_servers(&cfg.mcp_servers, ms);
+        load_provider_settings_from_json(user, cfg.provider, &cfg, !env_model, !env_base, !env_key);
         cJSON_Delete(user);
     }
     free(user_settings);
     free(home);
+    const ProviderProfile *profile = provider_profile_detect(&cfg);
+    if (profile) {
+        free(cfg.provider);
+        cfg.provider = strdup(profile->name);
+    }
     return cfg;
 }
 
+int config_save_user_settings(const GooseConfig *cfg) {
+    char *path = config_user_settings_path();
+    cJSON *json = load_json_file(path);
+    if (!json || !cJSON_IsObject(json)) {
+        if (json) cJSON_Delete(json);
+        json = cJSON_CreateObject();
+    }
+
+    json_set_string(json, "provider", cfg->provider ? cfg->provider : provider_profile_detect(cfg)->name);
+    json_set_string(json, "base_url", cfg->base_url ? cfg->base_url : "");
+    json_set_string(json, "model", cfg->model ? cfg->model : "");
+    if (cfg->api_key && cfg->api_key[0]) {
+        json_set_string(json, "api_key", cfg->api_key);
+    }
+    cJSON *profiles = json_get_or_add_object(json, "provider_profiles");
+    const char *provider_name = cfg->provider ? cfg->provider : provider_profile_detect(cfg)->name;
+    cJSON *entry = json_get_or_add_object(profiles, provider_name);
+    json_set_string(entry, "base_url", cfg->base_url ? cfg->base_url : "");
+    json_set_string(entry, "model", cfg->model ? cfg->model : "");
+    if (cfg->api_key && cfg->api_key[0]) {
+        json_set_string(entry, "api_key", cfg->api_key);
+    }
+
+    int rc = json_write_file(path, json);
+    cJSON_Delete(json);
+    free(path);
+    return rc;
+}
+
+int config_load_user_provider_settings(const char *provider, char **base_url_out,
+                                       char **model_out, char **api_key_out) {
+    char *path = config_user_settings_path();
+    cJSON *json = load_json_file(path);
+    free(path);
+    if (!json) return -1;
+
+    cJSON *profiles = json_get_object(json, "provider_profiles");
+    cJSON *entry = profiles ? json_get_object(profiles, provider) : NULL;
+    if (!entry) {
+        cJSON_Delete(json);
+        return -1;
+    }
+
+    const char *v;
+    if (base_url_out && (v = json_get_string(entry, "base_url"))) *base_url_out = strdup(v);
+    if (model_out && (v = json_get_string(entry, "model"))) *model_out = strdup(v);
+    if (api_key_out && (v = json_get_string(entry, "api_key"))) *api_key_out = strdup(v);
+    cJSON_Delete(json);
+    return 0;
+}
+
 void config_free(GooseConfig *cfg) {
+    free(cfg->provider);
     free(cfg->base_url);
     free(cfg->api_key);
     free(cfg->model);

@@ -13,6 +13,10 @@
 
 static Agent *g_agent = NULL;
 
+static int file_exists(const char *path) {
+    return access(path, F_OK) == 0;
+}
+
 static void signal_handler(int sig) {
     (void)sig;
     if (g_agent) {
@@ -24,6 +28,7 @@ static void signal_handler(int sig) {
 static void print_usage(const char *prog) {
     printf("Usage: %s [options] [prompt]\n", prog);
     printf("\nOptions:\n");
+    printf("  --provider <name>    Set provider preset (openai, ollama, vllm, llama.cpp, ik-llama)\n");
     printf("  --model <model>       Set the model name\n");
     printf("  --base-url <url>      Set the API base URL\n");
     printf("  --permission <mode>   Set permission mode (read-only, workspace-write, danger-full-access, prompt, allow)\n");
@@ -34,6 +39,7 @@ static void print_usage(const char *prog) {
     printf("  OPENAI_API_KEY        API key (optional for local servers)\n");
     printf("  OPENAI_BASE_URL       API base URL (default: https://api.openai.com/v1)\n");
     printf("  OPENAI_MODEL          Model name (default: gpt-4o)\n");
+    printf("  GOOSECODE_PROVIDER    Provider preset\n");
     printf("  GOOSECODE_PERMS       Default permission mode\n");
     printf("  GOOSECODE_MAX_TURNS   Max turns per message\n");
     printf("\nExamples:\n");
@@ -73,14 +79,35 @@ static void interactive_setup(Agent *agent) {
     mkdir(settings_path, 0755);
     snprintf(settings_path, sizeof(settings_path), "%s/.goosecode/settings.json", home);
 
+    const ProviderProfile *cur_provider = provider_profile_detect(&agent->config);
     const char *cur_base = agent->config.base_url;
     const char *cur_model = agent->config.model;
+    const char *provider_default = cur_provider ? cur_provider->name : "openai";
 
-    char *base_url = read_line("API base URL", cur_base ? cur_base : "https://api.openai.com/v1");
-    char *model = read_line("Model name", cur_model ? cur_model : "gpt-4o");
-    char *api_key = read_line("API key (leave empty for local servers)", agent->config.api_key ? "(hidden)" : "");
+    printf("Available providers:\n");
+    for (size_t i = 0; i < provider_profile_count(); i++) {
+        const ProviderProfile *p = provider_profile_at(i);
+        printf("  - %s (%s)\n", p->name, p->default_base_url);
+    }
+
+    char *provider = read_line("Provider preset", provider_default);
+    if (provider_apply_preset(&agent->config, provider, 1) != 0) {
+        free(provider);
+        provider = strdup(provider_default);
+        provider_apply_preset(&agent->config, provider, 1);
+    }
+
+    char *base_url = read_line("API base URL", cur_base ? cur_base : agent->config.base_url);
+    char *model = read_line("Model name", cur_model ? cur_model : agent->config.model);
+    char *api_key = NULL;
+    if (provider_requires_api_key(&agent->config)) {
+        api_key = read_line("API key", agent->config.api_key ? "(hidden)" : "");
+    } else {
+        api_key = read_line("API key (optional for this provider)", agent->config.api_key ? "(hidden)" : "");
+    }
 
     cJSON *settings = cJSON_CreateObject();
+    cJSON_AddStringToObject(settings, "provider", provider);
     cJSON_AddStringToObject(settings, "base_url", base_url);
     cJSON_AddStringToObject(settings, "model", model);
     if (api_key && strlen(api_key) > 0) {
@@ -96,6 +123,8 @@ static void interactive_setup(Agent *agent) {
         printf("\n" TERM_GREEN "Settings saved to %s" TERM_RESET "\n\n", settings_path);
     }
 
+    free(agent->config.provider);
+    agent->config.provider = strdup(provider);
     if (base_url && (!agent->config.base_url || strcmp(base_url, agent->config.base_url) != 0)) {
         free(agent->config.base_url);
         agent->config.base_url = strdup(base_url);
@@ -113,12 +142,29 @@ static void interactive_setup(Agent *agent) {
 
     cJSON_Delete(settings);
     free(home);
+    free(provider);
     free(base_url);
     free(model);
     free(api_key);
 }
 
+static int should_run_interactive_setup(void) {
+    if (getenv("OPENAI_BASE_URL") || getenv("OPENAI_MODEL") || getenv("OPENAI_API_KEY") || getenv("GOOSECODE_PROVIDER")) {
+        return 0;
+    }
+
+    char *home = config_get_home_dir();
+    char user_settings[1024];
+    snprintf(user_settings, sizeof(user_settings), "%s/.goosecode/settings.json", home);
+    free(home);
+
+    if (file_exists(user_settings)) return 0;
+    if (file_exists(".goosecode/settings.json")) return 0;
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
+    const char *provider_override = NULL;
     const char *model_override = NULL;
     const char *base_url_override = NULL;
     const char *perm_override = NULL;
@@ -130,6 +176,8 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
+            provider_override = argv[++i];
         } else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             model_override = argv[++i];
         } else if (strcmp(argv[i], "--base-url") == 0 && i + 1 < argc) {
@@ -150,6 +198,12 @@ int main(int argc, char *argv[]) {
 
     g_agent = agent_init(NULL);
 
+    if (provider_override) {
+        provider_apply_preset(&g_agent->config, provider_override, 1);
+        g_agent->api_cfg.base_url = g_agent->config.base_url;
+        g_agent->api_cfg.model = g_agent->config.model;
+    }
+
     if (model_override) {
         free(g_agent->config.model);
         g_agent->config.model = strdup(model_override);
@@ -167,9 +221,11 @@ int main(int argc, char *argv[]) {
         g_agent->config.max_turns = max_turns_override;
     }
 
-    const char *env_base = getenv("OPENAI_BASE_URL");
-    if (!env_base && !g_agent->config.base_url) {
+    if (should_run_interactive_setup()) {
         interactive_setup(g_agent);
+        g_agent->api_cfg.base_url = g_agent->config.base_url;
+        g_agent->api_cfg.model = g_agent->config.model;
+        g_agent->api_cfg.api_key = g_agent->config.api_key;
     }
 
     if (session_id) {

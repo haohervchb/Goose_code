@@ -91,6 +91,14 @@ static void agent_refresh_system_message(Agent *agent) {
     free(sys_prompt);
 }
 
+static void agent_refresh_api_config(Agent *agent) {
+    agent->api_cfg.base_url = agent->config.base_url;
+    agent->api_cfg.api_key = agent->config.api_key;
+    agent->api_cfg.model = agent->config.model;
+    agent->api_cfg.max_tokens = agent->config.max_tokens;
+    agent->api_cfg.temperature = agent->config.temperature;
+}
+
 static void stream_text_cb(const char *text, size_t len, void *ctx) {
     (void)len;
     (void)ctx;
@@ -363,6 +371,11 @@ int agent_run_turn(Agent *agent, const char *user_input) {
 
 int agent_run_repl(Agent *agent) {
     term_print_banner();
+    const ProviderProfile *profile = provider_profile_detect(&agent->config);
+    printf(TERM_DIM "  provider: %s | model: %s | base: %s\n\n" TERM_RESET,
+           profile ? profile->name : "unknown",
+           agent->config.model ? agent->config.model : "(none)",
+           agent->config.base_url ? agent->config.base_url : "(none)");
 
     while (agent->running) {
         char *prompt = term_format_prompt(agent->config.working_dir, agent->session && agent->session->plan_mode);
@@ -418,6 +431,7 @@ int agent_run_repl(Agent *agent) {
             char *result = command_registry_execute(&agent->commands, cmd_name, cmd_args, &agent->config, agent->session);
             if (result && result[0]) printf("%s\n", result);
             free(result);
+            agent_refresh_api_config(agent);
             free(owned_cmd_args);
         } else {
             int rc = agent_run_turn(agent, input);

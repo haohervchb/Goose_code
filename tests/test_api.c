@@ -1719,6 +1719,75 @@ void test_notebook_edit_updates_cell_source(void) {
     printf("  PASS: test_notebook_edit_updates_cell_source\n");
 }
 
+void test_provider_apply_preset_sets_defaults(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.provider = strdup("openai");
+    cfg.base_url = strdup("https://api.openai.com/v1");
+    cfg.model = strdup("gpt-4o");
+
+    assert(provider_apply_preset(&cfg, "ollama", 1) == 0);
+    assert(strcmp(cfg.provider, "ollama") == 0);
+    assert(strcmp(cfg.base_url, "http://localhost:11434/v1") == 0);
+    assert(strcmp(cfg.model, "llama3") == 0);
+
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_provider_apply_preset_sets_defaults\n");
+}
+
+void test_provider_settings_are_saved_per_provider(void) {
+    tests_run++;
+
+    char home_dir[] = "/tmp/goosecode_provider_home_XXXXXX";
+    assert(mkdtemp(home_dir) != NULL);
+    char goose_dir[1024];
+    snprintf(goose_dir, sizeof(goose_dir), "%s/.goosecode", home_dir);
+    assert(mkdir(goose_dir, 0755) == 0);
+
+    const char *old_home = getenv("HOME");
+    setenv("HOME", home_dir, 1);
+
+    GooseConfig cfg = {0};
+    cfg.provider = strdup("vllm");
+    cfg.base_url = strdup("http://127.0.0.1:18080/v1");
+    cfg.model = strdup("demo-model-a");
+    cfg.api_key = strdup("sk-test");
+
+    assert(config_save_user_settings(&cfg) == 0);
+
+    char *saved_base = NULL;
+    char *saved_model = NULL;
+    char *saved_key = NULL;
+    assert(config_load_user_provider_settings("vllm", &saved_base, &saved_model, &saved_key) == 0);
+    assert(strcmp(saved_base, "http://127.0.0.1:18080/v1") == 0);
+    assert(strcmp(saved_model, "demo-model-a") == 0);
+    assert(strcmp(saved_key, "sk-test") == 0);
+    free(saved_base);
+    free(saved_model);
+    free(saved_key);
+
+    char settings_path[1024];
+    snprintf(settings_path, sizeof(settings_path), "%s/.goosecode/settings.json", home_dir);
+    char *saved = json_read_file(settings_path);
+    assert(saved != NULL);
+    assert(strstr(saved, "provider_profiles") != NULL);
+    free(saved);
+    config_free(&cfg);
+
+    if (old_home) setenv("HOME", old_home, 1);
+    else unsetenv("HOME");
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", home_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_provider_settings_are_saved_per_provider\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1779,6 +1848,8 @@ int main(void) {
     test_grep_search_handles_quoted_pattern();
     test_structured_output_formats_json_payload();
     test_notebook_edit_updates_cell_source();
+    test_provider_apply_preset_sets_defaults();
+    test_provider_settings_are_saved_per_provider();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
