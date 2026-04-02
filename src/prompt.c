@@ -1,4 +1,5 @@
 #include "prompt.h"
+#include "prompt_sections.h"
 #include "util/strbuf.h"
 #include "util/json_util.h"
 #include <stdio.h>
@@ -143,59 +144,82 @@ static int read_claude_md_files(const char *start_dir, ClaudeMdEntry *entries, i
     return count;
 }
 
-char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
-    StrBuf sys = strbuf_new();
+static char *prompt_section_intro(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    StrBuf out = strbuf_new();
+    strbuf_append(&out, "You are goosecode, an interactive AI coding agent running in a terminal. ");
+    strbuf_append(&out, "You help users write, edit, debug, and understand code. ");
+    strbuf_append(&out, "You have access to tools for file operations, shell execution, web search, and more. ");
+    strbuf_append(&out, "Always think step by step before taking action.");
+    return strbuf_detach(&out);
+}
 
-    strbuf_append(&sys, "You are goosecode, an interactive AI coding agent running in a terminal. "
-                         "You help users write, edit, debug, and understand code. "
-                         "You have access to tools for file operations, shell execution, web search, and more. "
-                         "Always think step by step before taking action.\n\n");
+static char *prompt_section_doing_tasks(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    StrBuf out = strbuf_from("# Doing tasks\n");
+    strbuf_append(&out, "- Take a methodical, step-by-step approach to tasks\n");
+    strbuf_append(&out, "- Use the available tools to accomplish tasks efficiently\n");
+    strbuf_append(&out, "- When editing files, use edit_file with precise string replacement - always verify the old_string exists first\n");
+    strbuf_append(&out, "- Read files before editing to understand context\n");
+    strbuf_append(&out, "- Write clean, readable, well-structured code\n");
+    strbuf_append(&out, "- Follow existing code conventions and patterns in the project\n");
+    strbuf_append(&out, "- Prefer simple solutions over complex ones\n");
+    strbuf_append(&out, "- Include proper error handling\n");
+    strbuf_append(&out, "- Verify your changes by reading the modified files or running tests\n");
+    strbuf_append(&out, "- If unsure about something, ask the user for clarification\n");
+    return strbuf_detach(&out);
+}
 
-    strbuf_append(&sys, "# Doing tasks\n");
-    strbuf_append(&sys, "- Take a methodical, step-by-step approach to tasks\n");
-    strbuf_append(&sys, "- Use the available tools to accomplish tasks efficiently\n");
-    strbuf_append(&sys, "- When editing files, use edit_file with precise string replacement — always verify the old_string exists first\n");
-    strbuf_append(&sys, "- Read files before editing to understand context\n");
-    strbuf_append(&sys, "- Write clean, readable, well-structured code\n");
-    strbuf_append(&sys, "- Follow existing code conventions and patterns in the project\n");
-    strbuf_append(&sys, "- Prefer simple solutions over complex ones\n");
-    strbuf_append(&sys, "- Include proper error handling\n");
-    strbuf_append(&sys, "- Verify your changes by reading the modified files or running tests\n");
-    strbuf_append(&sys, "- If unsure about something, ask the user for clarification\n\n");
+static char *prompt_section_actions(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    StrBuf out = strbuf_from("# Executing actions with care\n");
+    strbuf_append(&out, "- Do NOT execute commands that could cause data loss without confirmation\n");
+    strbuf_append(&out, "- Be careful with commands like rm, git push --force, drop database, etc.\n");
+    strbuf_append(&out, "- When running shell commands, consider the security implications\n");
+    strbuf_append(&out, "- Use read-only tools (read_file, glob_search, grep_search) when you only need to inspect\n");
+    return strbuf_detach(&out);
+}
 
-    strbuf_append(&sys, "# Executing actions with care\n");
-    strbuf_append(&sys, "- Do NOT execute commands that could cause data loss without confirmation\n");
-    strbuf_append(&sys, "- Be careful with commands like rm, git push --force, drop database, etc.\n");
-    strbuf_append(&sys, "- When running shell commands, consider the security implications\n");
-    strbuf_append(&sys, "- Use read-only tools (read_file, glob_search, grep_search) when you only need to inspect\n\n");
-
+static char *prompt_section_environment(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)sess;
     char *date = get_date_str();
     char *platform = get_platform_info();
     char *shell_info = get_shell_info();
+    StrBuf out = strbuf_new();
 
-    strbuf_append_fmt(&sys, "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\n");
-    strbuf_append_fmt(&sys, "## Environment\n");
-    strbuf_append_fmt(&sys, "- Working directory: %s\n", working_dir);
-    strbuf_append_fmt(&sys, "- Current date/time: %s\n", date);
-    strbuf_append_fmt(&sys, "- Model: %s\n", cfg->model);
-    strbuf_append_fmt(&sys, "- Platform: %s\n", platform);
-    strbuf_append_fmt(&sys, "- Shell: %s\n\n", shell_info);
+    strbuf_append(&out, "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n");
+    strbuf_append(&out, "## Environment\n");
+    strbuf_append_fmt(&out, "- Working directory: %s\n", working_dir);
+    strbuf_append_fmt(&out, "- Current date/time: %s\n", date);
+    strbuf_append_fmt(&out, "- Model: %s\n", cfg->model);
+    strbuf_append_fmt(&out, "- Platform: %s\n", platform);
+    strbuf_append_fmt(&out, "- Shell: %s\n", shell_info);
 
     free(date);
     free(platform);
     free(shell_info);
+    return strbuf_detach(&out);
+}
 
+static char *prompt_section_git(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess;
+    StrBuf out = strbuf_new();
     char *git_status = get_git_status(working_dir);
-    strbuf_append_fmt(&sys, "## Git Status\n%s\n", git_status);
+    strbuf_append_fmt(&out, "## Git Status\n%s\n", git_status);
     free(git_status);
 
     char *git_diff = get_git_diff(working_dir);
     if (git_diff && strlen(git_diff) > 0) {
-        strbuf_append(&sys, git_diff);
-        strbuf_append(&sys, "\n");
+        strbuf_append(&out, git_diff);
+        strbuf_append(&out, "\n");
     }
     free(git_diff);
+    return strbuf_detach(&out);
+}
 
+static char *prompt_section_instruction_files(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess;
+    StrBuf out = strbuf_new();
     ClaudeMdEntry md_entries[16];
     memset(md_entries, 0, sizeof(md_entries));
     int md_count = read_claude_md_files(working_dir, md_entries, 16);
@@ -206,33 +230,54 @@ char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, c
             total_chars += md_entries[i].char_count;
         }
 
-        strbuf_append_fmt(&sys, "\n## Project Instructions (%d file%s, %d chars total)\n",
+        strbuf_append_fmt(&out, "## Project Instructions (%d file%s, %d chars total)\n",
                           md_count, md_count == 1 ? "" : "s", total_chars);
 
         for (int i = 0; i < md_count; i++) {
-            strbuf_append_fmt(&sys, "\n### %s\n", md_entries[i].path);
-            strbuf_append(&sys, md_entries[i].content);
-            strbuf_append_char(&sys, '\n');
+            strbuf_append_fmt(&out, "\n### %s\n", md_entries[i].path);
+            strbuf_append(&out, md_entries[i].content);
+            strbuf_append_char(&out, '\n');
             free(md_entries[i].path);
             free(md_entries[i].content);
         }
     }
+    return strbuf_detach(&out);
+}
 
-    if (sess && sess->plan_mode) {
-        strbuf_append(&sys, "\n## Plan Mode\n");
-        strbuf_append(&sys, "- Plan mode is currently enabled\n");
-        strbuf_append(&sys, "- Focus on refining or following the current plan before taking action\n");
-        if (sess->plan_content && sess->plan_content[0]) {
-            strbuf_append(&sys, "- Current plan:\n");
-            strbuf_append(&sys, sess->plan_content);
-            strbuf_append_char(&sys, '\n');
-        } else {
-            strbuf_append(&sys, "- No plan has been written yet\n");
-        }
+static char *prompt_section_plan_mode(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)working_dir;
+    if (!sess || !sess->plan_mode) return strdup("");
+
+    StrBuf out = strbuf_from("## Plan Mode\n");
+    strbuf_append(&out, "- Plan mode is currently enabled\n");
+    strbuf_append(&out, "- Focus on refining or following the current plan before taking action\n");
+    if (sess->plan_content && sess->plan_content[0]) {
+        strbuf_append(&out, "- Current plan:\n");
+        strbuf_append(&out, sess->plan_content);
+        strbuf_append_char(&out, '\n');
+    } else {
+        strbuf_append(&out, "- No plan has been written yet\n");
     }
+    return strbuf_detach(&out);
+}
 
-    strbuf_append(&sys, "\n__SYSTEM_PROMPT_END__\n");
+char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    PromptSection sections[] = {
+        {"intro", prompt_section_intro},
+        {"doing_tasks", prompt_section_doing_tasks},
+        {"actions", prompt_section_actions},
+        {"environment", prompt_section_environment},
+        {"git", prompt_section_git},
+        {"instruction_files", prompt_section_instruction_files},
+        {"plan_mode", prompt_section_plan_mode},
+    };
 
+    char *resolved = prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),
+                                             cfg, sess, working_dir);
+    StrBuf sys = strbuf_from(resolved);
+    free(resolved);
+    if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');
+    strbuf_append(&sys, "__SYSTEM_PROMPT_END__\n");
     return strbuf_detach(&sys);
 }
 

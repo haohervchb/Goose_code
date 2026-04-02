@@ -11,6 +11,7 @@
 #include "../src/config.h"
 #include "../src/session.h"
 #include "../src/prompt.h"
+#include "../src/prompt_sections.h"
 #include "../src/util/terminal.h"
 #include "../src/api.h"
 #include "../src/tools/tools.h"
@@ -51,6 +52,51 @@ void test_terminal_prompt_format(void) {
     free(prompt);
     tests_passed++;
     printf("  PASS: test_terminal_prompt_format\n");
+}
+
+static char *test_prompt_section_alpha(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    return strdup("alpha");
+}
+
+static char *test_prompt_section_empty(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    return strdup("");
+}
+
+static char *test_prompt_section_beta(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    return strdup("beta");
+}
+
+void test_prompt_sections_order(void) {
+    tests_run++;
+    PromptSection sections[] = {
+        {"alpha", test_prompt_section_alpha},
+        {"beta", test_prompt_section_beta},
+    };
+    char *prompt = prompt_sections_resolve(sections, 2, NULL, NULL, NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "alpha\nbeta") != NULL);
+    free(prompt);
+    tests_passed++;
+    printf("  PASS: test_prompt_sections_order\n");
+}
+
+void test_prompt_sections_skip_nulls(void) {
+    tests_run++;
+    PromptSection sections[] = {
+        {"alpha", test_prompt_section_alpha},
+        {"empty", test_prompt_section_empty},
+        {"beta", test_prompt_section_beta},
+    };
+    char *prompt = prompt_sections_resolve(sections, 3, NULL, NULL, NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "alpha\nbeta") != NULL);
+    assert(strstr(prompt, "empty") == NULL);
+    free(prompt);
+    tests_passed++;
+    printf("  PASS: test_prompt_sections_skip_nulls\n");
 }
 
 void test_terminal_buffer_editing(void) {
@@ -1876,6 +1922,8 @@ int main(void) {
 
     test_strbuf_basic();
     test_strbuf_fmt();
+    test_prompt_sections_order();
+    test_prompt_sections_skip_nulls();
     test_terminal_prompt_format();
     test_terminal_buffer_editing();
     test_terminal_buffer_set_and_cursor();
