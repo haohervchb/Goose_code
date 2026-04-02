@@ -66,11 +66,22 @@ static void *tool_exec_thread(void *userdata) {
     task->result = tool_registry_execute(task->tools, task->name,
                                           task->args, task->cfg, &task->perm);
     if (task->perm == PERM_CHECK_PROMPT) {
+        if (task->cfg && task->cfg->permission_mode == PERM_ALLOW) {
+            free(task->result);
+            task->result = tool_registry_execute_unchecked(task->tools, task->name, task->args, task->cfg);
+            task->perm = PERM_CHECK_ALLOW;
+            tool_context_set_session(NULL);
+            return NULL;
+        }
         printf(TERM_YELLOW "\n[Permission required for tool '%s'. Allow? (y/n): " TERM_RESET, task->name);
         fflush(stdout);
         char answer[8];
         if (fgets(answer, sizeof(answer), stdin)) {
-            if (answer[0] != 'y' && answer[0] != 'Y') {
+            if (answer[0] == 'y' || answer[0] == 'Y') {
+                free(task->result);
+                task->result = tool_registry_execute_unchecked(task->tools, task->name, task->args, task->cfg);
+                task->perm = PERM_CHECK_ALLOW;
+            } else {
                 free(task->result);
                 task->result = strdup("Tool execution denied by user.");
                 task->perm = PERM_CHECK_DENY;

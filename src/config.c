@@ -84,7 +84,7 @@ static void load_provider_settings_from_json(cJSON *json, const char *provider,
 
 GooseConfig config_load(void) {
     GooseConfig cfg = {0};
-    cfg.permission_mode = PERM_PROMPT;
+    cfg.permission_mode = PERM_ALLOW;
     cfg.max_tokens = 8192;
     cfg.temperature = 0.7;
     cfg.max_turns = 64;
@@ -270,5 +270,5 @@ PermissionMode config_perm_mode_from_str(const char *s) {
     if (strcmp(s, "workspace-write") == 0) return PERM_WORKSPACE_WRITE;
     if (strcmp(s, "danger-full-access") == 0) return PERM_DANGER_FULL_ACCESS;
     if (strcmp(s, "allow") == 0) return PERM_ALLOW;
-    return PERM_PROMPT;
+    return PERM_ALLOW;
 }

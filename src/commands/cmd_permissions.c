@@ -12,8 +12,8 @@ static char *cmd_permissions_exec(const char *args, const GooseConfig *cfg, Sess
     strbuf_append(&out, "  read-only          - Only read-only tools allowed\n");
     strbuf_append(&out, "  workspace-write    - Read and file write tools allowed\n");
     strbuf_append(&out, "  danger-full-access - All tools except the most dangerous\n");
-    strbuf_append(&out, "  prompt             - Prompt for each tool use (default)\n");
-    strbuf_append(&out, "  allow              - All tools auto-approved\n");
+    strbuf_append(&out, "  prompt             - Prompt for each tool use\n");
+    strbuf_append(&out, "  allow              - All tools auto-approved (default)\n");
     return strbuf_detach(&out);
 }
 

@@ -30,6 +30,8 @@ cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig 
 Tool *tool_registry_find(const ToolRegistry *reg, const char *name);
 char *tool_registry_execute(ToolRegistry *reg, const char *name, const char *args,
                             const GooseConfig *cfg, PermissionCheckResult *perm);
+char *tool_registry_execute_unchecked(ToolRegistry *reg, const char *name, const char *args,
+                                      const GooseConfig *cfg);
 void tool_context_set_session(Session *sess);
 Session *tool_context_get_session(void);
 char *tool_execute_bash(const char *args, const GooseConfig *cfg);

@@ -201,7 +201,7 @@ void test_config_perm_mode_from_str(void) {
     tests_run++;
     assert(config_perm_mode_from_str("read-only") == PERM_READ_ONLY);
     assert(config_perm_mode_from_str("allow") == PERM_ALLOW);
-    assert(config_perm_mode_from_str("unknown") == PERM_PROMPT);
+    assert(config_perm_mode_from_str("unknown") == PERM_ALLOW);
     tests_passed++;
     printf("  PASS: test_config_perm_mode_from_str\n");
 }

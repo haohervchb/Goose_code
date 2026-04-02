@@ -67,6 +67,15 @@ Tool *tool_registry_find(const ToolRegistry *reg, const char *name) {
     return NULL;
 }
 
+char *tool_registry_execute_unchecked(ToolRegistry *reg, const char *name, const char *args,
+                                      const GooseConfig *cfg) {
+    (void)cfg;
+    Tool *tool = tool_registry_find(reg, name);
+    if (!tool) return strdup("Error: tool not found");
+    if (!args) return strdup("Error: missing tool arguments");
+    return tool->execute(args, cfg);
+}
+
 char *tool_registry_execute(ToolRegistry *reg, const char *name, const char *args,
                             const GooseConfig *cfg, PermissionCheckResult *perm) {
     Tool *tool = tool_registry_find(reg, name);
@@ -75,6 +84,7 @@ char *tool_registry_execute(ToolRegistry *reg, const char *name, const char *arg
     *perm = permissions_check(cfg, name, args, tool->required_mode);
     if (*perm == PERM_CHECK_BLOCK) return strdup("Error: tool is blocked by permission policy");
     if (*perm == PERM_CHECK_DENY) return strdup("Error: tool is denied");
+    if (*perm == PERM_CHECK_PROMPT) return strdup("Permission required before tool execution.");
 
     if (!args) return strdup("Error: missing tool arguments");
 
