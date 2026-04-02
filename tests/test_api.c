@@ -993,6 +993,76 @@ void test_lsp_rejects_unknown_action(void) {
     printf("  PASS: test_lsp_rejects_unknown_action\n");
 }
 
+void test_tasks_command_create_list_show_and_set(void) {
+    tests_run++;
+
+    char todo_path[] = "/tmp/goosecode_cmd_tasks_XXXXXX.json";
+    int fd = mkstemps(todo_path, 5);
+    assert(fd != -1);
+    close(fd);
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = todo_path;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "tasks", "create Write command test", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Created task:") != NULL);
+    assert(strstr(result, "task_1 [pending|medium] Write command test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "tasks", "list", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "task_1 [pending|medium] Write command test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "tasks", "show task_1", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "task_1 [pending|medium] Write command test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "tasks", "set task_1 completed", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Updated task:") != NULL);
+    assert(strstr(result, "task_1 [completed|medium] Write command test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "tasks", "completed", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "task_1 [completed|medium] Write command test") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+    remove(todo_path);
+
+    tests_passed++;
+    printf("  PASS: test_tasks_command_create_list_show_and_set\n");
+}
+
+void test_tasks_command_rejects_bad_status(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = "/tmp/goosecode_cmd_tasks_invalid.json";
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "tasks", "set task_1 bogus", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: status must be pending, in_progress, completed, or cancelled\n") == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_tasks_command_rejects_bad_status\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1031,6 +1101,8 @@ int main(void) {
     test_mcp_missing_server_and_resource_errors();
     test_lsp_hover_definition_and_symbols();
     test_lsp_rejects_unknown_action();
+    test_tasks_command_create_list_show_and_set();
+    test_tasks_command_rejects_bad_status();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
