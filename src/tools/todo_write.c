@@ -10,13 +10,20 @@ char *tool_execute_todo_write(const char *args, const GooseConfig *cfg) {
     if (!json) return strdup("Error: invalid JSON arguments");
 
     cJSON *todos = cJSON_GetObjectItem(json, "todos");
-    cJSON_Delete(json);
-
-    if (!todos || !cJSON_IsArray(todos)) return strdup("Error: 'todos' array required");
+    if (!todos || !cJSON_IsArray(todos)) {
+        cJSON_Delete(json);
+        return strdup("Error: 'todos' array required");
+    }
 
     int count = cJSON_GetArraySize(todos);
-    if (count == 0) return strdup("Error: todos array must not be empty");
-    if (count > 50) return strdup("Error: too many todos (max 50)");
+    if (count == 0) {
+        cJSON_Delete(json);
+        return strdup("Error: todos array must not be empty");
+    }
+    if (count > 50) {
+        cJSON_Delete(json);
+        return strdup("Error: too many todos (max 50)");
+    }
 
     int in_progress_count = 0;
     cJSON *item;
@@ -24,6 +31,7 @@ char *tool_execute_todo_write(const char *args, const GooseConfig *cfg) {
         const char *status = json_get_string(item, "status");
         const char *content = json_get_string(item, "content");
         if (!content || strlen(content) == 0) {
+            cJSON_Delete(json);
             return strdup("Error: each todo must have non-empty 'content'");
         }
         if (status && strcmp(status, "in_progress") == 0) {
@@ -31,6 +39,7 @@ char *tool_execute_todo_write(const char *args, const GooseConfig *cfg) {
         }
     }
     if (in_progress_count > 1) {
+        cJSON_Delete(json);
         return strdup("Error: only one todo can be 'in_progress' at a time");
     }
 
@@ -47,5 +56,7 @@ char *tool_execute_todo_write(const char *args, const GooseConfig *cfg) {
     if (in_progress_count == 1) {
         strbuf_append(&out, "\nRemember to verify your work when you complete the in-progress task.");
     }
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

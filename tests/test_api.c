@@ -559,6 +559,60 @@ void test_plan_command_updates_session(void) {
     printf("  PASS: test_plan_command_updates_session\n");
 }
 
+void test_todo_write_persists_and_formats(void) {
+    tests_run++;
+
+    char todo_path[] = "/tmp/goosecode_todos_XXXXXX.json";
+    int fd = mkstemps(todo_path, 5);
+    assert(fd != -1);
+    close(fd);
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = todo_path;
+
+    const char *args =
+        "{\"todos\":[{\"content\":\"Investigate crash\",\"status\":\"in_progress\"},{\"content\":\"Add regression test\",\"status\":\"pending\"}]}";
+    char *result = tool_execute_todo_write(args, &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "Todos updated:") != NULL);
+    assert(strstr(result, "[in_progress] Investigate crash") != NULL);
+    assert(strstr(result, "[pending] Add regression test") != NULL);
+
+    char *saved = json_read_file(todo_path);
+    assert(saved != NULL);
+    cJSON *saved_json = cJSON_Parse(saved);
+    assert(saved_json != NULL);
+    assert(cJSON_IsArray(saved_json));
+    assert(cJSON_GetArraySize(saved_json) == 2);
+    cJSON *first = cJSON_GetArrayItem(saved_json, 0);
+    assert(strcmp(json_get_string(first, "content"), "Investigate crash") == 0);
+
+    cJSON_Delete(saved_json);
+    free(saved);
+    free(result);
+    remove(todo_path);
+
+    tests_passed++;
+    printf("  PASS: test_todo_write_persists_and_formats\n");
+}
+
+void test_todo_write_rejects_multiple_in_progress(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = "/tmp/unused_todos.json";
+
+    const char *args =
+        "{\"todos\":[{\"content\":\"One\",\"status\":\"in_progress\"},{\"content\":\"Two\",\"status\":\"in_progress\"}]}";
+    char *result = tool_execute_todo_write(args, &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: only one todo can be 'in_progress' at a time") == 0);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_todo_write_rejects_multiple_in_progress\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -584,6 +638,8 @@ int main(void) {
     test_prompt_includes_plan_mode();
     test_plan_mode_tools_toggle_session();
     test_plan_command_updates_session();
+    test_todo_write_persists_and_formats();
+    test_todo_write_rejects_multiple_in_progress();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
