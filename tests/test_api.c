@@ -14,6 +14,7 @@
 #include "../src/prompt_sections.h"
 #include "../src/util/terminal.h"
 #include "../src/api.h"
+#include "../src/compact.h"
 #include "../src/tools/tools.h"
 #include "../src/tools/subagent_store.h"
 #include "../src/commands/commands.h"
@@ -2013,6 +2014,30 @@ void test_provider_settings_are_saved_per_provider(void) {
     printf("  PASS: test_provider_settings_are_saved_per_provider\n");
 }
 
+void test_compact_prompt_includes_no_tools_rule(void) {
+    tests_run++;
+    char *prompt = compact_get_prompt();
+    assert(prompt != NULL);
+    assert(strstr(prompt, "Do NOT call any tools") != NULL);
+    assert(strstr(prompt, "<analysis>") != NULL);
+    assert(strstr(prompt, "<summary>") != NULL);
+    free(prompt);
+    tests_passed++;
+    printf("  PASS: test_compact_prompt_includes_no_tools_rule\n");
+}
+
+void test_compact_formatter_extracts_summary(void) {
+    tests_run++;
+    char *formatted = compact_format_summary("<analysis>ignore me</analysis><summary>1. Primary Request and Intent:\nDone</summary>");
+    assert(formatted != NULL);
+    assert(strstr(formatted, "ignore me") == NULL);
+    assert(strstr(formatted, "Summary:") != NULL);
+    assert(strstr(formatted, "Primary Request and Intent") != NULL);
+    free(formatted);
+    tests_passed++;
+    printf("  PASS: test_compact_formatter_extracts_summary\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -2086,6 +2111,8 @@ int main(void) {
     test_notebook_edit_updates_cell_source();
     test_provider_apply_preset_sets_defaults();
     test_provider_settings_are_saved_per_provider();
+    test_compact_prompt_includes_no_tools_rule();
+    test_compact_formatter_extracts_summary();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

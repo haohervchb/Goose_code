@@ -129,6 +129,8 @@ GooseConfig config_load(void) {
 
     const char *env_turns = getenv("GOOSECODE_MAX_TURNS");
     if (env_turns) cfg.max_turns = atoi(env_turns);
+    const char *env_ctx = getenv("GOOSECODE_CONTEXT_WINDOW");
+    if (env_ctx) cfg.context_window = atoi(env_ctx);
 
     cJSON *mcp = cJSON_CreateArray();
     cfg.mcp_servers = mcp;
@@ -148,6 +150,7 @@ GooseConfig config_load(void) {
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(proj, "max_tokens", cfg.max_tokens);
         cfg.max_turns = json_get_int(proj, "max_turns", cfg.max_turns);
+        cfg.context_window = json_get_int(proj, "context_window", cfg.context_window);
         cJSON *ms = json_get_array(proj, "mcp_servers");
         if (ms) {
             cJSON_Delete(cfg.mcp_servers);
@@ -177,6 +180,7 @@ GooseConfig config_load(void) {
         v = json_get_string(user, "permission_mode"); if (v && !env_perms) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(user, "max_tokens", cfg.max_tokens);
         cfg.max_turns = json_get_int(user, "max_turns", cfg.max_turns);
+        cfg.context_window = json_get_int(user, "context_window", cfg.context_window);
         cJSON *ms = json_get_array(user, "mcp_servers");
         if (ms) merge_mcp_servers(&cfg.mcp_servers, ms);
         load_provider_settings_from_json(user, cfg.provider, &cfg, !env_model, !env_base, !env_key);

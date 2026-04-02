@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "compact.h"
 #include "prompt.h"
 #include "prompt_sections.h"
 #include "util/json_util.h"
@@ -354,11 +355,19 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         }
 
         if (session_needs_compact(agent->session, agent->config.context_window)) {
-            char *summary = session_compact(agent->session, 10);
+            char *summary = compact_generate_summary(&agent->api_cfg, agent->session->messages);
             if (summary) {
+                session_apply_compact_summary(agent->session, 10, summary);
                 printf(TERM_DIM "[Context compacted before API call]\n" TERM_RESET);
                 prompt_sections_clear_cache();
                 free(summary);
+            } else {
+                char *fallback = session_compact(agent->session, 10);
+                if (fallback) {
+                    printf(TERM_DIM "[Context compacted with fallback summary]\n" TERM_RESET);
+                    prompt_sections_clear_cache();
+                    free(fallback);
+                }
             }
         }
 

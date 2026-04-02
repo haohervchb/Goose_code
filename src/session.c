@@ -160,7 +160,20 @@ char *session_compact(Session *sess, int keep_recent) {
     }
     strbuf_append(&summary, "]");
 
-    cJSON *compact_msg = json_build_message("system", summary.data);
+    session_apply_compact_summary(sess, keep_recent, summary.data);
+
+    char *result = strbuf_detach(&summary);
+    strbuf_free(&summary);
+    return result;
+}
+
+void session_apply_compact_summary(Session *sess, int keep_recent, const char *summary) {
+    if (!sess || !sess->messages) return;
+    int total = cJSON_GetArraySize(sess->messages);
+    if (total <= keep_recent + 1) return;
+
+    int compact_to = total - keep_recent;
+    cJSON *compact_msg = json_build_message("system", summary ? summary : "[Conversation context compacted]");
     cJSON_ReplaceItemInArray(sess->messages, 0, compact_msg);
 
     for (int i = compact_to; i < total; i++) {
@@ -174,10 +187,6 @@ char *session_compact(Session *sess, int keep_recent) {
     while (cJSON_GetArraySize(sess->messages) > keep_recent + 1) {
         cJSON_DeleteItemFromArray(sess->messages, 1);
     }
-
-    char *result = strbuf_detach(&summary);
-    strbuf_free(&summary);
-    return result;
 }
 
 char *session_list(const char *session_dir) {

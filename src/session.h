@@ -27,6 +27,7 @@ void session_clear_plan(Session *sess);
 const char *session_get_plan(const Session *sess);
 int session_needs_compact(Session *sess, int context_window);
 char *session_compact(Session *sess, int keep_recent);
+void session_apply_compact_summary(Session *sess, int keep_recent, const char *summary);
 char *session_list(const char *session_dir);
 
 #endif
