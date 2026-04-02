@@ -29,7 +29,7 @@ Agent *agent_init(const char *working_dir) {
     agent->commands = command_registry_init();
     command_registry_register_all(&agent->commands);
 
-    char *sys_prompt = prompt_build_system(&agent->config, agent->config.working_dir);
+    char *sys_prompt = prompt_build_system(&agent->config, agent->session, agent->config.working_dir);
     agent->system_message = json_build_message("system", sys_prompt);
     free(sys_prompt);
 
@@ -53,6 +53,7 @@ typedef struct {
     const char *name;
     const char *args;
     const GooseConfig *cfg;
+    Session *session;
     char *result;
     PermissionCheckResult perm;
     int is_error;
@@ -60,6 +61,7 @@ typedef struct {
 
 static void *tool_exec_thread(void *userdata) {
     ToolExecTask *task = (ToolExecTask *)userdata;
+    tool_context_set_session(task->session);
     task->result = tool_registry_execute(task->tools, task->name,
                                           task->args, task->cfg, &task->perm);
     if (task->perm == PERM_CHECK_PROMPT) {
@@ -74,7 +76,18 @@ static void *tool_exec_thread(void *userdata) {
             }
         }
     }
+    tool_context_set_session(NULL);
     return NULL;
+}
+
+static void agent_refresh_system_message(Agent *agent) {
+    if (agent->system_message) {
+        cJSON_Delete(agent->system_message);
+        agent->system_message = NULL;
+    }
+    char *sys_prompt = prompt_build_system(&agent->config, agent->session, agent->config.working_dir);
+    agent->system_message = json_build_message("system", sys_prompt);
+    free(sys_prompt);
 }
 
 static void stream_text_cb(const char *text, size_t len, void *ctx) {
@@ -137,6 +150,7 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         tasks[i].name = calls->names[i];
         tasks[i].args = calls->args[i];
         tasks[i].cfg = &agent->config;
+        tasks[i].session = agent->session;
         tasks[i].result = NULL;
         tasks[i].is_error = 0;
         is_readonly[i] = 0;
@@ -219,6 +233,8 @@ int agent_run_turn(Agent *agent, const char *user_input) {
                 free(summary);
             }
         }
+
+        agent_refresh_system_message(agent);
 
         cJSON *messages = prompt_build_messages_with_tools(
             agent->system_message, agent->session->messages, NULL);

@@ -141,7 +141,7 @@ static int read_claude_md_files(const char *start_dir, ClaudeMdEntry *entries, i
     return count;
 }
 
-char *prompt_build_system(const GooseConfig *cfg, const char *working_dir) {
+char *prompt_build_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     StrBuf sys = strbuf_new();
 
     strbuf_append(&sys, "You are goosecode, an interactive AI coding agent running in a terminal. "
@@ -213,6 +213,19 @@ char *prompt_build_system(const GooseConfig *cfg, const char *working_dir) {
             strbuf_append_char(&sys, '\n');
             free(md_entries[i].path);
             free(md_entries[i].content);
+        }
+    }
+
+    if (sess && sess->plan_mode) {
+        strbuf_append(&sys, "\n## Plan Mode\n");
+        strbuf_append(&sys, "- Plan mode is currently enabled\n");
+        strbuf_append(&sys, "- Focus on refining or following the current plan before taking action\n");
+        if (sess->plan_content && sess->plan_content[0]) {
+            strbuf_append(&sys, "- Current plan:\n");
+            strbuf_append(&sys, sess->plan_content);
+            strbuf_append_char(&sys, '\n');
+        } else {
+            strbuf_append(&sys, "- No plan has been written yet\n");
         }
     }
 

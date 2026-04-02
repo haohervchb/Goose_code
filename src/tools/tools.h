@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "permissions.h"
+#include "session.h"
 #include "util/cJSON.h"
 #include <stdio.h>
 
@@ -29,6 +30,8 @@ cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig 
 Tool *tool_registry_find(const ToolRegistry *reg, const char *name);
 char *tool_registry_execute(ToolRegistry *reg, const char *name, const char *args,
                             const GooseConfig *cfg, PermissionCheckResult *perm);
+void tool_context_set_session(Session *sess);
+Session *tool_context_get_session(void);
 char *tool_execute_bash(const char *args, const GooseConfig *cfg);
 char *tool_execute_read_file(const char *args, const GooseConfig *cfg);
 char *tool_execute_write_file(const char *args, const GooseConfig *cfg);
@@ -46,6 +49,8 @@ char *tool_execute_sleep(const char *args, const GooseConfig *cfg);
 char *tool_execute_send_message(const char *args, const GooseConfig *cfg);
 char *tool_execute_ask_user_question(const char *args, const GooseConfig *cfg);
 char *tool_execute_ask_user_question_with_io(const char *args, FILE *input, FILE *output);
+char *tool_execute_enter_plan_mode(const char *args, const GooseConfig *cfg);
+char *tool_execute_exit_plan_mode(const char *args, const GooseConfig *cfg);
 char *tool_execute_config_tool(const char *args, const GooseConfig *cfg);
 char *tool_execute_structured_out(const char *args, const GooseConfig *cfg);
 char *tool_execute_repl_tool(const char *args, const GooseConfig *cfg);

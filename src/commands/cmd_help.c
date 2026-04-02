@@ -14,6 +14,7 @@ static char *cmd_help_exec(const char *args, const GooseConfig *cfg, Session *se
     strbuf_append(&out, "  /model [name]      Show or set the model\n");
     strbuf_append(&out, "  /session [id]      Show, save, or load a session\n");
     strbuf_append(&out, "  /compact           Compact the conversation context\n");
+    strbuf_append(&out, "  /plan [subcommand] Manage plan mode and stored plan\n");
     strbuf_append(&out, "  /permissions       Show current permission mode\n");
     strbuf_append(&out, "  /cost              Show token usage and cost\n");
     strbuf_append(&out, "  /tools             List available tools\n");

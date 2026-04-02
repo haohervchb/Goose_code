@@ -31,6 +31,7 @@ TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/sleep.c \
             $(SRCDIR)/tools/send_message.c \
             $(SRCDIR)/tools/ask_user_question.c \
+            $(SRCDIR)/tools/plan_mode.c \
             $(SRCDIR)/tools/config_tool.c \
             $(SRCDIR)/tools/structured_out.c \
             $(SRCDIR)/tools/repl_tool.c \
@@ -45,6 +46,7 @@ CMD_SRCS  = $(SRCDIR)/commands/commands.c \
             $(SRCDIR)/commands/cmd_clear.c \
             $(SRCDIR)/commands/cmd_cost.c \
             $(SRCDIR)/commands/cmd_exit.c \
+            $(SRCDIR)/commands/cmd_plan.c \
             $(SRCDIR)/commands/cmd_tools.c
 
 CORE_SRCS = $(SRCDIR)/api.c \

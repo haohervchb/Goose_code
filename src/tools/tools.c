@@ -4,6 +4,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+static _Thread_local Session *g_tool_session = NULL;
+
+void tool_context_set_session(Session *sess) {
+    g_tool_session = sess;
+}
+
+Session *tool_context_get_session(void) {
+    return g_tool_session;
+}
+
 ToolRegistry tool_registry_init(void) {
     ToolRegistry reg = {0};
     reg.cap = 32;
@@ -561,6 +571,41 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .execute = tool_execute_ask_user_question
     };
     tool_registry_register(reg, ask_user_question);
+
+    cJSON *enter_plan_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(enter_plan_params, "type", "object");
+    cJSON *enter_plan_props = cJSON_CreateObject();
+    cJSON *enter_plan_plan = cJSON_CreateObject();
+    cJSON_AddStringToObject(enter_plan_plan, "type", "string");
+    cJSON_AddStringToObject(enter_plan_plan, "description", "Optional plan text to store when entering plan mode");
+    cJSON_AddItemToObject(enter_plan_props, "plan", enter_plan_plan);
+    cJSON *enter_plan_desc = cJSON_CreateObject();
+    cJSON_AddStringToObject(enter_plan_desc, "type", "string");
+    cJSON_AddStringToObject(enter_plan_desc, "description", "Optional alias for the plan text");
+    cJSON_AddItemToObject(enter_plan_props, "description", enter_plan_desc);
+    cJSON_AddItemToObject(enter_plan_params, "properties", enter_plan_props);
+    Tool enter_plan_mode = {
+        .name = strdup("enter_plan_mode"),
+        .description = strdup("Enable session plan mode and optionally store a plan."),
+        .parameters_schema = enter_plan_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_enter_plan_mode
+    };
+    tool_registry_register(reg, enter_plan_mode);
+
+    cJSON *exit_plan_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(exit_plan_params, "type", "object");
+    cJSON_AddItemToObject(exit_plan_params, "properties", cJSON_CreateObject());
+    Tool exit_plan_mode = {
+        .name = strdup("exit_plan_mode"),
+        .description = strdup("Disable session plan mode."),
+        .parameters_schema = exit_plan_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_exit_plan_mode
+    };
+    tool_registry_register(reg, exit_plan_mode);
 
     cJSON *config_params = cJSON_CreateObject();
     cJSON_AddStringToObject(config_params, "type", "object");

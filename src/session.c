@@ -44,6 +44,9 @@ Session *session_load(const char *session_dir, const char *id) {
     s->total_input_tokens = json_get_int(json, "input_tokens", 0);
     s->total_output_tokens = json_get_int(json, "output_tokens", 0);
     s->turn_count = json_get_int(json, "turn_count", 0);
+    s->plan_mode = json_get_int(json, "plan_mode", 0);
+    const char *plan_content = json_get_string(json, "plan_content");
+    if (plan_content) s->plan_content = strdup(plan_content);
     cJSON_Delete(json);
     return s;
 }
@@ -57,6 +60,10 @@ int session_save(const char *session_dir, Session *sess) {
     cJSON_AddNumberToObject(json, "input_tokens", sess->total_input_tokens);
     cJSON_AddNumberToObject(json, "output_tokens", sess->total_output_tokens);
     cJSON_AddNumberToObject(json, "turn_count", sess->turn_count);
+    cJSON_AddNumberToObject(json, "plan_mode", sess->plan_mode);
+    if (sess->plan_content) {
+        cJSON_AddStringToObject(json, "plan_content", sess->plan_content);
+    }
     int rc = json_write_file(path, json);
     cJSON_Delete(json);
     free(path);
@@ -67,6 +74,7 @@ void session_free(Session *sess) {
     if (!sess) return;
     free(sess->id);
     if (sess->messages) cJSON_Delete(sess->messages);
+    free(sess->plan_content);
     free(sess);
 }
 
@@ -78,6 +86,31 @@ void session_add_message(Session *sess, cJSON *msg) {
 void session_add_tool_result(Session *sess, const char *tool_call_id, const char *result) {
     cJSON *msg = json_build_tool_result(tool_call_id, result);
     cJSON_AddItemToArray(sess->messages, msg);
+}
+
+void session_set_plan_mode(Session *sess, int enabled) {
+    if (!sess) return;
+    sess->plan_mode = enabled ? 1 : 0;
+}
+
+void session_set_plan(Session *sess, const char *plan) {
+    if (!sess) return;
+    free(sess->plan_content);
+    sess->plan_content = NULL;
+    if (plan && plan[0]) {
+        sess->plan_content = strdup(plan);
+    }
+}
+
+void session_clear_plan(Session *sess) {
+    if (!sess) return;
+    free(sess->plan_content);
+    sess->plan_content = NULL;
+}
+
+const char *session_get_plan(const Session *sess) {
+    if (!sess) return NULL;
+    return sess->plan_content;
 }
 
 int session_needs_compact(Session *sess, int context_window) {

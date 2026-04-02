@@ -25,6 +25,8 @@ static char *cmd_tools_exec(const char *args, const GooseConfig *cfg, Session *s
     strbuf_append(&out, "  sleep           - Wait for a duration\n");
     strbuf_append(&out, "  send_message    - Send message to user\n");
     strbuf_append(&out, "  ask_user_question - Ask the user a structured question\n");
+    strbuf_append(&out, "  enter_plan_mode - Enable plan mode and optionally store a plan\n");
+    strbuf_append(&out, "  exit_plan_mode  - Disable plan mode\n");
     strbuf_append(&out, "  config          - Manage configuration\n");
     strbuf_append(&out, "  structured_output - Format structured output\n");
     strbuf_append(&out, "  repl            - Execute code in REPL\n");

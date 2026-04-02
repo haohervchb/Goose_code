@@ -55,6 +55,8 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg) {
         {"sleep", "Wait for a specified duration"},
         {"send_message", "Send messages to the user with attachments"},
         {"ask_user_question", "Ask the user structured questions and wait for a reply"},
+        {"enter_plan_mode", "Enable plan mode and optionally store a plan"},
+        {"exit_plan_mode", "Disable plan mode for the current session"},
         {"config", "View or modify runtime configuration"},
         {"structured_output", "Format structured output responses"},
         {"repl", "Execute code in a REPL (Python, Node.js, Ruby, Perl)"},

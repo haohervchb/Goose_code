@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 #include "../src/util/strbuf.h"
 #include "../src/util/json_util.h"
 #include "../src/util/sse.h"
 #include "../src/permissions.h"
 #include "../src/config.h"
+#include "../src/session.h"
+#include "../src/prompt.h"
 #include "../src/tools/tools.h"
+#include "../src/commands/commands.h"
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -451,6 +455,110 @@ void test_tool_definitions_include_message_and_config_schemas(void) {
     printf("  PASS: test_tool_definitions_include_message_and_config_schemas\n");
 }
 
+void test_session_plan_persistence(void) {
+    tests_run++;
+
+    char session_dir[] = "/tmp/goosecode_plan_session_XXXXXX";
+    assert(mkdtemp(session_dir) != NULL);
+
+    Session *sess = session_new();
+    session_set_plan_mode(sess, 1);
+    session_set_plan(sess, "1. Inspect\n2. Fix\n3. Verify");
+    assert(session_save(session_dir, sess) == 0);
+
+    Session *loaded = session_load(session_dir, sess->id);
+    assert(loaded != NULL);
+    assert(loaded->plan_mode == 1);
+    assert(loaded->plan_content != NULL);
+    assert(strcmp(loaded->plan_content, "1. Inspect\n2. Fix\n3. Verify") == 0);
+
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s.json", session_dir, sess->id);
+    remove(path);
+    rmdir(session_dir);
+    session_free(sess);
+    session_free(loaded);
+
+    tests_passed++;
+    printf("  PASS: test_session_plan_persistence\n");
+}
+
+void test_prompt_includes_plan_mode(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    Session *sess = session_new();
+    session_set_plan_mode(sess, 1);
+    session_set_plan(sess, "1. Draft\n2. Review");
+
+    char *prompt = prompt_build_system(&cfg, sess, "/home/rah/goosecode");
+    assert(prompt != NULL);
+    assert(strstr(prompt, "## Plan Mode") != NULL);
+    assert(strstr(prompt, "1. Draft") != NULL);
+
+    free(prompt);
+    free(cfg.model);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_includes_plan_mode\n");
+}
+
+void test_plan_mode_tools_toggle_session(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    Session *sess = session_new();
+    tool_context_set_session(sess);
+
+    char *result = tool_execute_enter_plan_mode("{\"plan\":\"1. Test\n2. Confirm\"}", &cfg);
+    assert(result != NULL);
+    assert(sess->plan_mode == 1);
+    assert(sess->plan_content != NULL);
+    assert(strstr(result, "Plan mode enabled") != NULL);
+    free(result);
+
+    result = tool_execute_exit_plan_mode("{}", &cfg);
+    assert(result != NULL);
+    assert(sess->plan_mode == 0);
+    assert(strstr(result, "Plan mode disabled") != NULL);
+    free(result);
+
+    tool_context_set_session(NULL);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_plan_mode_tools_toggle_session\n");
+}
+
+void test_plan_command_updates_session(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "plan", "set 1. Check\n2. Ship", &cfg, sess);
+    assert(result != NULL);
+    assert(sess->plan_mode == 1);
+    assert(sess->plan_content != NULL);
+    assert(strcmp(sess->plan_content, "1. Check\n2. Ship") == 0);
+    free(result);
+
+    result = command_registry_execute(&reg, "plan", "off", &cfg, sess);
+    assert(result != NULL);
+    assert(sess->plan_mode == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_plan_command_updates_session\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -472,6 +580,10 @@ int main(void) {
     test_tool_definitions_respect_allow_and_deny_lists();
     test_tool_definitions_include_repl_and_powershell_schemas();
     test_tool_definitions_include_message_and_config_schemas();
+    test_session_plan_persistence();
+    test_prompt_includes_plan_mode();
+    test_plan_mode_tools_toggle_session();
+    test_plan_command_updates_session();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
