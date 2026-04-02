@@ -33,6 +33,12 @@ char *tool_execute_config_tool(const char *args, const GooseConfig *cfg) {
         } else {
             strbuf_append_fmt(&out, "Current model: %s", cfg->model);
         }
+    } else if (strcmp(setting, "base_url") == 0) {
+        if (value) {
+            strbuf_append_fmt(&out, "Base URL set to: %s (runtime only)", value);
+        } else {
+            strbuf_append_fmt(&out, "Current base URL: %s", cfg->base_url);
+        }
     } else if (strcmp(setting, "permission_mode") == 0) {
         if (value) {
             strbuf_append_fmt(&out, "Permission mode set to: %s (runtime only)", value);
@@ -45,8 +51,20 @@ char *tool_execute_config_tool(const char *args, const GooseConfig *cfg) {
         } else {
             strbuf_append_fmt(&out, "Current max tokens: %d", cfg->max_tokens);
         }
+    } else if (strcmp(setting, "max_turns") == 0) {
+        if (value) {
+            strbuf_append_fmt(&out, "Max turns set to: %s (runtime only)", value);
+        } else {
+            strbuf_append_fmt(&out, "Current max turns: %d", cfg->max_turns);
+        }
+    } else if (strcmp(setting, "working_dir") == 0) {
+        if (value) {
+            strbuf_append(&out, "Working directory cannot be changed via config command");
+        } else {
+            strbuf_append_fmt(&out, "Current working directory: %s", cfg->working_dir);
+        }
     } else {
-        strbuf_append_fmt(&out, "Unknown setting: %s. Supported: model, permission_mode, max_tokens", setting);
+        strbuf_append_fmt(&out, "Unknown setting: %s. Supported: model, base_url, permission_mode, max_tokens, max_turns, working_dir", setting);
     }
 
     char *result = strbuf_detach(&out);

@@ -1063,6 +1063,72 @@ void test_tasks_command_rejects_bad_status(void) {
     printf("  PASS: test_tasks_command_rejects_bad_status\n");
 }
 
+void test_config_command_show_and_inspect(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = "test-model";
+    cfg.base_url = "http://localhost:8083/v1";
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.max_tokens = 4096;
+    cfg.max_turns = 12;
+    cfg.working_dir = "/tmp/project";
+
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "config", "", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Current configuration:") != NULL);
+    assert(strstr(result, "model: test-model") != NULL);
+    assert(strstr(result, "max_turns: 12") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "config", "model", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Current model: test-model\n") == 0);
+    free(result);
+
+    result = command_registry_execute(&reg, "config", "max_turns 24", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Max turns set to: 24 (runtime only)\n") == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_config_command_show_and_inspect\n");
+}
+
+void test_config_command_rejects_unknown_setting(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = "test-model";
+    cfg.base_url = "http://localhost:8083/v1";
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.max_tokens = 4096;
+    cfg.max_turns = 12;
+    cfg.working_dir = "/tmp/project";
+
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "config", "bogus", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Unknown setting: bogus") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_config_command_rejects_unknown_setting\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1103,6 +1169,8 @@ int main(void) {
     test_lsp_rejects_unknown_action();
     test_tasks_command_create_list_show_and_set();
     test_tasks_command_rejects_bad_status();
+    test_config_command_show_and_inspect();
+    test_config_command_rejects_unknown_setting();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
