@@ -136,6 +136,28 @@ static void collector_free(ToolCallCollector *col) {
     col->count = 0;
 }
 
+static int tool_result_is_error_payload(const char *result) {
+    if (!result) return 1;
+    if (strstr(result, "Error:") == result) return 1;
+
+    cJSON *json = cJSON_Parse(result);
+    if (!json) return 0;
+
+    int is_error = 0;
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    if (ok && cJSON_IsBool(ok) && !cJSON_IsTrue(ok)) {
+        is_error = 1;
+    } else {
+        cJSON *error = cJSON_GetObjectItem(json, "error");
+        if (error && cJSON_IsString(error) && error->valuestring && error->valuestring[0]) {
+            is_error = 1;
+        }
+    }
+
+    cJSON_Delete(json);
+    return is_error;
+}
+
 static char *collect_multiline_command(const char *first_line, const char *prompt) {
     StrBuf out = strbuf_new();
     if (first_line && first_line[0]) {
@@ -211,7 +233,7 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         if (tasks[i].perm == PERM_CHECK_BLOCK || tasks[i].perm == PERM_CHECK_DENY) {
             tasks[i].is_error = 1;
         }
-        if (strstr(tasks[i].result, "Error:") == tasks[i].result) {
+        if (tool_result_is_error_payload(tasks[i].result)) {
             tasks[i].is_error = 1;
         }
 

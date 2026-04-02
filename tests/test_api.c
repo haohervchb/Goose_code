@@ -851,9 +851,12 @@ void test_mcp_list_and_read_resources(void) {
     assert(result != NULL);
     cJSON *json = cJSON_Parse(result);
     assert(json != NULL);
-    assert(cJSON_IsArray(json));
-    assert(cJSON_GetArraySize(json) == 1);
-    cJSON *resource = cJSON_GetArrayItem(json, 0);
+    assert(cJSON_IsObject(json));
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && cJSON_IsTrue(ok));
+    cJSON *resources = json_get_array(json, "resources");
+    assert(resources != NULL && cJSON_GetArraySize(resources) == 1);
+    cJSON *resource = cJSON_GetArrayItem(resources, 0);
     assert(strcmp(json_get_string(resource, "uri"), "memo://alpha") == 0);
     cJSON_Delete(json);
     free(result);
@@ -862,9 +865,12 @@ void test_mcp_list_and_read_resources(void) {
     assert(result != NULL);
     json = cJSON_Parse(result);
     assert(json != NULL);
-    assert(cJSON_IsArray(json));
-    assert(cJSON_GetArraySize(json) == 1);
-    cJSON *content = cJSON_GetArrayItem(json, 0);
+    assert(cJSON_IsObject(json));
+    ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && cJSON_IsTrue(ok));
+    cJSON *contents = json_get_array(json, "contents");
+    assert(contents != NULL && cJSON_GetArraySize(contents) == 1);
+    cJSON *content = cJSON_GetArrayItem(contents, 0);
     assert(strcmp(json_get_string(content, "text"), "alpha contents") == 0);
     cJSON_Delete(json);
     free(result);
@@ -883,7 +889,12 @@ void test_mcp_missing_server_and_resource_errors(void) {
 
     char *result = tool_execute_list_mcp_resources("{\"server\":\"missing\"}", &cfg);
     assert(result != NULL);
-    assert(strcmp(result, "Error: MCP server not found") == 0);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && !cJSON_IsTrue(ok));
+    assert(strcmp(json_get_string(json, "error"), "MCP server not found") == 0);
+    cJSON_Delete(json);
     free(result);
 
     cJSON *server = cJSON_CreateObject();
@@ -896,7 +907,12 @@ void test_mcp_missing_server_and_resource_errors(void) {
 
     result = tool_execute_read_mcp_resource("{\"server\":\"test\",\"uri\":\"memo://missing\"}", &cfg);
     assert(result != NULL);
-    assert(strcmp(result, "Error: Resource not found") == 0);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && !cJSON_IsTrue(ok));
+    assert(strcmp(json_get_string(json, "error"), "Resource not found") == 0);
+    cJSON_Delete(json);
     free(result);
 
     cJSON_Delete(cfg.mcp_servers);
@@ -926,6 +942,8 @@ void test_lsp_hover_definition_and_symbols(void) {
     assert(result != NULL);
     cJSON *json = cJSON_Parse(result);
     assert(json != NULL);
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && cJSON_IsTrue(ok));
     assert(strcmp(json_get_string(json, "action"), "hover") == 0);
     cJSON *hover = json_get_object(json, "result");
     cJSON *contents = json_get_object(hover, "contents");
@@ -940,6 +958,8 @@ void test_lsp_hover_definition_and_symbols(void) {
     assert(result != NULL);
     json = cJSON_Parse(result);
     assert(json != NULL);
+    ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && cJSON_IsTrue(ok));
     assert(strcmp(json_get_string(json, "action"), "definition") == 0);
     cJSON *locations = json_get_array(json, "result");
     assert(locations != NULL && cJSON_GetArraySize(locations) == 1);
@@ -955,6 +975,8 @@ void test_lsp_hover_definition_and_symbols(void) {
     assert(result != NULL);
     json = cJSON_Parse(result);
     assert(json != NULL);
+    ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && cJSON_IsTrue(ok));
     assert(strcmp(json_get_string(json, "action"), "document_symbols") == 0);
     cJSON *symbols = json_get_array(json, "result");
     assert(symbols != NULL && cJSON_GetArraySize(symbols) == 1);
@@ -986,7 +1008,12 @@ void test_lsp_rejects_unknown_action(void) {
              source_path);
     char *result = tool_execute_lsp(args_buf, &cfg);
     assert(result != NULL);
-    assert(strcmp(result, "Error: action must be one of hover, definition, or document_symbols") == 0);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *ok = cJSON_GetObjectItem(json, "ok");
+    assert(cJSON_IsBool(ok) && !cJSON_IsTrue(ok));
+    assert(strcmp(json_get_string(json, "error"), "action must be one of hover, definition, or document_symbols") == 0);
+    cJSON_Delete(json);
     free(result);
     remove(source_path);
 
