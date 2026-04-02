@@ -8,6 +8,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/select.h>
+#include <time.h>
 
 Agent *agent_init(const char *working_dir) {
     Agent *agent = calloc(1, sizeof(*agent));
@@ -90,6 +92,64 @@ static void *tool_exec_thread(void *userdata) {
     }
     tool_context_set_session(NULL);
     return NULL;
+}
+
+typedef struct {
+    volatile int abort_flag;
+    volatile int stop_flag;
+    int tty_enabled;
+    pthread_t thread;
+} TurnInterruptMonitor;
+
+static long monotonic_millis(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+static void *interrupt_monitor_thread(void *userdata) {
+    TurnInterruptMonitor *mon = (TurnInterruptMonitor *)userdata;
+    long last_esc = 0;
+
+    term_init();
+    while (!mon->stop_flag && !mon->abort_flag) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(STDIN_FILENO, &readfds);
+        struct timeval tv = {.tv_sec = 0, .tv_usec = 100000};
+        int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+        if (ready <= 0) continue;
+
+        char ch;
+        ssize_t n = read(STDIN_FILENO, &ch, 1);
+        if (n != 1) continue;
+
+        if (ch == 27) {
+            long now = monotonic_millis();
+            if (last_esc > 0 && now - last_esc <= 500) {
+                mon->abort_flag = 1;
+                break;
+            }
+            last_esc = now;
+        } else {
+            last_esc = 0;
+        }
+    }
+    term_restore();
+    return NULL;
+}
+
+static void interrupt_monitor_start(TurnInterruptMonitor *mon) {
+    memset(mon, 0, sizeof(*mon));
+    mon->tty_enabled = isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
+    if (!mon->tty_enabled) return;
+    pthread_create(&mon->thread, NULL, interrupt_monitor_thread, mon);
+}
+
+static void interrupt_monitor_stop(TurnInterruptMonitor *mon) {
+    if (!mon->tty_enabled) return;
+    mon->stop_flag = 1;
+    pthread_join(mon->thread, NULL);
 }
 
 static void agent_refresh_system_message(Agent *agent) {
@@ -307,12 +367,22 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         term_print_block_header("assistant", TERM_GREEN);
 
         ToolCallCollector calls = {0, NULL, NULL, NULL};
-        ApiStreamCallbacks cbs = {stream_text_cb, stream_tool_cb, stream_done_cb, &calls};
+        TurnInterruptMonitor interrupt_mon;
+        interrupt_monitor_start(&interrupt_mon);
+        ApiStreamCallbacks cbs = {stream_text_cb, stream_tool_cb, stream_done_cb, &calls, &interrupt_mon.abort_flag};
         ApiResponse resp;
         ApiStatus status = api_chat_completions(&agent->api_cfg, messages, tools_def, 1, &cbs, &resp);
+        interrupt_monitor_stop(&interrupt_mon);
         cJSON_Delete(messages);
 
         if (status != API_OK) {
+            if (status == API_ERROR_INTERRUPTED) {
+                printf("\n" TERM_YELLOW "[Interrupted]" TERM_RESET "\n");
+                collector_free(&calls);
+                api_response_free(&resp);
+                cJSON_Delete(tools_def);
+                return 0;
+            }
             printf("\n" TERM_RED "Error: %s" TERM_RESET "\n", api_status_str(status));
             if (resp.error) printf("  %s\n", resp.error);
 

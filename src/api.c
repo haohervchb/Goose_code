@@ -203,13 +203,13 @@ ApiStatus api_chat_completions(const ApiConfig *cfg, const cJSON *messages, cons
             sctx.cb = callbacks;
             sctx.retry_after[0] = '\0';
             sse_parser_init(&sctx.parser);
-            HttpResponse http_resp = http_post_stream(url, cfg->api_key, body, stream_chunk_cb, &sctx);
+            HttpResponse http_resp = http_post_stream_interruptible(url, cfg->api_key, body, stream_chunk_cb, &sctx, callbacks->abort_flag);
             resp->finish_reason_stop = sctx.finish_reason_stop;
             resp->finish_reason_tool_calls = sctx.finish_reason_tool_calls;
             sse_parser_free(&sctx.parser);
             if (http_resp.error) {
                 resp->error = strdup(http_resp.error);
-                status = API_ERROR_NETWORK;
+                status = strcmp(http_resp.error, "Interrupted") == 0 ? API_ERROR_INTERRUPTED : API_ERROR_NETWORK;
             } else if (http_resp.status_code == 401) {
                 resp->status = API_ERROR_AUTH;
                 resp->error = strdup("Authentication failed");
@@ -301,7 +301,7 @@ ApiStatus api_chat_completions(const ApiConfig *cfg, const cJSON *messages, cons
         }
 
         if (status == API_OK) break;
-        if (status == API_ERROR_AUTH) break;
+        if (status == API_ERROR_AUTH || status == API_ERROR_INTERRUPTED) break;
         retry++;
     }
 
@@ -331,6 +331,7 @@ const char *api_status_str(ApiStatus s) {
         case API_ERROR_NETWORK: return "network error";
         case API_ERROR_AUTH: return "authentication error";
         case API_ERROR_RATE_LIMIT: return "rate limited";
+        case API_ERROR_INTERRUPTED: return "interrupted";
         case API_ERROR_SERVER: return "server error";
         default: return "unknown";
     }

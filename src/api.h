@@ -10,6 +10,7 @@ typedef enum {
     API_ERROR_NETWORK,
     API_ERROR_AUTH,
     API_ERROR_RATE_LIMIT,
+    API_ERROR_INTERRUPTED,
     API_ERROR_SERVER
 } ApiStatus;
 
@@ -42,6 +43,7 @@ typedef struct {
     void (*on_tool_call)(const char *id, const char *name, const char *args, void *ctx);
     void (*on_done)(void *ctx);
     void *ctx;
+    volatile int *abort_flag;
 } ApiStreamCallbacks;
 
 ApiConfig api_config_default(void);

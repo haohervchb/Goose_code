@@ -14,6 +14,9 @@ HttpResponse http_post(const char *url, const char *auth_token, const char *cont
 HttpResponse http_post_stream(const char *url, const char *auth_token, const char *body,
                               void (*on_chunk)(const char *chunk, size_t len, void *ctx),
                               void *ctx);
+HttpResponse http_post_stream_interruptible(const char *url, const char *auth_token, const char *body,
+                                           void (*on_chunk)(const char *chunk, size_t len, void *ctx),
+                                           void *ctx, volatile int *abort_flag);
 void http_response_free(HttpResponse *resp);
 
 #endif

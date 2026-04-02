@@ -7,6 +7,7 @@ typedef struct {
     StrBuf body;
     void (*on_chunk)(const char *, size_t, void *);
     void *ctx;
+    volatile int *abort_flag;
 } CurlCtx;
 
 static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -19,6 +20,14 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return total;
 }
 
+static int progress_cb(void *clientp, curl_off_t dltotal, curl_off_t dlnow,
+                       curl_off_t ultotal, curl_off_t ulnow) {
+    (void)dltotal; (void)dlnow; (void)ultotal; (void)ulnow;
+    CurlCtx *c = (CurlCtx *)clientp;
+    if (c->abort_flag && *c->abort_flag) return 1;
+    return 0;
+}
+
 static HttpResponse do_request(CURL *curl, CurlCtx *ctx) {
     HttpResponse resp = {0, strbuf_new(), NULL};
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
@@ -26,10 +35,17 @@ static HttpResponse do_request(CURL *curl, CurlCtx *ctx) {
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 300L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, ctx);
 
     CURLcode rc = curl_easy_perform(curl);
     if (rc != CURLE_OK) {
-        resp.error = strdup(curl_easy_strerror(rc));
+        if (rc == CURLE_ABORTED_BY_CALLBACK && ctx->abort_flag && *ctx->abort_flag) {
+            resp.error = strdup("Interrupted");
+        } else {
+            resp.error = strdup(curl_easy_strerror(rc));
+        }
         return resp;
     }
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &resp.status_code);
@@ -38,7 +54,7 @@ static HttpResponse do_request(CURL *curl, CurlCtx *ctx) {
 
 HttpResponse http_get(const char *url, const char *auth_token) {
     CURL *curl = curl_easy_init();
-    CurlCtx ctx = {strbuf_new(), NULL, NULL};
+    CurlCtx ctx = {strbuf_new(), NULL, NULL, NULL};
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     struct curl_slist *headers = NULL;
@@ -57,7 +73,7 @@ HttpResponse http_get(const char *url, const char *auth_token) {
 
 HttpResponse http_post(const char *url, const char *auth_token, const char *content_type, const char *body) {
     CURL *curl = curl_easy_init();
-    CurlCtx ctx = {strbuf_new(), NULL, NULL};
+    CurlCtx ctx = {strbuf_new(), NULL, NULL, NULL};
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
@@ -85,8 +101,14 @@ HttpResponse http_post(const char *url, const char *auth_token, const char *cont
 
 HttpResponse http_post_stream(const char *url, const char *auth_token, const char *body,
                               void (*on_chunk)(const char *, size_t, void *), void *ctx) {
+    return http_post_stream_interruptible(url, auth_token, body, on_chunk, ctx, NULL);
+}
+
+HttpResponse http_post_stream_interruptible(const char *url, const char *auth_token, const char *body,
+                                            void (*on_chunk)(const char *, size_t, void *), void *ctx,
+                                            volatile int *abort_flag) {
     CURL *curl = curl_easy_init();
-    CurlCtx cctx = {strbuf_new(), on_chunk, ctx};
+    CurlCtx cctx = {strbuf_new(), on_chunk, ctx, abort_flag};
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);

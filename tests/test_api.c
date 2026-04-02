@@ -12,6 +12,7 @@
 #include "../src/session.h"
 #include "../src/prompt.h"
 #include "../src/util/terminal.h"
+#include "../src/api.h"
 #include "../src/tools/tools.h"
 #include "../src/tools/subagent_store.h"
 #include "../src/commands/commands.h"
@@ -134,6 +135,13 @@ void test_json_tool_def(void) {
     cJSON_Delete(def);
     tests_passed++;
     printf("  PASS: test_json_tool_def\n");
+}
+
+void test_api_status_interrupted_string(void) {
+    tests_run++;
+    assert(strcmp(api_status_str(API_ERROR_INTERRUPTED), "interrupted") == 0);
+    tests_passed++;
+    printf("  PASS: test_api_status_interrupted_string\n");
 }
 
 void test_perm_read_only(void) {
@@ -1799,6 +1807,7 @@ int main(void) {
     test_strbuf_trim();
     test_json_build_message();
     test_json_tool_def();
+    test_api_status_interrupted_string();
     test_perm_read_only();
     test_perm_allow();
     test_perm_deny_list();
