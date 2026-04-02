@@ -1320,6 +1320,8 @@ void test_review_command_reports_status_and_diff_checks(void) {
     char *result = command_registry_execute(&reg, "review", "", &cfg, sess);
     assert(result != NULL);
     assert(strstr(result, "Review summary:") != NULL);
+    assert(strstr(result, "Findings:") != NULL);
+    assert(strstr(result, "Unstaged changes are present") != NULL);
     assert(strstr(result, "Current branch:") != NULL);
     assert(strstr(result, "staged.txt") != NULL);
     assert(strstr(result, "README.md") != NULL);
@@ -1360,6 +1362,7 @@ void test_review_command_clean_tree(void) {
 
     char *result = command_registry_execute(&reg, "review", "", &cfg, sess);
     assert(result != NULL);
+    assert(strstr(result, "No obvious local review findings.") != NULL);
     assert(strstr(result, "Working tree clean.") != NULL);
     assert(strstr(result, "No staged changes.") != NULL);
     assert(strstr(result, "No unstaged changes.") != NULL);
