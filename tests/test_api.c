@@ -1566,6 +1566,46 @@ void test_bash_tool_honors_timeout_on_quiet_command(void) {
     printf("  PASS: test_bash_tool_honors_timeout_on_quiet_command\n");
 }
 
+void test_bash_tool_accepts_string_timeout(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    char *result = tool_execute_bash("{\"command\":\"sleep 2\",\"timeout\":\"1\"}", &cfg);
+    assert(result != NULL);
+    assert(strstr(result, "[Command timed out]") != NULL);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_bash_tool_accepts_string_timeout\n");
+}
+
+void test_tool_definitions_include_bash_timeout_schema(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    cJSON *bash_def = tool_def_for_name(defs, "bash");
+    assert(bash_def != NULL);
+    cJSON *fn = json_get_object(bash_def, "function");
+    cJSON *params = json_get_object(fn, "parameters");
+    cJSON *props = json_get_object(params, "properties");
+    assert(json_get_object(props, "timeout") != NULL);
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_tool_definitions_include_bash_timeout_schema\n");
+}
+
 void test_file_write_nested_and_read_edit_cycle(void) {
     tests_run++;
 
@@ -1733,6 +1773,8 @@ int main(void) {
     test_subagents_command_list_show_clean_and_prune();
     test_session_truncates_oversized_tool_results();
     test_bash_tool_honors_timeout_on_quiet_command();
+    test_bash_tool_accepts_string_timeout();
+    test_tool_definitions_include_bash_timeout_schema();
     test_file_write_nested_and_read_edit_cycle();
     test_grep_search_handles_quoted_pattern();
     test_structured_output_formats_json_payload();

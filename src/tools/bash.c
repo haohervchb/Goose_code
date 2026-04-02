@@ -8,6 +8,23 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <ctype.h>
+
+static int parse_timeout_seconds(const cJSON *json, int default_timeout) {
+    cJSON *item = cJSON_GetObjectItem((cJSON *)json, "timeout");
+    if (!item) return default_timeout;
+    if (cJSON_IsNumber(item)) return item->valueint;
+    if (cJSON_IsString(item) && item->valuestring) {
+        const char *p = item->valuestring;
+        if (!*p) return default_timeout;
+        while (*p) {
+            if (!isdigit((unsigned char)*p)) return default_timeout;
+            p++;
+        }
+        return atoi(item->valuestring);
+    }
+    return default_timeout;
+}
 
 static char *run_command(const char *cmd, int timeout_sec) {
     int pipefd[2];
@@ -82,11 +99,13 @@ char *tool_execute_bash(const char *args, const GooseConfig *cfg) {
     if (!json) return strdup("Error: invalid JSON arguments");
 
     const char *cmd = json_get_string(json, "command");
-    int timeout = json_get_int(json, "timeout", 120);
+    int timeout = parse_timeout_seconds(json, 120);
     char *cmd_copy = cmd ? strdup(cmd) : NULL;
     cJSON_Delete(json);
 
     if (!cmd_copy) return strdup("Error: 'command' argument required");
+    if (timeout <= 0) timeout = 120;
+    if (timeout > 7200) timeout = 7200;
 
     char *result = run_command(cmd_copy, timeout);
     free(cmd_copy);

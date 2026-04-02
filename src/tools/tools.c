@@ -89,6 +89,10 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(bash_cmd, "type", "string");
     cJSON_AddStringToObject(bash_cmd, "description", "The bash command to execute");
     cJSON_AddItemToObject(bash_props, "command", bash_cmd);
+    cJSON *bash_timeout = cJSON_CreateObject();
+    cJSON_AddStringToObject(bash_timeout, "type", "integer");
+    cJSON_AddStringToObject(bash_timeout, "description", "Optional timeout in seconds for long-running commands like make or docker build (default 120, max 7200)");
+    cJSON_AddItemToObject(bash_props, "timeout", bash_timeout);
     cJSON_AddItemToObject(bash_params, "properties", bash_props);
     cJSON *bash_req = cJSON_CreateArray();
     cJSON_AddItemToArray(bash_req, cJSON_CreateString("command"));
