@@ -11,6 +11,7 @@
 #include "../src/config.h"
 #include "../src/session.h"
 #include "../src/session_memory.h"
+#include "../src/tool_result_store.h"
 #include "../src/prompt.h"
 #include "../src/prompt_sections.h"
 #include "../src/util/terminal.h"
@@ -1798,6 +1799,50 @@ void test_session_truncates_oversized_tool_results(void) {
     printf("  PASS: test_session_truncates_oversized_tool_results\n");
 }
 
+void test_tool_result_batch_budget_persists_largest_results(void) {
+    tests_run++;
+
+    char base_dir[] = "/tmp/goosecode_tool_result_batch_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char tool_dir[1024];
+    snprintf(tool_dir, sizeof(tool_dir), "%s/tool-results", base_dir);
+    assert(mkdir(tool_dir, 0755) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.tool_result_dir = tool_dir;
+    Session *sess = session_new();
+
+    const char *ids[] = {"call_1", "call_2", "call_3"};
+    char *contents[3];
+    for (int i = 0; i < 3; i++) {
+        contents[i] = malloc(3501);
+        memset(contents[i], 'A' + i, 3500);
+        contents[i][3500] = '\0';
+    }
+
+    char **prepared = tool_result_store_prepare_batch(&cfg, sess, ids, contents, 3);
+    assert(prepared != NULL);
+    int persisted_count = 0;
+    size_t total = 0;
+    for (int i = 0; i < 3; i++) {
+        total += strlen(prepared[i]);
+        if (strstr(prepared[i], "persisted-output") != NULL) persisted_count++;
+        free(prepared[i]);
+        free(contents[i]);
+    }
+    free(prepared);
+    assert(persisted_count >= 1);
+    assert(total <= 9000);
+
+    session_free(sess);
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_tool_result_batch_budget_persists_largest_results\n");
+}
+
 void test_bash_tool_honors_timeout_on_quiet_command(void) {
     tests_run++;
 
@@ -2222,6 +2267,7 @@ int main(void) {
     test_review_command_clean_tree();
     test_subagents_command_list_show_clean_and_prune();
     test_session_truncates_oversized_tool_results();
+    test_tool_result_batch_budget_persists_largest_results();
     test_bash_tool_honors_timeout_on_quiet_command();
     test_bash_tool_accepts_string_timeout();
     test_tool_definitions_include_bash_timeout_schema();

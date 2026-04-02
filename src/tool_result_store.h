@@ -6,5 +6,7 @@
 
 char *tool_result_store_prepare(const GooseConfig *cfg, const Session *sess,
                                 const char *tool_call_id, const char *content);
+char **tool_result_store_prepare_batch(const GooseConfig *cfg, const Session *sess,
+                                       const char **tool_call_ids, char **contents, int count);
 
 #endif

@@ -3,6 +3,7 @@
 #include "prompt.h"
 #include "prompt_sections.h"
 #include "session_memory.h"
+#include "tool_result_store.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include "util/terminal.h"
@@ -305,6 +306,15 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         }
     }
 
+    char **raw_results = calloc((size_t)n, sizeof(char *));
+    for (int i = 0; i < n; i++) {
+        raw_results[i] = tasks[i].result;
+    }
+    char **prepared_results = tool_result_store_prepare_batch(&agent->config, agent->session,
+                                                              (const char **)calls->ids,
+                                                              raw_results, n);
+    free(raw_results);
+
     for (int i = 0; i < n; i++) {
         cJSON *result_obj = cJSON_CreateObject();
         cJSON_AddStringToObject(result_obj, "tool_call_id", calls->ids[i]);
@@ -322,15 +332,17 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
         }
 
         cJSON_AddBoolToObject(result_obj, "is_error", tasks[i].is_error);
-        cJSON_AddStringToObject(result_obj, "content", tasks[i].result);
+        cJSON_AddStringToObject(result_obj, "content", prepared_results[i]);
         cJSON_AddItemToArray(results, result_obj);
 
         term_print_tool_result(calls->names[i], tasks[i].is_error);
-        session_add_tool_result(agent->session, &agent->config, calls->ids[i], tasks[i].result);
+        session_add_tool_result(agent->session, &agent->config, calls->ids[i], prepared_results[i]);
+        free(prepared_results[i]);
         free(tasks[i].result);
     }
 
     *tool_results_out = results;
+    free(prepared_results);
     free(tasks);
     free(threads);
     free(is_readonly);
