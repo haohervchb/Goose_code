@@ -27,6 +27,8 @@ TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/task_store.c \
             $(SRCDIR)/tools/task_tools.c \
             $(SRCDIR)/tools/subagent_store.c \
+            $(SRCDIR)/tools/mcp_client.c \
+            $(SRCDIR)/tools/mcp_tools.c \
             $(SRCDIR)/tools/skill.c \
             $(SRCDIR)/tools/agent_tool.c \
             $(SRCDIR)/tools/tool_search.c \

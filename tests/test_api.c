@@ -833,6 +833,77 @@ void test_agent_tool_rejects_missing_resume_id(void) {
     printf("  PASS: test_agent_tool_rejects_missing_resume_id\n");
 }
 
+void test_mcp_list_and_read_resources(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.mcp_servers = cJSON_CreateArray();
+    cJSON *server = cJSON_CreateObject();
+    cJSON_AddStringToObject(server, "name", "test");
+    cJSON_AddStringToObject(server, "command", "/usr/bin/python3");
+    cJSON *args = cJSON_CreateArray();
+    cJSON_AddItemToArray(args, cJSON_CreateString("/home/rah/goosecode/tests/mcp_test_server.py"));
+    cJSON_AddItemToObject(server, "args", args);
+    cJSON_AddItemToArray(cfg.mcp_servers, server);
+
+    char *result = tool_execute_list_mcp_resources("{\"server\":\"test\"}", &cfg);
+    assert(result != NULL);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    assert(cJSON_IsArray(json));
+    assert(cJSON_GetArraySize(json) == 1);
+    cJSON *resource = cJSON_GetArrayItem(json, 0);
+    assert(strcmp(json_get_string(resource, "uri"), "memo://alpha") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    result = tool_execute_read_mcp_resource("{\"server\":\"test\",\"uri\":\"memo://alpha\"}", &cfg);
+    assert(result != NULL);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    assert(cJSON_IsArray(json));
+    assert(cJSON_GetArraySize(json) == 1);
+    cJSON *content = cJSON_GetArrayItem(json, 0);
+    assert(strcmp(json_get_string(content, "text"), "alpha contents") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    cJSON_Delete(cfg.mcp_servers);
+
+    tests_passed++;
+    printf("  PASS: test_mcp_list_and_read_resources\n");
+}
+
+void test_mcp_missing_server_and_resource_errors(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.mcp_servers = cJSON_CreateArray();
+
+    char *result = tool_execute_list_mcp_resources("{\"server\":\"missing\"}", &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: MCP server not found") == 0);
+    free(result);
+
+    cJSON *server = cJSON_CreateObject();
+    cJSON_AddStringToObject(server, "name", "test");
+    cJSON_AddStringToObject(server, "command", "/usr/bin/python3");
+    cJSON *args = cJSON_CreateArray();
+    cJSON_AddItemToArray(args, cJSON_CreateString("/home/rah/goosecode/tests/mcp_test_server.py"));
+    cJSON_AddItemToObject(server, "args", args);
+    cJSON_AddItemToArray(cfg.mcp_servers, server);
+
+    result = tool_execute_read_mcp_resource("{\"server\":\"test\",\"uri\":\"memo://missing\"}", &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: Resource not found") == 0);
+    free(result);
+
+    cJSON_Delete(cfg.mcp_servers);
+
+    tests_passed++;
+    printf("  PASS: test_mcp_missing_server_and_resource_errors\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -867,6 +938,8 @@ int main(void) {
     test_agent_tool_schema_includes_task_id();
     test_agent_tool_rejects_unknown_subagent_type();
     test_agent_tool_rejects_missing_resume_id();
+    test_mcp_list_and_read_resources();
+    test_mcp_missing_server_and_resource_errors();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

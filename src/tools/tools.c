@@ -435,6 +435,53 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, task_update);
 
+    cJSON *mcp_list_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(mcp_list_params, "type", "object");
+    cJSON *mcp_list_props = cJSON_CreateObject();
+    cJSON *mcp_list_server = cJSON_CreateObject();
+    cJSON_AddStringToObject(mcp_list_server, "type", "string");
+    cJSON_AddStringToObject(mcp_list_server, "description", "Configured MCP server name");
+    cJSON_AddItemToObject(mcp_list_props, "server", mcp_list_server);
+    cJSON_AddItemToObject(mcp_list_params, "properties", mcp_list_props);
+    cJSON *mcp_list_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(mcp_list_req, cJSON_CreateString("server"));
+    cJSON_AddItemToObject(mcp_list_params, "required", mcp_list_req);
+    Tool list_mcp_resources = {
+        .name = strdup("list_mcp_resources"),
+        .description = strdup("List resources exposed by a configured MCP server."),
+        .parameters_schema = mcp_list_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_list_mcp_resources
+    };
+    tool_registry_register(reg, list_mcp_resources);
+
+    cJSON *mcp_read_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(mcp_read_params, "type", "object");
+    cJSON *mcp_read_props = cJSON_CreateObject();
+    cJSON *mcp_read_server = cJSON_CreateObject();
+    cJSON_AddStringToObject(mcp_read_server, "type", "string");
+    cJSON_AddStringToObject(mcp_read_server, "description", "Configured MCP server name");
+    cJSON_AddItemToObject(mcp_read_props, "server", mcp_read_server);
+    cJSON *mcp_read_uri = cJSON_CreateObject();
+    cJSON_AddStringToObject(mcp_read_uri, "type", "string");
+    cJSON_AddStringToObject(mcp_read_uri, "description", "Resource URI to read from the MCP server");
+    cJSON_AddItemToObject(mcp_read_props, "uri", mcp_read_uri);
+    cJSON_AddItemToObject(mcp_read_params, "properties", mcp_read_props);
+    cJSON *mcp_read_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(mcp_read_req, cJSON_CreateString("server"));
+    cJSON_AddItemToArray(mcp_read_req, cJSON_CreateString("uri"));
+    cJSON_AddItemToObject(mcp_read_params, "required", mcp_read_req);
+    Tool read_mcp_resource = {
+        .name = strdup("read_mcp_resource"),
+        .description = strdup("Read a resource exposed by a configured MCP server."),
+        .parameters_schema = mcp_read_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_read_mcp_resource
+    };
+    tool_registry_register(reg, read_mcp_resource);
+
     cJSON *skill_params = cJSON_CreateObject();
     cJSON_AddStringToObject(skill_params, "type", "object");
     cJSON *skill_props = cJSON_CreateObject();

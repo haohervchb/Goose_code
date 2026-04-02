@@ -36,6 +36,16 @@ static cJSON *load_json_file(const char *path) {
     return json;
 }
 
+static void merge_mcp_servers(cJSON **target, cJSON *source) {
+    if (!source || !cJSON_IsArray(source)) return;
+    if (!*target) *target = cJSON_CreateArray();
+
+    cJSON *item;
+    cJSON_ArrayForEach(item, source) {
+        cJSON_AddItemToArray(*target, cJSON_Duplicate(item, 1));
+    }
+}
+
 static void merge_config(cJSON *target, cJSON *source) {
     if (!target || !source) return;
     cJSON *item;
@@ -103,6 +113,12 @@ GooseConfig config_load(void) {
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(proj, "max_tokens", cfg.max_tokens);
         cfg.max_turns = json_get_int(proj, "max_turns", cfg.max_turns);
+        cJSON *ms = json_get_array(proj, "mcp_servers");
+        if (ms) {
+            cJSON_Delete(cfg.mcp_servers);
+            cfg.mcp_servers = cJSON_CreateArray();
+            merge_mcp_servers(&cfg.mcp_servers, ms);
+        }
         cJSON *mt = json_get_array(proj, "allowed_tools");
         if (mt) { cJSON_Delete(cfg.allowed_tools); cfg.allowed_tools = cJSON_Duplicate(mt, 1); }
         cJSON *dt = json_get_array(proj, "denied_tools");
@@ -121,6 +137,8 @@ GooseConfig config_load(void) {
         v = json_get_string(user, "permission_mode"); if (v && !env_perms) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(user, "max_tokens", cfg.max_tokens);
         cfg.max_turns = json_get_int(user, "max_turns", cfg.max_turns);
+        cJSON *ms = json_get_array(user, "mcp_servers");
+        if (ms) merge_mcp_servers(&cfg.mcp_servers, ms);
         cJSON_Delete(user);
     }
     free(user_settings);
