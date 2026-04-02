@@ -5,6 +5,8 @@
 #include "session.h"
 #include "util/cJSON.h"
 
+char *prompt_build_static_system_prefix(const GooseConfig *cfg, const Session *sess, const char *working_dir);
+char *prompt_build_dynamic_system_suffix(const GooseConfig *cfg, const Session *sess, const char *working_dir);
 char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir);
 char *prompt_build_effective_system(const GooseConfig *cfg, const Session *sess,
                                     const char *working_dir, const char *agent_system_prompt);

@@ -261,21 +261,39 @@ static char *prompt_section_plan_mode(const GooseConfig *cfg, const Session *ses
     return strbuf_detach(&out);
 }
 
-char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+char *prompt_build_static_system_prefix(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     PromptSection sections[] = {
         {"intro", prompt_section_intro, 0},
         {"doing_tasks", prompt_section_doing_tasks, 0},
         {"actions", prompt_section_actions, 0},
+    };
+
+    return prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),
+                                   cfg, sess, working_dir);
+}
+
+char *prompt_build_dynamic_system_suffix(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    PromptSection sections[] = {
         {"environment", prompt_section_environment, 1},
         {"git", prompt_section_git, 1},
         {"instruction_files", prompt_section_instruction_files, 1},
         {"plan_mode", prompt_section_plan_mode, 1},
     };
 
-    char *resolved = prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),
-                                             cfg, sess, working_dir);
-    StrBuf sys = strbuf_from(resolved);
-    free(resolved);
+    return prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),
+                                   cfg, sess, working_dir);
+}
+
+char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    char *prefix = prompt_build_static_system_prefix(cfg, sess, working_dir);
+    char *suffix = prompt_build_dynamic_system_suffix(cfg, sess, working_dir);
+    StrBuf sys = strbuf_new();
+
+    strbuf_append(&sys, prefix);
+    free(prefix);
+    if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');
+    strbuf_append(&sys, suffix);
+    free(suffix);
     if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');
     strbuf_append(&sys, "__SYSTEM_PROMPT_END__\n");
     return strbuf_detach(&sys);

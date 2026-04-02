@@ -746,6 +746,53 @@ void test_prompt_default_layer_still_present(void) {
     printf("  PASS: test_prompt_default_layer_still_present\n");
 }
 
+void test_prompt_static_prefix_stability(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    Session *sess = session_new();
+    char *prefix1 = prompt_build_static_system_prefix(&cfg, sess, "/home/rah/goosecode");
+    session_set_plan_mode(sess, 1);
+    session_set_plan(sess, "1. Test");
+    char *prefix2 = prompt_build_static_system_prefix(&cfg, sess, "/home/rah/goosecode");
+
+    assert(prefix1 != NULL && prefix2 != NULL);
+    assert(strcmp(prefix1, prefix2) == 0);
+
+    free(prefix1);
+    free(prefix2);
+    session_free(sess);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_static_prefix_stability\n");
+}
+
+void test_prompt_dynamic_suffix_changes_without_prefix_churn(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    Session *sess = session_new();
+    char *suffix1 = prompt_build_dynamic_system_suffix(&cfg, sess, "/home/rah/goosecode");
+    session_set_plan_mode(sess, 1);
+    session_set_plan(sess, "1. Test");
+    char *suffix2 = prompt_build_dynamic_system_suffix(&cfg, sess, "/home/rah/goosecode");
+
+    assert(suffix1 != NULL && suffix2 != NULL);
+    assert(strcmp(suffix1, suffix2) != 0);
+    assert(strstr(suffix2, "## Plan Mode") != NULL);
+
+    free(suffix1);
+    free(suffix2);
+    session_free(sess);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_dynamic_suffix_changes_without_prefix_churn\n");
+}
+
 void test_plan_mode_tools_toggle_session(void) {
     tests_run++;
 
@@ -2001,6 +2048,8 @@ int main(void) {
     test_prompt_agent_overrides_default();
     test_prompt_append_layer_is_last();
     test_prompt_default_layer_still_present();
+    test_prompt_static_prefix_stability();
+    test_prompt_dynamic_suffix_changes_without_prefix_churn();
     test_plan_mode_tools_toggle_session();
     test_plan_command_updates_session();
     test_todo_write_persists_and_formats();
