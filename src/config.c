@@ -46,17 +46,6 @@ static void merge_mcp_servers(cJSON **target, cJSON *source) {
     }
 }
 
-static void merge_config(cJSON *target, cJSON *source) {
-    if (!target || !source) return;
-    cJSON *item;
-    cJSON_ArrayForEach(item, source) {
-        cJSON *existing = cJSON_GetObjectItem(target, item->string);
-        if (!existing) {
-            cJSON_AddItemToObject(target, item->string, cJSON_Duplicate(item, 1));
-        }
-    }
-}
-
 GooseConfig config_load(void) {
     GooseConfig cfg = {0};
     cfg.permission_mode = PERM_PROMPT;
@@ -73,7 +62,9 @@ GooseConfig config_load(void) {
     cfg.session_dir = config_path(home, ".goosecode/sessions");
     cfg.subagent_dir = config_path(home, ".goosecode/subagents");
     cfg.worktree_dir = config_path(home, ".goosecode/worktrees");
-    ensure_dir(config_path(home, ".goosecode"));
+    char *root_dir = config_path(home, ".goosecode");
+    ensure_dir(root_dir);
+    free(root_dir);
     ensure_dir(cfg.session_dir);
     ensure_dir(cfg.subagent_dir);
     ensure_dir(cfg.worktree_dir);

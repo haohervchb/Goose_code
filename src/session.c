@@ -172,10 +172,9 @@ char *session_list(const char *session_dir) {
         size_t nlen = strlen(ent->d_name);
         if (nlen > 5 && strcmp(ent->d_name + nlen - 5, ".json") == 0) {
             char id[256];
-            strncpy(id, ent->d_name, nlen - 5);
+            memcpy(id, ent->d_name, nlen - 5);
             id[nlen - 5] = '\0';
 
-            char *path = session_path(session_dir, id);
             Session *s = session_load(session_dir, id);
             if (s) {
                 strbuf_append_fmt(&out, "  %-40s  %d msgs  in=%ld out=%ld\n",
@@ -184,7 +183,6 @@ char *session_list(const char *session_dir) {
                 session_free(s);
                 count++;
             }
-            free(path);
         }
     }
     closedir(dir);

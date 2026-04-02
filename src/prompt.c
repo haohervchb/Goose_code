@@ -102,7 +102,8 @@ static int read_claude_md_files(const char *start_dir, ClaudeMdEntry *entries, i
     while (count < max_entries) {
         for (int p = 0; patterns[p]; p++) {
             char path[4096];
-            snprintf(path, sizeof(path), "%s/%s", dir, patterns[p]);
+            int path_len = snprintf(path, sizeof(path), "%s/%s", dir, patterns[p]);
+            if (path_len < 0 || path_len >= (int)sizeof(path)) continue;
 
             FILE *f = fopen(path, "r");
             if (!f) continue;
@@ -136,6 +137,7 @@ static int read_claude_md_files(const char *start_dir, ClaudeMdEntry *entries, i
         char *parent = dirname(dir);
         if (strcmp(parent, "/") == 0 || strcmp(parent, ".") == 0 || strcmp(parent, dir) == 0) break;
         strncpy(dir, parent, sizeof(dir) - 1);
+        dir[sizeof(dir) - 1] = '\0';
     }
 
     return count;

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
 Agent *agent_init(const char *working_dir) {
     Agent *agent = calloc(1, sizeof(*agent));
@@ -92,6 +93,7 @@ static void agent_refresh_system_message(Agent *agent) {
 
 static void stream_text_cb(const char *text, size_t len, void *ctx) {
     (void)len;
+    (void)ctx;
     printf("%s", text);
     fflush(stdout);
 }

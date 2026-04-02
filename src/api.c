@@ -199,7 +199,9 @@ ApiStatus api_chat_completions(const ApiConfig *cfg, const cJSON *messages, cons
         }
 
         if (stream && callbacks) {
-            StreamCtx sctx = {.cb = callbacks, .parser = {0}, .status_code = NULL, .initialized = 0, .finish_reason_stop = 0, .finish_reason_tool_calls = 0, .retry_after = ""};
+            StreamCtx sctx = {0};
+            sctx.cb = callbacks;
+            sctx.retry_after[0] = '\0';
             sse_parser_init(&sctx.parser);
             HttpResponse http_resp = http_post_stream(url, cfg->api_key, body, stream_chunk_cb, &sctx);
             resp->finish_reason_stop = sctx.finish_reason_stop;

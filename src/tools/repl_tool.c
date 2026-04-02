@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 char *tool_execute_repl_tool(const char *args, const GooseConfig *cfg) {
     (void)cfg;
@@ -12,9 +13,10 @@ char *tool_execute_repl_tool(const char *args, const GooseConfig *cfg) {
 
     const char *language = json_get_string(json, "language");
     const char *code = json_get_string(json, "code");
-    cJSON_Delete(json);
-
-    if (!code) return strdup("Error: 'code' argument required");
+    if (!code) {
+        cJSON_Delete(json);
+        return strdup("Error: 'code' argument required");
+    }
 
     const char *interpreter = "python3";
     if (language) {
@@ -26,20 +28,33 @@ char *tool_execute_repl_tool(const char *args, const GooseConfig *cfg) {
 
     char tmpfile[] = "/tmp/goosecode_repl_XXXXXX";
     int fd = mkstemp(tmpfile);
-    if (fd == -1) return strdup("Error: cannot create temp file");
-    write(fd, code, strlen(code));
+    if (fd == -1) {
+        cJSON_Delete(json);
+        return strdup("Error: cannot create temp file");
+    }
+    ssize_t written = write(fd, code, strlen(code));
     close(fd);
+    if (written < 0) {
+        unlink(tmpfile);
+        cJSON_Delete(json);
+        return strdup("Error: cannot write temp file");
+    }
 
     char cmd[2048];
     snprintf(cmd, sizeof(cmd), "%s %s 2>&1", interpreter, tmpfile);
     FILE *f = popen(cmd, "r");
-    if (!f) { unlink(tmpfile); return strdup("Error: interpreter not found"); }
+    if (!f) {
+        unlink(tmpfile);
+        cJSON_Delete(json);
+        return strdup("Error: interpreter not found");
+    }
 
     StrBuf out = strbuf_new();
     char buf[4096];
     while (fgets(buf, sizeof(buf), f)) strbuf_append(&out, buf);
     pclose(f);
     unlink(tmpfile);
+    cJSON_Delete(json);
 
     if (out.len == 0) strbuf_append(&out, "(no output)");
     return strbuf_detach(&out);
