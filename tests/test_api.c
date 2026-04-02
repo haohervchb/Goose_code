@@ -665,6 +665,8 @@ void test_prompt_includes_plan_mode(void) {
     assert(prompt != NULL);
     assert(strstr(prompt, "## Plan Mode") != NULL);
     assert(strstr(prompt, "1. Draft") != NULL);
+    assert(strstr(prompt, "ask clarifying questions before finalizing the plan") != NULL);
+    assert(strstr(prompt, "use the explicit exit-plan flow") != NULL);
 
     free(prompt);
     free(cfg.model);

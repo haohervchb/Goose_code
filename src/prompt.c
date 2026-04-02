@@ -251,6 +251,9 @@ static char *prompt_section_plan_mode(const GooseConfig *cfg, const Session *ses
     StrBuf out = strbuf_from("## Plan Mode\n");
     strbuf_append(&out, "- Plan mode is currently enabled\n");
     strbuf_append(&out, "- Focus on refining or following the current plan before taking action\n");
+    strbuf_append(&out, "- If the task is ambiguous, ask clarifying questions before finalizing the plan\n");
+    strbuf_append(&out, "- Do not ask whether the plan is ready if the user has not seen it yet\n");
+    strbuf_append(&out, "- When the user should approve or accept the plan, use the explicit exit-plan flow instead of vague confirmation questions\n");
     if (sess->plan_content && sess->plan_content[0]) {
         strbuf_append(&out, "- Current plan:\n");
         strbuf_append(&out, sess->plan_content);
