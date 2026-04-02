@@ -1287,6 +1287,93 @@ void test_commit_command_rejects_secret_like_files(void) {
     printf("  PASS: test_commit_command_rejects_secret_like_files\n");
 }
 
+void test_review_command_reports_status_and_diff_checks(void) {
+    tests_run++;
+
+    char repo_dir[] = "/tmp/goosecode_cmd_review_XXXXXX";
+    assert(mkdtemp(repo_dir) != NULL);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "git init \"%s\" >/dev/null 2>&1", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.name tester", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.email tester@example.com", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'hello\\n' > \"%s/README.md\"", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" add README.md && git -C \"%s\" commit -m init >/dev/null 2>&1", repo_dir, repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'staged\\n' > \"%s/staged.txt\"", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" add staged.txt", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'more\\n' >> \"%s/README.md\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = repo_dir;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "review", "", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Review summary:") != NULL);
+    assert(strstr(result, "Current branch:") != NULL);
+    assert(strstr(result, "staged.txt") != NULL);
+    assert(strstr(result, "README.md") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_review_command_reports_status_and_diff_checks\n");
+}
+
+void test_review_command_clean_tree(void) {
+    tests_run++;
+
+    char repo_dir[] = "/tmp/goosecode_cmd_review_clean_XXXXXX";
+    assert(mkdtemp(repo_dir) != NULL);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "git init \"%s\" >/dev/null 2>&1", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.name tester", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.email tester@example.com", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'hello\\n' > \"%s/README.md\"", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" add README.md && git -C \"%s\" commit -m init >/dev/null 2>&1", repo_dir, repo_dir);
+    assert(system(cmd) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = repo_dir;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "review", "", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Working tree clean.") != NULL);
+    assert(strstr(result, "No staged changes.") != NULL);
+    assert(strstr(result, "No unstaged changes.") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_review_command_clean_tree\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1333,6 +1420,8 @@ int main(void) {
     test_branch_command_usage();
     test_commit_command_creates_commit_and_handles_no_changes();
     test_commit_command_rejects_secret_like_files();
+    test_review_command_reports_status_and_diff_checks();
+    test_review_command_clean_tree();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

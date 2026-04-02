@@ -57,6 +57,7 @@ CMD_SRCS  = $(SRCDIR)/commands/commands.c \
             $(SRCDIR)/commands/cmd_config.c \
             $(SRCDIR)/commands/cmd_branch.c \
             $(SRCDIR)/commands/cmd_commit.c \
+            $(SRCDIR)/commands/cmd_review.c \
             $(SRCDIR)/commands/cmd_tasks.c \
             $(SRCDIR)/commands/cmd_tools.c
 
