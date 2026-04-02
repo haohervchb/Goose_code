@@ -53,6 +53,7 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg) {
         {"task_update", "Update an existing tracked task"},
         {"list_mcp_resources", "List resources exposed by a configured MCP server"},
         {"read_mcp_resource", "Read a specific resource from a configured MCP server"},
+        {"lsp", "Query a language server for hover, definition, or document symbols"},
         {"skill", "Load skill files from the skill directory"},
         {"agent", "Spawn sub-agents for delegated tasks"},
         {"tool_search", "List and search available tools"},

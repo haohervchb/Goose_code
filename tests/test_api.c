@@ -904,6 +904,95 @@ void test_mcp_missing_server_and_resource_errors(void) {
     printf("  PASS: test_mcp_missing_server_and_resource_errors\n");
 }
 
+void test_lsp_hover_definition_and_symbols(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = "/tmp";
+
+    char source_path[] = "/tmp/goosecode_lsp_XXXXXX.rs";
+    int fd = mkstemps(source_path, 3);
+    assert(fd != -1);
+    const char *source = "fn main() {\n    println!(\"hi\");\n}\n";
+    assert(write(fd, source, strlen(source)) == (ssize_t)strlen(source));
+    close(fd);
+
+    char args_buf[1024];
+    snprintf(args_buf, sizeof(args_buf),
+             "{\"action\":\"hover\",\"file_path\":\"%s\",\"line\":0,\"character\":3,\"server_command\":\"/usr/bin/python3\",\"server_args\":[\"/home/rah/goosecode/tests/lsp_test_server.py\"]}",
+             source_path);
+    char *result = tool_execute_lsp(args_buf, &cfg);
+    assert(result != NULL);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    assert(strcmp(json_get_string(json, "action"), "hover") == 0);
+    cJSON *hover = json_get_object(json, "result");
+    cJSON *contents = json_get_object(hover, "contents");
+    assert(strcmp(json_get_string(contents, "value"), "hover information") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    snprintf(args_buf, sizeof(args_buf),
+             "{\"action\":\"definition\",\"file_path\":\"%s\",\"line\":0,\"character\":3,\"server_command\":\"/usr/bin/python3\",\"server_args\":[\"/home/rah/goosecode/tests/lsp_test_server.py\"]}",
+             source_path);
+    result = tool_execute_lsp(args_buf, &cfg);
+    assert(result != NULL);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    assert(strcmp(json_get_string(json, "action"), "definition") == 0);
+    cJSON *locations = json_get_array(json, "result");
+    assert(locations != NULL && cJSON_GetArraySize(locations) == 1);
+    cJSON *location = cJSON_GetArrayItem(locations, 0);
+    assert(strcmp(json_get_string(location, "uri"), "file:///tmp/example.rs") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    snprintf(args_buf, sizeof(args_buf),
+             "{\"action\":\"document_symbols\",\"file_path\":\"%s\",\"server_command\":\"/usr/bin/python3\",\"server_args\":[\"/home/rah/goosecode/tests/lsp_test_server.py\"]}",
+             source_path);
+    result = tool_execute_lsp(args_buf, &cfg);
+    assert(result != NULL);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    assert(strcmp(json_get_string(json, "action"), "document_symbols") == 0);
+    cJSON *symbols = json_get_array(json, "result");
+    assert(symbols != NULL && cJSON_GetArraySize(symbols) == 1);
+    cJSON *symbol = cJSON_GetArrayItem(symbols, 0);
+    assert(strcmp(json_get_string(symbol, "name"), "main") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    remove(source_path);
+
+    tests_passed++;
+    printf("  PASS: test_lsp_hover_definition_and_symbols\n");
+}
+
+void test_lsp_rejects_unknown_action(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = "/tmp";
+
+    char source_path[] = "/tmp/goosecode_lsp_invalid_XXXXXX.rs";
+    int fd = mkstemps(source_path, 3);
+    assert(fd != -1);
+    close(fd);
+
+    char args_buf[1024];
+    snprintf(args_buf, sizeof(args_buf),
+             "{\"action\":\"bogus\",\"file_path\":\"%s\",\"server_command\":\"/usr/bin/python3\",\"server_args\":[\"/home/rah/goosecode/tests/lsp_test_server.py\"]}",
+             source_path);
+    char *result = tool_execute_lsp(args_buf, &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: action must be one of hover, definition, or document_symbols") == 0);
+    free(result);
+    remove(source_path);
+
+    tests_passed++;
+    printf("  PASS: test_lsp_rejects_unknown_action\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -940,6 +1029,8 @@ int main(void) {
     test_agent_tool_rejects_missing_resume_id();
     test_mcp_list_and_read_resources();
     test_mcp_missing_server_and_resource_errors();
+    test_lsp_hover_definition_and_symbols();
+    test_lsp_rejects_unknown_action();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

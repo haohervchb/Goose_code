@@ -24,6 +24,7 @@ static char *cmd_tools_exec(const char *args, const GooseConfig *cfg, Session *s
     strbuf_append(&out, "  task_update     - Update a tracked task\n");
     strbuf_append(&out, "  list_mcp_resources - List resources from an MCP server\n");
     strbuf_append(&out, "  read_mcp_resource - Read a resource from an MCP server\n");
+    strbuf_append(&out, "  lsp             - Query a language server\n");
     strbuf_append(&out, "  skill           - Load skill files\n");
     strbuf_append(&out, "  agent           - Spawn sub-agents\n");
     strbuf_append(&out, "  tool_search     - List available tools\n");

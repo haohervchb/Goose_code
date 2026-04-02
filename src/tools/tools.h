@@ -47,6 +47,7 @@ char *tool_execute_task_list(const char *args, const GooseConfig *cfg);
 char *tool_execute_task_update(const char *args, const GooseConfig *cfg);
 char *tool_execute_list_mcp_resources(const char *args, const GooseConfig *cfg);
 char *tool_execute_read_mcp_resource(const char *args, const GooseConfig *cfg);
+char *tool_execute_lsp(const char *args, const GooseConfig *cfg);
 char *tool_execute_skill(const char *args, const GooseConfig *cfg);
 char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg);
 char *tool_execute_tool_search(const char *args, const GooseConfig *cfg);

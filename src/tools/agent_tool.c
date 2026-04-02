@@ -147,14 +147,14 @@ static int subagent_tool_allowed(const Tool *tool, const GooseConfig *cfg, const
     static const char *const general_tools[] = {
         "bash", "read_file", "write_file", "edit_file", "glob_search", "grep_search",
         "web_fetch", "web_search", "todo_write", "task_create", "task_get", "task_list",
-        "task_update", "skill", "tool_search", "sleep"
+        "task_update", "lsp", "skill", "tool_search", "sleep"
     };
     static const char *const explore_tools[] = {
-        "read_file", "glob_search", "grep_search", "web_fetch", "web_search",
+        "read_file", "glob_search", "grep_search", "web_fetch", "web_search", "lsp",
         "task_get", "task_list", "skill", "tool_search", "sleep"
     };
     static const char *const plan_tools[] = {
-        "read_file", "glob_search", "grep_search", "web_fetch", "web_search",
+        "read_file", "glob_search", "grep_search", "web_fetch", "web_search", "lsp",
         "task_get", "task_list", "tool_search", "sleep"
     };
 

@@ -482,6 +482,55 @@ void tool_registry_register_all(ToolRegistry *reg) {
     };
     tool_registry_register(reg, read_mcp_resource);
 
+    cJSON *lsp_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_params, "type", "object");
+    cJSON *lsp_props = cJSON_CreateObject();
+    cJSON *lsp_action = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_action, "type", "string");
+    cJSON_AddStringToObject(lsp_action, "description", "LSP action: hover, definition, or document_symbols");
+    cJSON_AddItemToObject(lsp_props, "action", lsp_action);
+    cJSON *lsp_file_path = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_file_path, "type", "string");
+    cJSON_AddStringToObject(lsp_file_path, "description", "Path to the source file to inspect");
+    cJSON_AddItemToObject(lsp_props, "file_path", lsp_file_path);
+    cJSON *lsp_line = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_line, "type", "integer");
+    cJSON_AddStringToObject(lsp_line, "description", "Zero-based line for hover/definition actions");
+    cJSON_AddItemToObject(lsp_props, "line", lsp_line);
+    cJSON *lsp_character = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_character, "type", "integer");
+    cJSON_AddStringToObject(lsp_character, "description", "Zero-based character for hover/definition actions");
+    cJSON_AddItemToObject(lsp_props, "character", lsp_character);
+    cJSON *lsp_workspace = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_workspace, "type", "string");
+    cJSON_AddStringToObject(lsp_workspace, "description", "Optional workspace root override");
+    cJSON_AddItemToObject(lsp_props, "workspace_root", lsp_workspace);
+    cJSON *lsp_server_command = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_server_command, "type", "string");
+    cJSON_AddStringToObject(lsp_server_command, "description", "Optional explicit language server command");
+    cJSON_AddItemToObject(lsp_props, "server_command", lsp_server_command);
+    cJSON *lsp_server_args = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_server_args, "type", "array");
+    cJSON *lsp_server_arg_item = cJSON_CreateObject();
+    cJSON_AddStringToObject(lsp_server_arg_item, "type", "string");
+    cJSON_AddItemToObject(lsp_server_args, "items", lsp_server_arg_item);
+    cJSON_AddStringToObject(lsp_server_args, "description", "Optional server arguments");
+    cJSON_AddItemToObject(lsp_props, "server_args", lsp_server_args);
+    cJSON_AddItemToObject(lsp_params, "properties", lsp_props);
+    cJSON *lsp_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(lsp_req, cJSON_CreateString("action"));
+    cJSON_AddItemToArray(lsp_req, cJSON_CreateString("file_path"));
+    cJSON_AddItemToObject(lsp_params, "required", lsp_req);
+    Tool lsp = {
+        .name = strdup("lsp"),
+        .description = strdup("Query a language server for hover, definition, or document symbols."),
+        .parameters_schema = lsp_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_lsp
+    };
+    tool_registry_register(reg, lsp);
+
     cJSON *skill_params = cJSON_CreateObject();
     cJSON_AddStringToObject(skill_params, "type", "object");
     cJSON *skill_props = cJSON_CreateObject();
