@@ -6,6 +6,7 @@
 #include <string.h>
 
 #define SESSION_MEMORY_MAX_SECTION_CHARS 8000
+#define SESSION_MEMORY_COMPACT_SECTION_CHARS 2000
 
 static char *extract_last_role_content(const Session *sess, const char *role) {
     if (!sess || !sess->messages) return strdup("");
@@ -248,4 +249,54 @@ int session_memory_update(const GooseConfig *cfg, const Session *sess, const Api
     free(notes_path);
     free(current_notes);
     return 0;
+}
+
+SessionMemoryTruncateResult session_memory_truncate_for_compact(const char *content) {
+    SessionMemoryTruncateResult result = {0};
+    if (!content) {
+        result.truncated_content = strdup("");
+        return result;
+    }
+
+    StrBuf out = strbuf_new();
+    const char *cursor = content;
+
+    while (*cursor) {
+        const char *section = strstr(cursor, "# ");
+        if (!section || section != cursor) {
+            const char *next = strstr(cursor, "\n# ");
+            if (!next) {
+                strbuf_append(&out, cursor);
+                break;
+            }
+            strbuf_append_len(&out, cursor, (size_t)(next + 1 - cursor));
+            cursor = next + 1;
+            continue;
+        }
+
+        const char *next = strstr(section + 2, "\n# ");
+        const char *section_end = next ? next + 1 : content + strlen(content);
+        size_t section_len = (size_t)(section_end - section);
+
+        if (section_len <= SESSION_MEMORY_COMPACT_SECTION_CHARS) {
+            strbuf_append_len(&out, section, section_len);
+        } else {
+            result.was_truncated = 1;
+            strbuf_append_len(&out, section, SESSION_MEMORY_COMPACT_SECTION_CHARS);
+            if (out.len > 0 && out.data[out.len - 1] != '\n') strbuf_append_char(&out, '\n');
+            strbuf_append(&out, "[... section truncated for length ...]\n");
+        }
+
+        cursor = section_end;
+    }
+
+    result.truncated_content = strbuf_detach(&out);
+    return result;
+}
+
+void session_memory_truncate_result_free(SessionMemoryTruncateResult *result) {
+    if (!result) return;
+    free(result->truncated_content);
+    result->truncated_content = NULL;
+    result->was_truncated = 0;
 }

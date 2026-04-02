@@ -2061,6 +2061,33 @@ void test_session_memory_build_update_prompt_substitutes_values(void) {
     printf("  PASS: test_session_memory_build_update_prompt_substitutes_values\n");
 }
 
+void test_session_memory_truncate_for_compact(void) {
+    tests_run++;
+
+    SessionMemoryTruncateResult result = session_memory_truncate_for_compact(
+        "# Current State\nshort\n\n# Worklog\nentry\n");
+    assert(result.truncated_content != NULL);
+    assert(result.was_truncated == 0);
+    assert(strstr(result.truncated_content, "short") != NULL);
+    session_memory_truncate_result_free(&result);
+
+    char *large = malloc(5000);
+    memset(large, 'A', 4999);
+    large[4999] = '\0';
+    StrBuf notes = strbuf_from("# Current State\n");
+    strbuf_append(&notes, large);
+    result = session_memory_truncate_for_compact(notes.data);
+    assert(result.truncated_content != NULL);
+    assert(result.was_truncated == 1);
+    assert(strstr(result.truncated_content, "section truncated for length") != NULL);
+    session_memory_truncate_result_free(&result);
+    free(large);
+    strbuf_free(&notes);
+
+    tests_passed++;
+    printf("  PASS: test_session_memory_truncate_for_compact\n");
+}
+
 void test_compact_prompt_includes_no_tools_rule(void) {
     tests_run++;
     char *prompt = compact_get_prompt();
@@ -2188,6 +2215,7 @@ int main(void) {
     test_provider_settings_are_saved_per_provider();
     test_session_memory_template_and_ensure();
     test_session_memory_build_update_prompt_substitutes_values();
+    test_session_memory_truncate_for_compact();
     test_compact_prompt_includes_no_tools_rule();
     test_compact_formatter_extracts_summary();
     test_partial_compact_prompt_scope();
