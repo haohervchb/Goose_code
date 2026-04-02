@@ -24,5 +24,6 @@ void agent_free(Agent *agent);
 int agent_run_turn(Agent *agent, const char *user_input);
 int agent_run_repl(Agent *agent);
 char *agent_process_command(Agent *agent, const char *cmd_name, const char *cmd_args);
+Agent *agent_current(void);
 
 #endif

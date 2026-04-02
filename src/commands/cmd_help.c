@@ -20,6 +20,7 @@ static char *cmd_help_exec(const char *args, const GooseConfig *cfg, Session *se
     strbuf_append(&out, "  /branch [subcommand] Show, list, create, or switch branches\n");
     strbuf_append(&out, "  /commit [message]  Create a git commit from current changes\n");
     strbuf_append(&out, "  /review            Review current git changes locally\n");
+    strbuf_append(&out, "  /runtime           Show structured runtime metadata\n");
     strbuf_append(&out, "  /subagents [subcommand] Inspect and clean subagent state\n");
     strbuf_append(&out, "  /tasks [subcommand] Inspect and update tracked tasks\n");
     strbuf_append(&out, "  /permissions       Show current permission mode\n");

@@ -15,8 +15,11 @@
 #include <sys/select.h>
 #include <time.h>
 
+static Agent *g_current_agent = NULL;
+
 Agent *agent_init(const char *working_dir) {
     Agent *agent = calloc(1, sizeof(*agent));
+    g_current_agent = agent;
     prompt_sections_clear_cache();
     agent->config = config_load();
     if (working_dir) {
@@ -48,6 +51,7 @@ Agent *agent_init(const char *working_dir) {
 
 void agent_free(Agent *agent) {
     if (!agent) return;
+    if (g_current_agent == agent) g_current_agent = NULL;
     session_save(agent->config.session_dir, agent->session);
     session_free(agent->session);
     tool_registry_free(&agent->tools);
@@ -55,6 +59,10 @@ void agent_free(Agent *agent) {
     if (agent->system_message) cJSON_Delete(agent->system_message);
     config_free(&agent->config);
     free(agent);
+}
+
+Agent *agent_current(void) {
+    return g_current_agent;
 }
 
 typedef struct {

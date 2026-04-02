@@ -61,6 +61,7 @@ CMD_SRCS  = $(SRCDIR)/commands/commands.c \
             $(SRCDIR)/commands/cmd_branch.c \
             $(SRCDIR)/commands/cmd_commit.c \
             $(SRCDIR)/commands/cmd_review.c \
+            $(SRCDIR)/commands/cmd_runtime.c \
             $(SRCDIR)/commands/cmd_subagents.c \
             $(SRCDIR)/commands/cmd_tasks.c \
             $(SRCDIR)/commands/cmd_tools.c
@@ -69,6 +70,7 @@ CORE_SRCS = $(SRCDIR)/api.c \
             $(SRCDIR)/config.c \
             $(SRCDIR)/provider.c \
             $(SRCDIR)/tool_result_store.c \
+            $(SRCDIR)/system_init.c \
             $(SRCDIR)/session.c \
             $(SRCDIR)/session_memory.c \
             $(SRCDIR)/compact.c \
@@ -97,7 +99,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 
 test: $(TARGET)
 	@echo "Running tests..."
-	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/tool_result_store.c $(SRCDIR)/session.c $(SRCDIR)/session_memory.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
+	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/tool_result_store.c $(SRCDIR)/system_init.c $(SRCDIR)/session.c $(SRCDIR)/session_memory.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
 
 install: $(TARGET)
 	@mkdir -p "$(INSTALL_BINDIR)"

@@ -12,6 +12,7 @@
 #include "../src/session.h"
 #include "../src/session_memory.h"
 #include "../src/tool_result_store.h"
+#include "../src/system_init.h"
 #include "../src/prompt.h"
 #include "../src/prompt_sections.h"
 #include "../src/util/terminal.h"
@@ -1968,6 +1969,26 @@ void test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search(void) {
     printf("  PASS: test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search\n");
 }
 
+void test_system_init_metadata_contains_runtime_state(void) {
+    tests_run++;
+
+    Agent *agent = agent_init("/tmp");
+    cJSON *json = system_init_build_metadata(agent);
+    assert(json != NULL);
+    assert(strcmp(json_get_string(json, "cwd"), "/tmp") == 0);
+    assert(json_get_string(json, "provider") != NULL);
+    assert(json_get_string(json, "model") != NULL);
+    assert(json_get_string(json, "permission_mode") != NULL);
+    assert(json_get_array(json, "tools") != NULL);
+    assert(json_get_array(json, "commands") != NULL);
+    assert(json_get_array(json, "subagent_types") != NULL);
+    cJSON_Delete(json);
+    agent_free(agent);
+
+    tests_passed++;
+    printf("  PASS: test_system_init_metadata_contains_runtime_state\n");
+}
+
 void test_bash_tool_honors_timeout_on_quiet_command(void) {
     tests_run++;
 
@@ -2397,6 +2418,7 @@ int main(void) {
     test_tool_result_batch_budget_persists_largest_results();
     test_tool_schema_cache_reuse_and_invalidation();
     test_deferred_tool_schema_hides_heavy_tools_but_keeps_tool_search();
+    test_system_init_metadata_contains_runtime_state();
     test_bash_tool_honors_timeout_on_quiet_command();
     test_bash_tool_accepts_string_timeout();
     test_tool_definitions_include_bash_timeout_schema();
