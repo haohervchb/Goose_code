@@ -8,6 +8,23 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+#define MAX_TOOL_RESULT_BYTES 4000
+
+static char *truncate_tool_result_for_session(const char *result) {
+    if (!result) return strdup("");
+
+    size_t len = strlen(result);
+    if (len <= MAX_TOOL_RESULT_BYTES) return strdup(result);
+
+    const size_t head = 2600;
+    const size_t tail = 900;
+    StrBuf out = strbuf_new();
+    strbuf_append_len(&out, result, head);
+    strbuf_append_fmt(&out, "\n\n[Tool result truncated from %zu bytes to keep the request body manageable]\n\n", len);
+    strbuf_append(&out, result + (len - tail));
+    return strbuf_detach(&out);
+}
+
 static char *session_path(const char *dir, const char *id) {
     size_t len = strlen(dir) + strlen(id) + 16;
     char *p = malloc(len);
@@ -84,7 +101,9 @@ void session_add_message(Session *sess, cJSON *msg) {
 }
 
 void session_add_tool_result(Session *sess, const char *tool_call_id, const char *result) {
-    cJSON *msg = json_build_tool_result(tool_call_id, result);
+    char *truncated = truncate_tool_result_for_session(result);
+    cJSON *msg = json_build_tool_result(tool_call_id, truncated);
+    free(truncated);
     cJSON_AddItemToArray(sess->messages, msg);
 }
 

@@ -1531,6 +1531,28 @@ void test_subagents_command_list_show_clean_and_prune(void) {
     printf("  PASS: test_subagents_command_list_show_clean_and_prune\n");
 }
 
+void test_session_truncates_oversized_tool_results(void) {
+    tests_run++;
+
+    Session *sess = session_new();
+    char *large = malloc(20001);
+    memset(large, 'A', 20000);
+    large[20000] = '\0';
+
+    session_add_tool_result(sess, "call_1", large);
+    cJSON *msg = cJSON_GetArrayItem(sess->messages, 0);
+    const char *content = json_get_string(msg, "content");
+    assert(content != NULL);
+    assert(strlen(content) < 13000);
+    assert(strstr(content, "Tool result truncated") != NULL);
+
+    free(large);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_session_truncates_oversized_tool_results\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1583,6 +1605,7 @@ int main(void) {
     test_review_command_reports_status_and_diff_checks();
     test_review_command_clean_tree();
     test_subagents_command_list_show_clean_and_prune();
+    test_session_truncates_oversized_tool_results();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

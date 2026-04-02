@@ -7,6 +7,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#define WEB_FETCH_MAX_CHARS 3000
+
 static char *html_to_text(const char *html) {
     StrBuf out = strbuf_new();
     int in_tag = 0;
@@ -40,6 +42,39 @@ static char *html_to_text(const char *html) {
         p++;
     }
     return strbuf_detach(&out);
+}
+
+static void sanitize_text_ascii(char *text) {
+    if (!text) return;
+
+    char *src = text;
+    char *dst = text;
+    int prev_space = 0;
+
+    while (*src) {
+        unsigned char ch = (unsigned char)*src++;
+
+        if (ch == '\r') continue;
+        if (ch == '\n') {
+            *dst++ = '\n';
+            prev_space = 0;
+            continue;
+        }
+        if (ch == '\t') ch = ' ';
+
+        if (ch < 32 || ch > 126) ch = ' ';
+
+        if (ch == ' ') {
+            if (prev_space) continue;
+            prev_space = 1;
+        } else {
+            prev_space = 0;
+        }
+
+        *dst++ = (char)ch;
+    }
+
+    *dst = '\0';
 }
 
 char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
@@ -77,6 +112,7 @@ char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
 
     char *text = html_to_text(resp.body.data);
     http_response_free(&resp);
+    sanitize_text_ascii(text);
 
     StrBuf out = strbuf_new();
     strbuf_append_fmt(&out, "URL: %s\nStatus: %s\n\n", url, status_info);
@@ -85,10 +121,10 @@ char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
         strbuf_append_fmt(&out, "User prompt: %s\n\nExtracted content:\n", prompt);
     }
 
-    if (strlen(text) > 50000) {
-        text[50000] = '\0';
+    if (strlen(text) > WEB_FETCH_MAX_CHARS) {
+        text[WEB_FETCH_MAX_CHARS] = '\0';
         strbuf_append(&out, text);
-        strbuf_append(&out, "\n\n[Content truncated at 50KB]");
+        strbuf_append(&out, "\n\n[Content truncated at 3KB]");
     } else {
         strbuf_append(&out, text);
     }
