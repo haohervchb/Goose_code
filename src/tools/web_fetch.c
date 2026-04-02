@@ -49,15 +49,18 @@ char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
 
     const char *url = json_get_string(json, "url");
     const char *prompt = json_get_string(json, "prompt");
-    cJSON_Delete(json);
 
-    if (!url) return strdup("Error: 'url' argument required");
+    if (!url) {
+        cJSON_Delete(json);
+        return strdup("Error: 'url' argument required");
+    }
 
     HttpResponse resp = http_get(url, NULL);
     if (resp.error) {
         char err[512];
         snprintf(err, sizeof(err), "Error fetching %s: %s", url, resp.error);
         http_response_free(&resp);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -68,6 +71,7 @@ char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
         char err[256];
         snprintf(err, sizeof(err), "HTTP %ld from %s", resp.status_code, url);
         http_response_free(&resp);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -89,5 +93,7 @@ char *tool_execute_web_fetch(const char *args, const GooseConfig *cfg) {
         strbuf_append(&out, text);
     }
     free(text);
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

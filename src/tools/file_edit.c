@@ -13,15 +13,17 @@ char *tool_execute_edit_file(const char *args, const GooseConfig *cfg) {
     const char *path = json_get_string(json, "file_path");
     const char *old_str = json_get_string(json, "old_string");
     const char *new_str = json_get_string(json, "new_string");
-    cJSON_Delete(json);
 
-    if (!path || !old_str || !new_str)
+    if (!path || !old_str || !new_str) {
+        cJSON_Delete(json);
         return strdup("Error: 'file_path', 'old_string', and 'new_string' arguments required");
+    }
 
     FILE *f = fopen(path, "r");
     if (!f) {
         char err[512];
         snprintf(err, sizeof(err), "Error: cannot open file '%s'", path);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -38,6 +40,7 @@ char *tool_execute_edit_file(const char *args, const GooseConfig *cfg) {
         free(file_content);
         char err[512];
         snprintf(err, sizeof(err), "Error: 'old_string' not found in %s", path);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -53,12 +56,18 @@ char *tool_execute_edit_file(const char *args, const GooseConfig *cfg) {
     free(file_content);
 
     f = fopen(path, "w");
-    if (!f) { free(new_content); return strdup("Error: cannot write file"); }
+    if (!f) {
+        free(new_content);
+        cJSON_Delete(json);
+        return strdup("Error: cannot write file");
+    }
     fwrite(new_content, 1, new_sz, f);
     fclose(f);
     free(new_content);
 
     StrBuf result = strbuf_new();
     strbuf_append_fmt(&result, "Successfully edited %s (replaced %zu chars with %zu chars)", path, old_len, new_len);
-    return strbuf_detach(&result);
+    char *out = strbuf_detach(&result);
+    cJSON_Delete(json);
+    return out;
 }

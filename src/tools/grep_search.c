@@ -20,9 +20,11 @@ char *tool_execute_grep_search(const char *args, const GooseConfig *cfg) {
     int context = json_get_int(json, "context", 0);
     const char *type = json_get_string(json, "type");
     const char *output_mode = json_get_string(json, "output_mode");
-    cJSON_Delete(json);
 
-    if (!pattern) return strdup("Error: 'pattern' argument required");
+    if (!pattern) {
+        cJSON_Delete(json);
+        return strdup("Error: 'pattern' argument required");
+    }
 
     char cmd[4096];
     int pos = 0;
@@ -40,7 +42,10 @@ char *tool_execute_grep_search(const char *args, const GooseConfig *cfg) {
     }
 
     FILE *f = popen(cmd, "r");
-    if (!f) return strdup("Error: grep failed");
+    if (!f) {
+        cJSON_Delete(json);
+        return strdup("Error: grep failed");
+    }
 
     StrBuf out = strbuf_new();
     char buf[4096];
@@ -48,5 +53,8 @@ char *tool_execute_grep_search(const char *args, const GooseConfig *cfg) {
     pclose(f);
 
     if (out.len == 0) strbuf_append(&out, "No matches found.");
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    (void)output_mode;
+    return result;
 }

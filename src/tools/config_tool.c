@@ -11,7 +11,6 @@ char *tool_execute_config_tool(const char *args, const GooseConfig *cfg) {
 
     const char *setting = json_get_string(json, "setting");
     const char *value = json_get_string(json, "value");
-    cJSON_Delete(json);
 
     StrBuf out = strbuf_new();
 
@@ -23,7 +22,9 @@ char *tool_execute_config_tool(const char *args, const GooseConfig *cfg) {
         strbuf_append_fmt(&out, "  max_tokens: %d\n", cfg->max_tokens);
         strbuf_append_fmt(&out, "  max_turns: %d\n", cfg->max_turns);
         strbuf_append_fmt(&out, "  working_dir: %s\n", cfg->working_dir);
-        return strbuf_detach(&out);
+        char *result = strbuf_detach(&out);
+        cJSON_Delete(json);
+        return result;
     }
 
     if (strcmp(setting, "model") == 0) {
@@ -48,5 +49,7 @@ char *tool_execute_config_tool(const char *args, const GooseConfig *cfg) {
         strbuf_append_fmt(&out, "Unknown setting: %s. Supported: model, permission_mode, max_tokens", setting);
     }
 
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

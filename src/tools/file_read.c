@@ -14,14 +14,17 @@ char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
     const char *path = json_get_string(json, "file_path");
     int offset = json_get_int(json, "offset", 0);
     int limit = json_get_int(json, "limit", 0);
-    cJSON_Delete(json);
 
-    if (!path) return strdup("Error: 'file_path' argument required");
+    if (!path) {
+        cJSON_Delete(json);
+        return strdup("Error: 'file_path' argument required");
+    }
 
     FILE *f = fopen(path, "r");
     if (!f) {
         char err[256];
         snprintf(err, sizeof(err), "Error: cannot open file '%s'", path);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -38,7 +41,9 @@ char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
             pclose(ls);
         }
         fclose(f);
-        return strbuf_detach(&listing);
+        char *result = strbuf_detach(&listing);
+        cJSON_Delete(json);
+        return result;
     }
 
     StrBuf content = strbuf_new();
@@ -57,5 +62,7 @@ char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
         content.len = 500000;
         strbuf_append(&content, "\n\n[File truncated at 500KB]");
     }
-    return strbuf_detach(&content);
+    char *result = strbuf_detach(&content);
+    cJSON_Delete(json);
+    return result;
 }

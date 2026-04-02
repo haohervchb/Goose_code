@@ -11,6 +11,7 @@
 #include "../src/session.h"
 #include "../src/prompt.h"
 #include "../src/tools/tools.h"
+#include "../src/tools/subagent_store.h"
 #include "../src/commands/commands.h"
 
 static int tests_run = 0;
@@ -728,6 +729,105 @@ void test_task_update_rejects_unknown_task(void) {
     printf("  PASS: test_task_update_rejects_unknown_task\n");
 }
 
+void test_subagent_record_persistence(void) {
+    tests_run++;
+
+    char subagent_dir[] = "/tmp/goosecode_subagents_XXXXXX";
+    assert(mkdtemp(subagent_dir) != NULL);
+
+    GooseConfig cfg = {0};
+    cfg.subagent_dir = subagent_dir;
+
+    SubagentRecord *record = subagent_record_new("subagent_test_1");
+    free(record->description);
+    record->description = strdup("Explore the repository");
+    free(record->subagent_type);
+    record->subagent_type = strdup("explore");
+    free(record->model);
+    record->model = strdup("test-model");
+    free(record->working_dir);
+    record->working_dir = strdup("/tmp/work");
+    free(record->result);
+    record->result = strdup("done");
+    cJSON_AddItemToArray(record->messages, json_build_message("user", "inspect files"));
+
+    char *err = subagent_record_save(&cfg, record);
+    assert(err == NULL);
+
+    SubagentRecord *loaded = subagent_record_load(&cfg, "subagent_test_1");
+    assert(loaded != NULL);
+    assert(strcmp(loaded->description, "Explore the repository") == 0);
+    assert(strcmp(loaded->subagent_type, "explore") == 0);
+    assert(strcmp(loaded->result, "done") == 0);
+    assert(cJSON_GetArraySize(loaded->messages) == 1);
+
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/subagent_test_1.json", subagent_dir);
+    remove(path);
+    rmdir(subagent_dir);
+    subagent_record_free(record);
+    subagent_record_free(loaded);
+
+    tests_passed++;
+    printf("  PASS: test_subagent_record_persistence\n");
+}
+
+void test_agent_tool_schema_includes_task_id(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.permission_mode = PERM_ALLOW;
+    cfg.allowed_tools = cJSON_CreateArray();
+    cfg.denied_tools = cJSON_CreateArray();
+
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+    cJSON *defs = tool_registry_get_definitions(&reg, &cfg);
+    cJSON *agent_def = tool_def_for_name(defs, "agent");
+    assert(agent_def != NULL);
+    cJSON *fn = json_get_object(agent_def, "function");
+    cJSON *params = json_get_object(fn, "parameters");
+    cJSON *props = json_get_object(params, "properties");
+    assert(json_get_object(props, "task_id") != NULL);
+
+    cJSON_Delete(defs);
+    tool_registry_free(&reg);
+    cJSON_Delete(cfg.allowed_tools);
+    cJSON_Delete(cfg.denied_tools);
+
+    tests_passed++;
+    printf("  PASS: test_agent_tool_schema_includes_task_id\n");
+}
+
+void test_agent_tool_rejects_unknown_subagent_type(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    char *result = tool_execute_agent_tool(
+        "{\"prompt\":\"test\",\"description\":\"test\",\"subagent_type\":\"bogus\"}",
+        &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: subagent_type must be one of general, explore, or plan") == 0);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_agent_tool_rejects_unknown_subagent_type\n");
+}
+
+void test_agent_tool_rejects_missing_resume_id(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.subagent_dir = "/tmp/missing_subagent_dir";
+    char *result = tool_execute_agent_tool("{\"task_id\":\"subagent_missing\"}", &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: subagent task_id not found") == 0);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_agent_tool_rejects_missing_resume_id\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -758,6 +858,10 @@ int main(void) {
     test_task_tools_create_get_list_update();
     test_task_tools_see_todo_write_entries();
     test_task_update_rejects_unknown_task();
+    test_subagent_record_persistence();
+    test_agent_tool_schema_includes_task_id();
+    test_agent_tool_rejects_unknown_subagent_type();
+    test_agent_tool_rejects_missing_resume_id();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

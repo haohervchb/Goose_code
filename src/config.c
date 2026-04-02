@@ -61,8 +61,10 @@ GooseConfig config_load(void) {
     if (!cfg.working_dir) cfg.working_dir = strdup(".");
 
     cfg.session_dir = config_path(home, ".goosecode/sessions");
+    cfg.subagent_dir = config_path(home, ".goosecode/subagents");
     ensure_dir(config_path(home, ".goosecode"));
     ensure_dir(cfg.session_dir);
+    ensure_dir(cfg.subagent_dir);
 
     cfg.todo_store = config_path(home, ".goosecode/todos.json");
     cfg.skill_dir = config_path(home, ".goosecode/skills");
@@ -130,6 +132,7 @@ void config_free(GooseConfig *cfg) {
     free(cfg->model);
     free(cfg->working_dir);
     free(cfg->session_dir);
+    free(cfg->subagent_dir);
     free(cfg->todo_store);
     free(cfg->skill_dir);
     if (cfg->mcp_servers) cJSON_Delete(cfg->mcp_servers);

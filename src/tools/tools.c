@@ -479,11 +479,11 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(agent_model, "type", "string");
     cJSON_AddStringToObject(agent_model, "description", "Optional model override");
     cJSON_AddItemToObject(agent_props, "model", agent_model);
+    cJSON *agent_task_id = cJSON_CreateObject();
+    cJSON_AddStringToObject(agent_task_id, "type", "string");
+    cJSON_AddStringToObject(agent_task_id, "description", "Optional existing subagent task_id to resume");
+    cJSON_AddItemToObject(agent_props, "task_id", agent_task_id);
     cJSON_AddItemToObject(agent_params, "properties", agent_props);
-    cJSON *agent_req = cJSON_CreateArray();
-    cJSON_AddItemToArray(agent_req, cJSON_CreateString("prompt"));
-    cJSON_AddItemToArray(agent_req, cJSON_CreateString("description"));
-    cJSON_AddItemToObject(agent_params, "required", agent_req);
     Tool agent_tool = {
         .name = strdup("agent"),
         .description = strdup("Spawn a sub-agent to handle a complex task."),

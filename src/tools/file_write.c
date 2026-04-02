@@ -14,10 +14,15 @@ char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
 
     const char *path = json_get_string(json, "file_path");
     const char *content = json_get_string(json, "content");
-    cJSON_Delete(json);
 
-    if (!path) return strdup("Error: 'file_path' argument required");
-    if (!content) return strdup("Error: 'content' argument required");
+    if (!path) {
+        cJSON_Delete(json);
+        return strdup("Error: 'file_path' argument required");
+    }
+    if (!content) {
+        cJSON_Delete(json);
+        return strdup("Error: 'content' argument required");
+    }
 
     char *dir = strdup(path);
     char *slash = strrchr(dir, '/');
@@ -31,6 +36,7 @@ char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
     if (!f) {
         char err[512];
         snprintf(err, sizeof(err), "Error: cannot write to '%s': %s", path, strerror(errno));
+        cJSON_Delete(json);
         return strdup(err);
     }
     fputs(content, f);
@@ -38,5 +44,7 @@ char *tool_execute_write_file(const char *args, const GooseConfig *cfg) {
 
     StrBuf result = strbuf_new();
     strbuf_append_fmt(&result, "Successfully wrote %zu bytes to %s", strlen(content), path);
-    return strbuf_detach(&result);
+    char *out = strbuf_detach(&result);
+    cJSON_Delete(json);
+    return out;
 }

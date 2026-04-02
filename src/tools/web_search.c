@@ -22,9 +22,11 @@ char *tool_execute_web_search(const char *args, const GooseConfig *cfg) {
     const char *query = json_get_string(json, "query");
     cJSON *allowed = json_get_array(json, "allowed_domains");
     cJSON *blocked = json_get_array(json, "blocked_domains");
-    cJSON_Delete(json);
 
-    if (!query) return strdup("Error: 'query' argument required");
+    if (!query) {
+        cJSON_Delete(json);
+        return strdup("Error: 'query' argument required");
+    }
 
     const char *allowed_arr[32];
     int nallowed = 0;
@@ -54,6 +56,7 @@ char *tool_execute_web_search(const char *args, const GooseConfig *cfg) {
         char err[512];
         snprintf(err, sizeof(err), "Search error: %s", resp.error);
         http_response_free(&resp);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -93,5 +96,7 @@ char *tool_execute_web_search(const char *args, const GooseConfig *cfg) {
 
     if (found == 0) strbuf_append(&out, "No results found.\n");
     http_response_free(&resp);
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

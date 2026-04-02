@@ -35,7 +35,6 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg) {
 
     const char *query = json_get_string(json, "query");
     int max_results = json_get_int(json, "max_results", 20);
-    cJSON_Delete(json);
 
     typedef struct { const char *name; const char *desc; } ToolInfo;
     ToolInfo tools[] = {
@@ -131,5 +130,7 @@ char *tool_execute_tool_search(const char *args, const GooseConfig *cfg) {
             strbuf_append_fmt(&out, "  %-20s %s\n", scores[i].name, scores[i].description);
         }
     }
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

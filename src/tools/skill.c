@@ -11,18 +11,26 @@ char *tool_execute_skill(const char *args, const GooseConfig *cfg) {
     if (!json) return strdup("Error: invalid JSON arguments");
 
     const char *name = json_get_string(json, "name");
-    cJSON_Delete(json);
 
-    if (!name) return strdup("Error: 'name' argument required");
+    if (!name) {
+        cJSON_Delete(json);
+        return strdup("Error: 'name' argument required");
+    }
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s.md", cfg->skill_dir, name);
     char *content = json_read_file(path);
-    if (content) return content;
+    if (content) {
+        cJSON_Delete(json);
+        return content;
+    }
 
     snprintf(path, sizeof(path), "%s/%s.sh", cfg->skill_dir, name);
     content = json_read_file(path);
-    if (content) return content;
+    if (content) {
+        cJSON_Delete(json);
+        return content;
+    }
 
     StrBuf out = strbuf_from("Available skills:\n");
     DIR *dir = opendir(cfg->skill_dir);
@@ -35,5 +43,7 @@ char *tool_execute_skill(const char *args, const GooseConfig *cfg) {
     } else {
         strbuf_append(&out, "  (none)\n");
     }
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

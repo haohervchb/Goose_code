@@ -13,9 +13,11 @@ char *tool_execute_glob_search(const char *args, const GooseConfig *cfg) {
 
     const char *pattern = json_get_string(json, "pattern");
     const char *path = json_get_string(json, "path");
-    cJSON_Delete(json);
 
-    if (!pattern) return strdup("Error: 'pattern' argument required");
+    if (!pattern) {
+        cJSON_Delete(json);
+        return strdup("Error: 'pattern' argument required");
+    }
 
     char full_pattern[2048];
     if (path) snprintf(full_pattern, sizeof(full_pattern), "%s/%s", path, pattern);
@@ -23,10 +25,14 @@ char *tool_execute_glob_search(const char *args, const GooseConfig *cfg) {
 
     glob_t results;
     int rc = glob(full_pattern, GLOB_ERR | GLOB_NOSORT, NULL, &results);
-    if (rc == GLOB_NOMATCH) { free(json); return strdup("No files matching pattern."); }
+    if (rc == GLOB_NOMATCH) {
+        cJSON_Delete(json);
+        return strdup("No files matching pattern.");
+    }
     if (rc != 0) {
         char err[256];
         snprintf(err, sizeof(err), "Error: glob failed (%d)", rc);
+        cJSON_Delete(json);
         return strdup(err);
     }
 
@@ -37,5 +43,7 @@ char *tool_execute_glob_search(const char *args, const GooseConfig *cfg) {
     }
     if (results.gl_pathc > 200) strbuf_append_fmt(&out, "  ... and %zu more\n", results.gl_pathc - 200);
     globfree(&results);
-    return strbuf_detach(&out);
+    char *result = strbuf_detach(&out);
+    cJSON_Delete(json);
+    return result;
 }

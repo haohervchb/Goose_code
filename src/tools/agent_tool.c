@@ -1,38 +1,333 @@
 #include "tools/tools.h"
+#include "tools/subagent_store.h"
+#include "api.h"
+#include "prompt.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+static int subagent_type_valid(const char *type) {
+    return strcmp(type, "general") == 0 || strcmp(type, "explore") == 0 || strcmp(type, "plan") == 0;
+}
+
+static int name_in_list(const char *name, const char *const *list, int count) {
+    for (int i = 0; i < count; i++) {
+        if (strcmp(name, list[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+static void replace_owned_string(char **slot, const char *value) {
+    free(*slot);
+    *slot = value ? strdup(value) : NULL;
+}
+
+static void set_record_status(SubagentRecord *record, const char *status) {
+    replace_owned_string(&record->status, status);
+}
+
+static int subagent_tool_allowed(const Tool *tool, const GooseConfig *cfg, const char *subagent_type) {
+    static const char *const general_tools[] = {
+        "bash", "read_file", "write_file", "edit_file", "glob_search", "grep_search",
+        "web_fetch", "web_search", "todo_write", "task_create", "task_get", "task_list",
+        "task_update", "skill", "tool_search", "sleep"
+    };
+    static const char *const explore_tools[] = {
+        "read_file", "glob_search", "grep_search", "web_fetch", "web_search",
+        "task_get", "task_list", "skill", "tool_search", "sleep"
+    };
+    static const char *const plan_tools[] = {
+        "read_file", "glob_search", "grep_search", "web_fetch", "web_search",
+        "task_get", "task_list", "tool_search", "sleep"
+    };
+
+    if (!permissions_tool_visible(cfg, tool->name, tool->required_mode)) return 0;
+
+    if (strcmp(subagent_type, "general") == 0) {
+        return name_in_list(tool->name, general_tools, (int)(sizeof(general_tools) / sizeof(general_tools[0])));
+    }
+    if (strcmp(subagent_type, "explore") == 0) {
+        return name_in_list(tool->name, explore_tools, (int)(sizeof(explore_tools) / sizeof(explore_tools[0])));
+    }
+    return name_in_list(tool->name, plan_tools, (int)(sizeof(plan_tools) / sizeof(plan_tools[0])));
+}
+
+static cJSON *subagent_tool_definitions(const ToolRegistry *reg, const GooseConfig *cfg,
+                                        const char *subagent_type) {
+    cJSON *defs = cJSON_CreateArray();
+    for (int i = 0; i < reg->count; i++) {
+        Tool *tool = reg->tools[i];
+        if (!subagent_tool_allowed(tool, cfg, subagent_type)) continue;
+        cJSON *def = json_build_tool_def_openai(tool->name, tool->description,
+                                                tool->parameters_schema ? cJSON_Duplicate(tool->parameters_schema, 1) : NULL);
+        cJSON_AddItemToArray(defs, def);
+    }
+    return defs;
+}
+
+static char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *record) {
+    char *base = prompt_build_system(cfg, NULL, record->working_dir ? record->working_dir : cfg->working_dir);
+    StrBuf out = strbuf_from(base);
+    free(base);
+
+    strbuf_append(&out, "\n## Subagent Mode\n");
+    strbuf_append(&out, "- You are a delegated subagent working for a parent goosecode session\n");
+    strbuf_append(&out, "- Complete the delegated task autonomously and return a concise final answer for the parent\n");
+    strbuf_append(&out, "- Do not address the human directly or ask follow-up questions unless blocked\n");
+    strbuf_append(&out, "- Never spawn another subagent\n");
+
+    if (record->description) {
+        strbuf_append_fmt(&out, "- Delegated task: %s\n", record->description);
+    }
+
+    if (record->subagent_type && strcmp(record->subagent_type, "explore") == 0) {
+        strbuf_append(&out, "- This is an explore subagent: prefer searching, reading, and analysis over editing\n");
+    } else if (record->subagent_type && strcmp(record->subagent_type, "plan") == 0) {
+        strbuf_append(&out, "- This is a plan subagent: focus on producing a clear implementation or investigation plan\n");
+        strbuf_append(&out, "- Prefer read-only inspection and return actionable next steps\n");
+    } else {
+        strbuf_append(&out, "- This is a general subagent: solve the task end-to-end within the allowed tools\n");
+    }
+
+    return strbuf_detach(&out);
+}
+
+static char *subagent_execute_tool(ToolRegistry *reg, const GooseConfig *cfg,
+                                   const char *subagent_type, const char *name, const char *args) {
+    Tool *tool = tool_registry_find(reg, name);
+    if (!tool) return strdup("Error: tool not found");
+    if (!subagent_tool_allowed(tool, cfg, subagent_type)) {
+        return strdup("Error: tool not allowed for this subagent type");
+    }
+
+    PermissionCheckResult perm = permissions_check(cfg, name, args, tool->required_mode);
+    if (perm == PERM_CHECK_BLOCK) return strdup("Error: tool is blocked by permission policy");
+    if (perm == PERM_CHECK_DENY) return strdup("Error: tool is denied");
+    if (perm == PERM_CHECK_PROMPT) {
+        return strdup("Error: subagent cannot request interactive permission approval; rerun with a less restrictive permission mode");
+    }
+
+    tool_context_set_session(NULL);
+    char *result = tool->execute(args, cfg);
+    tool_context_set_session(NULL);
+    return result ? result : strdup("Error: tool returned no result");
+}
+
+static void subagent_append_message(cJSON *messages, cJSON *msg) {
+    cJSON_AddItemToArray(messages, msg);
+}
+
+static char *subagent_sanitize_result(const char *text) {
+    const char *p = text ? text : "";
+    const char *last_end = NULL;
+    const char *scan = p;
+    while ((scan = strstr(scan, "</think>")) != NULL) {
+        last_end = scan;
+        scan += 8;
+    }
+    if (last_end) p = last_end + 8;
+
+    while (*p && isspace((unsigned char)*p)) p++;
+    return strdup(p);
+}
+
+static int subagent_execute_calls(SubagentRecord *record, ToolRegistry *reg, const GooseConfig *cfg,
+                                  cJSON *tool_calls) {
+    cJSON *assistant_msg = json_build_tool_message("assistant", cJSON_Duplicate(tool_calls, 1));
+    subagent_append_message(record->messages, assistant_msg);
+
+    cJSON *call;
+    cJSON_ArrayForEach(call, tool_calls) {
+        const char *tool_call_id = json_get_string(call, "id");
+        cJSON *fn = json_get_object(call, "function");
+        const char *name = fn ? json_get_string(fn, "name") : NULL;
+        const char *args = fn ? json_get_string(fn, "arguments") : NULL;
+        if (!tool_call_id || !name) {
+            subagent_append_message(record->messages,
+                                    json_build_tool_result(tool_call_id ? tool_call_id : "unknown",
+                                                           "Error: malformed tool call"));
+            continue;
+        }
+
+        char *result = subagent_execute_tool(reg, cfg, record->subagent_type ? record->subagent_type : "general",
+                                             name, args ? args : "{}");
+        subagent_append_message(record->messages, json_build_tool_result(tool_call_id, result));
+        free(result);
+    }
+
+    return 0;
+}
+
+static char *subagent_result_json(const SubagentRecord *record) {
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "task_id", record->task_id);
+    cJSON_AddStringToObject(result, "status", record->status ? record->status : "pending");
+    if (record->description) cJSON_AddStringToObject(result, "description", record->description);
+    if (record->subagent_type) cJSON_AddStringToObject(result, "subagent_type", record->subagent_type);
+    if (record->model) cJSON_AddStringToObject(result, "model", record->model);
+    if (record->result) cJSON_AddStringToObject(result, "result", record->result);
+    if (record->error) cJSON_AddStringToObject(result, "error", record->error);
+    char *out = json_to_string(result);
+    cJSON_Delete(result);
+    return out ? out : strdup("Error: failed to encode subagent result");
+}
+
+static char *subagent_run(SubagentRecord *record, const GooseConfig *cfg) {
+    ToolRegistry reg = tool_registry_init();
+    tool_registry_register_all(&reg);
+    cJSON *tools_def = subagent_tool_definitions(&reg, cfg, record->subagent_type ? record->subagent_type : "general");
+    char *system_prompt = subagent_system_prompt(cfg, record);
+    cJSON *system_msg = json_build_message("system", system_prompt);
+    free(system_prompt);
+
+    ApiConfig api_cfg = {0};
+    api_cfg.base_url = cfg->base_url;
+    api_cfg.api_key = cfg->api_key;
+    api_cfg.model = record->model ? record->model : cfg->model;
+    api_cfg.max_tokens = cfg->max_tokens;
+    api_cfg.temperature = cfg->temperature;
+    api_cfg.max_retries = 2;
+
+    set_record_status(record, "running");
+    replace_owned_string(&record->error, NULL);
+    char *save_err = subagent_record_save(cfg, record);
+    free(save_err);
+
+    int max_turns = cfg->max_turns > 0 ? cfg->max_turns : 8;
+    if (max_turns > 12) max_turns = 12;
+
+    for (int turn = 0; turn < max_turns; turn++) {
+        cJSON *messages = prompt_build_messages_with_tools(system_msg, record->messages, NULL);
+        ApiResponse resp = api_send_message(&api_cfg, messages, tools_def);
+        cJSON_Delete(messages);
+
+        if (resp.status != API_OK) {
+            set_record_status(record, "error");
+            replace_owned_string(&record->error, resp.error ? resp.error : api_status_str(resp.status));
+            api_response_free(&resp);
+            subagent_record_save(cfg, record);
+            cJSON_Delete(system_msg);
+            cJSON_Delete(tools_def);
+            tool_registry_free(&reg);
+            return subagent_result_json(record);
+        }
+
+        if (resp.tool_calls && cJSON_GetArraySize(resp.tool_calls) > 0) {
+            subagent_execute_calls(record, &reg, cfg, resp.tool_calls);
+            api_response_free(&resp);
+            save_err = subagent_record_save(cfg, record);
+            free(save_err);
+            continue;
+        }
+
+        char *clean = subagent_sanitize_result(resp.text_content.data ? resp.text_content.data : "");
+        subagent_append_message(record->messages, json_build_message("assistant", clean));
+        replace_owned_string(&record->result, clean);
+        set_record_status(record, "completed");
+        free(clean);
+        api_response_free(&resp);
+        subagent_record_save(cfg, record);
+        cJSON_Delete(system_msg);
+        cJSON_Delete(tools_def);
+        tool_registry_free(&reg);
+        return subagent_result_json(record);
+    }
+
+    set_record_status(record, "error");
+    replace_owned_string(&record->error, "Subagent hit max turns before producing a final answer");
+    subagent_record_save(cfg, record);
+    cJSON_Delete(system_msg);
+    cJSON_Delete(tools_def);
+    tool_registry_free(&reg);
+    return subagent_result_json(record);
+}
+
+static char *new_subagent_id(void) {
+    char id[64];
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    snprintf(id, sizeof(id), "subagent_%ld_%ld", (long)ts.tv_sec, (long)ts.tv_nsec);
+    return strdup(id);
+}
+
 char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
-    (void)cfg;
     cJSON *json = cJSON_Parse(args);
     if (!json) return strdup("Error: invalid JSON arguments");
 
     const char *prompt = json_get_string(json, "prompt");
-    const char *name = json_get_string(json, "name");
     const char *description = json_get_string(json, "description");
     const char *subagent_type = json_get_string(json, "subagent_type");
     const char *model = json_get_string(json, "model");
+    const char *task_id = json_get_string(json, "task_id");
+
+    const char *effective_type = subagent_type ? subagent_type : "general";
+    if (!subagent_type_valid(effective_type)) {
+        cJSON_Delete(json);
+        return strdup("Error: subagent_type must be one of general, explore, or plan");
+    }
+
+    SubagentRecord *record = NULL;
+    if (task_id && task_id[0]) {
+        record = subagent_record_load(cfg, task_id);
+        if (!record) {
+            cJSON_Delete(json);
+            return strdup("Error: subagent task_id not found");
+        }
+    } else {
+        if (!prompt || !prompt[0]) {
+            cJSON_Delete(json);
+            return strdup("Error: 'prompt' argument required for a new subagent");
+        }
+        if (!description || !description[0]) {
+            cJSON_Delete(json);
+            return strdup("Error: 'description' argument required for a new subagent");
+        }
+
+        char *generated_id = new_subagent_id();
+        record = subagent_record_new(generated_id);
+        free(generated_id);
+        replace_owned_string(&record->description, description);
+        replace_owned_string(&record->subagent_type, effective_type);
+        replace_owned_string(&record->model, model ? model : cfg->model);
+        replace_owned_string(&record->working_dir, cfg->working_dir);
+    }
+
+    if (description && description[0] && !record->description) {
+        replace_owned_string(&record->description, description);
+    }
+    if (subagent_type && subagent_type[0]) {
+        replace_owned_string(&record->subagent_type, subagent_type);
+    } else if (!record->subagent_type) {
+        replace_owned_string(&record->subagent_type, effective_type);
+    }
+    if (model && model[0]) {
+        replace_owned_string(&record->model, model);
+    } else if (!record->model) {
+        replace_owned_string(&record->model, cfg->model);
+    }
+    if (!record->working_dir) {
+        replace_owned_string(&record->working_dir, cfg->working_dir);
+    }
+
+    if (prompt && prompt[0]) {
+        subagent_append_message(record->messages, json_build_message("user", prompt));
+    } else if (task_id && record->status && strcmp(record->status, "completed") == 0) {
+        char *out = subagent_result_json(record);
+        subagent_record_free(record);
+        cJSON_Delete(json);
+        return out;
+    } else if (!task_id) {
+        subagent_record_free(record);
+        cJSON_Delete(json);
+        return strdup("Error: 'prompt' argument required for a new subagent");
+    }
+
+    char *out = subagent_run(record, cfg);
+    subagent_record_free(record);
     cJSON_Delete(json);
-
-    if (!prompt) return strdup("Error: 'prompt' argument required");
-    if (!description) return strdup("Error: 'description' argument required");
-
-    char agent_id[64];
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    snprintf(agent_id, sizeof(agent_id), "agent_%ld_%ld", (long)ts.tv_sec, (long)ts.tv_nsec);
-
-    StrBuf out = strbuf_new();
-    strbuf_append_fmt(&out, "Sub-agent '%s' (ID: %s) spawned\n", name ? name : agent_id, agent_id);
-    strbuf_append_fmt(&out, "Description: %s\n", description);
-    strbuf_append_fmt(&out, "Type: %s\n", subagent_type ? subagent_type : "general");
-    if (model) strbuf_append_fmt(&out, "Model: %s\n", model);
-    strbuf_append_fmt(&out, "Prompt: %s\n", prompt);
-    strbuf_append(&out, "\n[Note: Sub-agent execution would run as a separate process in a full implementation. "
-                         "The sub-agent manifest and output files would be persisted for later retrieval.]");
-    return strbuf_detach(&out);
+    return out;
 }

@@ -22,6 +22,7 @@ typedef struct {
     int context_window;
     char *working_dir;
     char *session_dir;
+    char *subagent_dir;
     char *todo_store;
     char *skill_dir;
     cJSON *mcp_servers;
