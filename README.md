@@ -84,6 +84,8 @@ If Homebrew curl is not on your default compiler path, set the include/library f
 ```bash
 make
 make test
+make install
+make uninstall
 make clean
 ```
 
@@ -91,6 +93,24 @@ Binary output:
 
 ```bash
 ./goosecode
+```
+
+User-local install path by default:
+
+```text
+~/.local/bin/goosecode
+```
+
+If `~/.local/bin` is on your `PATH`, you can then start goosecode from anywhere with:
+
+```bash
+goosecode
+```
+
+Custom install path example:
+
+```bash
+make install INSTALL_BINDIR=/usr/local/bin
 ```
 
 ## Usage

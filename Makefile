@@ -1,6 +1,8 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -Wpedantic -O2 -std=c11 -D_GNU_SOURCE
 LDFLAGS = -lcurl  -lpthread 
+PREFIX  ?= $(HOME)/.local
+INSTALL_BINDIR ?= $(PREFIX)/bin
 
 SRCDIR  = src
 OBJDIR  = build
@@ -78,7 +80,7 @@ ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
 
 TARGET    = $(BINDIR)/goosecode
 
-.PHONY: all clean test
+.PHONY: all clean test install uninstall
 
 all: $(TARGET)
 
@@ -93,6 +95,15 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 test: $(TARGET)
 	@echo "Running tests..."
 	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/session.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
+
+install: $(TARGET)
+	@mkdir -p "$(INSTALL_BINDIR)"
+	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode"
+	@printf 'Installed goosecode to %s/goosecode\n' "$(INSTALL_BINDIR)"
+
+uninstall:
+	@rm -f "$(INSTALL_BINDIR)/goosecode"
+	@printf 'Removed %s/goosecode\n' "$(INSTALL_BINDIR)"
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) build/test_runner
