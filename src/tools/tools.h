@@ -4,6 +4,7 @@
 #include "config.h"
 #include "permissions.h"
 #include "session.h"
+#include "tools/subagent_store.h"
 #include "util/cJSON.h"
 #include <stdio.h>
 
@@ -54,6 +55,7 @@ char *tool_execute_read_mcp_resource(const char *args, const GooseConfig *cfg);
 char *tool_execute_lsp(const char *args, const GooseConfig *cfg);
 char *tool_execute_skill(const char *args, const GooseConfig *cfg);
 char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg);
+char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *record);
 char *tool_execute_tool_search(const char *args, const GooseConfig *cfg);
 char *tool_execute_notebook_edit(const char *args, const GooseConfig *cfg);
 char *tool_execute_sleep(const char *args, const GooseConfig *cfg);

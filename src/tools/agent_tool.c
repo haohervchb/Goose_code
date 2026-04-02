@@ -182,7 +182,7 @@ static cJSON *subagent_tool_definitions(const ToolRegistry *reg, const GooseConf
     return defs;
 }
 
-static char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *record) {
+char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *record) {
     char *base = prompt_build_default_system(cfg, NULL, record->working_dir ? record->working_dir : cfg->working_dir);
     StrBuf instructions = strbuf_new();
 
@@ -193,19 +193,35 @@ static char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord
     strbuf_append(&instructions, "- Complete the delegated task autonomously and return a concise final answer for the parent\n");
     strbuf_append(&instructions, "- Do not address the human directly or ask follow-up questions unless blocked\n");
     strbuf_append(&instructions, "- Never spawn another subagent\n");
+    strbuf_append(&instructions, "- The parent chose to delegate because this task is better handled in a fresh subagent context\n");
 
     if (record->description) {
         strbuf_append_fmt(&instructions, "- Delegated task: %s\n", record->description);
     }
 
+    strbuf_append(&instructions, "\n## Writing And Reasoning Rules\n");
+    strbuf_append(&instructions, "- Treat the delegated prompt as your full assignment; do not assume hidden context beyond it and the visible tools\n");
+    strbuf_append(&instructions, "- Do not delegate understanding back to the parent. Read, inspect, and reason enough to make concrete judgment calls yourself\n");
+    strbuf_append(&instructions, "- Prefer explicit file paths, commands, and findings over vague summaries\n");
+    strbuf_append(&instructions, "- If you are blocked, explain exactly what is missing or what failed\n");
+    strbuf_append(&instructions, "- If the delegated prompt asks for a short answer, keep the final answer short\n");
+    strbuf_append(&instructions, "- Avoid unnecessary tool calls once you have enough information to answer\n");
+
     if (record->subagent_type && strcmp(record->subagent_type, "explore") == 0) {
         strbuf_append(&instructions, "- This is an explore subagent: prefer searching, reading, and analysis over editing\n");
+        strbuf_append(&instructions, "- Your job is to investigate and report findings, not to make speculative changes\n");
     } else if (record->subagent_type && strcmp(record->subagent_type, "plan") == 0) {
         strbuf_append(&instructions, "- This is a plan subagent: focus on producing a clear implementation or investigation plan\n");
         strbuf_append(&instructions, "- Prefer read-only inspection and return actionable next steps\n");
+        strbuf_append(&instructions, "- Your output should make it easy for the parent to continue the work immediately\n");
     } else {
         strbuf_append(&instructions, "- This is a general subagent: solve the task end-to-end within the allowed tools\n");
+        strbuf_append(&instructions, "- Be decisive: gather the minimum context required, do the work, and report the concrete result\n");
     }
+
+    strbuf_append(&instructions, "\n## Fresh Context Reminder\n");
+    strbuf_append(&instructions, "- You are not continuing the entire parent transcript; you are acting from the delegated prompt plus the files and tools you inspect\n");
+    strbuf_append(&instructions, "- If the delegated prompt lacks critical context, say what is missing instead of inventing it\n");
 
     return strbuf_detach(&instructions);
 }

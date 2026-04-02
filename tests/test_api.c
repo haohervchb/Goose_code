@@ -1123,6 +1123,60 @@ void test_agent_tool_rejects_missing_resume_id(void) {
     printf("  PASS: test_agent_tool_rejects_missing_resume_id\n");
 }
 
+void test_agent_prompt_contains_when_to_use_guidance(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    SubagentRecord *record = subagent_record_new("subagent_test_prompt");
+    record->description = strdup("Investigate parser bug");
+    record->subagent_type = strdup("general");
+    record->working_dir = strdup("/tmp");
+
+    char *prompt = subagent_system_prompt(&cfg, record);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "Do not delegate understanding back to the parent") != NULL);
+    assert(strstr(prompt, "fresh subagent context") != NULL);
+    assert(strstr(prompt, "If the delegated prompt lacks critical context") != NULL);
+
+    free(prompt);
+    subagent_record_free(record);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_agent_prompt_contains_when_to_use_guidance\n");
+}
+
+void test_agent_prompt_differs_by_agent_type(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+
+    SubagentRecord *explore = subagent_record_new("subagent_explore");
+    explore->description = strdup("Explore task");
+    explore->subagent_type = strdup("explore");
+    explore->working_dir = strdup("/tmp");
+    char *explore_prompt = subagent_system_prompt(&cfg, explore);
+    assert(strstr(explore_prompt, "prefer searching, reading, and analysis over editing") != NULL);
+
+    SubagentRecord *plan = subagent_record_new("subagent_plan");
+    plan->description = strdup("Plan task");
+    plan->subagent_type = strdup("plan");
+    plan->working_dir = strdup("/tmp");
+    char *plan_prompt = subagent_system_prompt(&cfg, plan);
+    assert(strstr(plan_prompt, "focus on producing a clear implementation or investigation plan") != NULL);
+
+    free(explore_prompt);
+    free(plan_prompt);
+    subagent_record_free(explore);
+    subagent_record_free(plan);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_agent_prompt_differs_by_agent_type\n");
+}
+
 void test_mcp_list_and_read_resources(void) {
     tests_run++;
 
@@ -2319,6 +2373,8 @@ int main(void) {
     test_agent_tool_schema_includes_task_id();
     test_agent_tool_rejects_unknown_subagent_type();
     test_agent_tool_rejects_missing_resume_id();
+    test_agent_prompt_contains_when_to_use_guidance();
+    test_agent_prompt_differs_by_agent_type();
     test_mcp_list_and_read_resources();
     test_mcp_missing_server_and_resource_errors();
     test_lsp_hover_definition_and_symbols();
