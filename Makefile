@@ -69,6 +69,7 @@ CORE_SRCS = $(SRCDIR)/api.c \
             $(SRCDIR)/config.c \
             $(SRCDIR)/provider.c \
             $(SRCDIR)/session.c \
+            $(SRCDIR)/session_memory.c \
             $(SRCDIR)/compact.c \
             $(SRCDIR)/permissions.c \
             $(SRCDIR)/prompt_sections.c \
@@ -95,7 +96,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 
 test: $(TARGET)
 	@echo "Running tests..."
-	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/session.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
+	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/session.c $(SRCDIR)/session_memory.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
 
 install: $(TARGET)
 	@mkdir -p "$(INSTALL_BINDIR)"

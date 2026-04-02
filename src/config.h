@@ -36,6 +36,7 @@ typedef struct {
     int context_window;
     char *working_dir;
     char *session_dir;
+    char *session_memory_dir;
     char *subagent_dir;
     char *worktree_dir;
     char *todo_store;

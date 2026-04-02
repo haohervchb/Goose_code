@@ -10,6 +10,7 @@
 #include "../src/permissions.h"
 #include "../src/config.h"
 #include "../src/session.h"
+#include "../src/session_memory.h"
 #include "../src/prompt.h"
 #include "../src/prompt_sections.h"
 #include "../src/util/terminal.h"
@@ -2014,6 +2015,40 @@ void test_provider_settings_are_saved_per_provider(void) {
     printf("  PASS: test_provider_settings_are_saved_per_provider\n");
 }
 
+void test_session_memory_template_and_ensure(void) {
+    tests_run++;
+
+    char base_dir[] = "/tmp/goosecode_session_memory_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char mem_dir[1024];
+    snprintf(mem_dir, sizeof(mem_dir), "%s/memory", base_dir);
+    assert(mkdir(mem_dir, 0755) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.session_memory_dir = mem_dir;
+    Session *sess = session_new();
+
+    assert(session_memory_ensure(&cfg, sess) == 0);
+    char *content = session_memory_load(&cfg, sess);
+    assert(content != NULL);
+    assert(strstr(content, "# Session Title") != NULL);
+    assert(strstr(content, "# Current State") != NULL);
+    free(content);
+
+    char *path = session_memory_path(&cfg, sess);
+    assert(path != NULL);
+    assert(strstr(path, sess->id) != NULL);
+    free(path);
+
+    session_free(sess);
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_session_memory_template_and_ensure\n");
+}
+
 void test_compact_prompt_includes_no_tools_rule(void) {
     tests_run++;
     char *prompt = compact_get_prompt();
@@ -2139,6 +2174,7 @@ int main(void) {
     test_notebook_edit_updates_cell_source();
     test_provider_apply_preset_sets_defaults();
     test_provider_settings_are_saved_per_provider();
+    test_session_memory_template_and_ensure();
     test_compact_prompt_includes_no_tools_rule();
     test_compact_formatter_extracts_summary();
     test_partial_compact_prompt_scope();

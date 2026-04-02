@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "session_memory.h"
 #include "util/terminal.h"
 #include "util/strbuf.h"
 #include "util/cJSON.h"
@@ -233,6 +234,7 @@ int main(int argc, char *argv[]) {
         if (loaded) {
             session_free(g_agent->session);
             g_agent->session = loaded;
+            session_memory_ensure(&g_agent->config, g_agent->session);
             printf("Resumed session: %s (%d messages)\n", session_id, cJSON_GetArraySize(loaded->messages));
         } else {
             fprintf(stderr, "Warning: session '%s' not found, starting new session\n", session_id);

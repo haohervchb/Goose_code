@@ -2,6 +2,7 @@
 #include "compact.h"
 #include "prompt.h"
 #include "prompt_sections.h"
+#include "session_memory.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include "util/terminal.h"
@@ -30,6 +31,7 @@ Agent *agent_init(const char *working_dir) {
     agent->api_cfg.max_retries = 3;
 
     agent->session = session_new();
+    session_memory_ensure(&agent->config, agent->session);
     agent->tools = tool_registry_init();
     tool_registry_register_all(&agent->tools);
     agent->commands = command_registry_init();
