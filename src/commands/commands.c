@@ -61,6 +61,7 @@ void command_registry_register_all(CommandRegistry *reg) {
     extern void cmd_exit_register(CommandRegistry *);
     extern void cmd_plan_register(CommandRegistry *);
     extern void cmd_config_register(CommandRegistry *);
+    extern void cmd_branch_register(CommandRegistry *);
     extern void cmd_tasks_register(CommandRegistry *);
     extern void cmd_tools_register(CommandRegistry *);
 
@@ -74,6 +75,7 @@ void command_registry_register_all(CommandRegistry *reg) {
     cmd_exit_register(reg);
     cmd_plan_register(reg);
     cmd_config_register(reg);
+    cmd_branch_register(reg);
     cmd_tasks_register(reg);
     cmd_tools_register(reg);
 }

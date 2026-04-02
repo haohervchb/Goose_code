@@ -1129,6 +1129,85 @@ void test_config_command_rejects_unknown_setting(void) {
     printf("  PASS: test_config_command_rejects_unknown_setting\n");
 }
 
+void test_branch_command_show_list_create_and_switch(void) {
+    tests_run++;
+
+    char repo_dir[] = "/tmp/goosecode_cmd_branch_XXXXXX";
+    assert(mkdtemp(repo_dir) != NULL);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "git init \"%s\" >/dev/null 2>&1", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.name tester", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.email tester@example.com", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'hello\\n' > \"%s/README.md\"", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" add README.md && git -C \"%s\" commit -m init >/dev/null 2>&1", repo_dir, repo_dir);
+    assert(system(cmd) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = repo_dir;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "branch", "show", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "master") != NULL || strstr(result, "main") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "branch", "create feature/test", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "feature/test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "branch", "list", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "feature/test") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "branch", "switch master", &cfg, sess);
+    if (strstr(result, "pathspec 'master' did not match") != NULL) {
+        free(result);
+        result = command_registry_execute(&reg, "branch", "switch main", &cfg, sess);
+    }
+    assert(result != NULL);
+    assert(strstr(result, "Switched to branch") != NULL || strstr(result, "Already on") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_branch_command_show_list_create_and_switch\n");
+}
+
+void test_branch_command_usage(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = "/tmp";
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "branch", "bogus", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Usage:") != NULL);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    tests_passed++;
+    printf("  PASS: test_branch_command_usage\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1171,6 +1250,8 @@ int main(void) {
     test_tasks_command_rejects_bad_status();
     test_config_command_show_and_inspect();
     test_config_command_rejects_unknown_setting();
+    test_branch_command_show_list_create_and_switch();
+    test_branch_command_usage();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
