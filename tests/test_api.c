@@ -52,6 +52,54 @@ void test_terminal_prompt_format(void) {
     printf("  PASS: test_terminal_prompt_format\n");
 }
 
+void test_terminal_buffer_editing(void) {
+    tests_run++;
+
+    TermInputBuffer buf;
+    term_buffer_init(&buf);
+    term_buffer_insert_char(&buf, 'a');
+    term_buffer_insert_char(&buf, 'c');
+    term_buffer_move_left(&buf);
+    term_buffer_insert_char(&buf, 'b');
+    assert(strcmp(buf.text, "abc") == 0);
+    assert(buf.cursor == 2);
+
+    term_buffer_backspace(&buf);
+    assert(strcmp(buf.text, "ac") == 0);
+    assert(buf.cursor == 1);
+
+    term_buffer_move_end(&buf);
+    term_buffer_insert_char(&buf, '\n');
+    term_buffer_insert_char(&buf, 'x');
+    assert(strcmp(buf.text, "ac\nx") == 0);
+
+    term_buffer_move_home(&buf);
+    term_buffer_delete(&buf);
+    assert(strcmp(buf.text, "c\nx") == 0);
+
+    term_buffer_free(&buf);
+    tests_passed++;
+    printf("  PASS: test_terminal_buffer_editing\n");
+}
+
+void test_terminal_buffer_set_and_cursor(void) {
+    tests_run++;
+
+    TermInputBuffer buf;
+    term_buffer_init(&buf);
+    term_buffer_set(&buf, "hello");
+    assert(strcmp(buf.text, "hello") == 0);
+    assert(buf.cursor == 5);
+    term_buffer_move_left(&buf);
+    term_buffer_move_left(&buf);
+    term_buffer_insert_char(&buf, '!');
+    assert(strcmp(buf.text, "hel!lo") == 0);
+    term_buffer_free(&buf);
+
+    tests_passed++;
+    printf("  PASS: test_terminal_buffer_set_and_cursor\n");
+}
+
 void test_strbuf_trim(void) {
     tests_run++;
     StrBuf sb = strbuf_from("  hello world  ");
@@ -1489,6 +1537,8 @@ int main(void) {
     test_strbuf_basic();
     test_strbuf_fmt();
     test_terminal_prompt_format();
+    test_terminal_buffer_editing();
+    test_terminal_buffer_set_and_cursor();
     test_strbuf_trim();
     test_json_build_message();
     test_json_tool_def();

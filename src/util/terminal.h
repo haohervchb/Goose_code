@@ -16,10 +16,28 @@
 #define TERM_CYAN      "\033[36m"
 #define TERM_WHITE     "\033[37m"
 
+typedef struct {
+    char *text;
+    size_t len;
+    size_t cap;
+    size_t cursor;
+} TermInputBuffer;
+
 void term_init(void);
 void term_restore(void);
 int term_get_size(int *rows, int *cols);
+void term_buffer_init(TermInputBuffer *buf);
+void term_buffer_free(TermInputBuffer *buf);
+void term_buffer_set(TermInputBuffer *buf, const char *text);
+void term_buffer_insert_char(TermInputBuffer *buf, char ch);
+void term_buffer_backspace(TermInputBuffer *buf);
+void term_buffer_delete(TermInputBuffer *buf);
+void term_buffer_move_left(TermInputBuffer *buf);
+void term_buffer_move_right(TermInputBuffer *buf);
+void term_buffer_move_home(TermInputBuffer *buf);
+void term_buffer_move_end(TermInputBuffer *buf);
 char *term_read_line(const char *prompt);
+char *term_read_line_opts(const char *prompt, int multiline, int history_enabled);
 void term_clear_screen(void);
 void term_print_colored(const char *text, const char *color);
 char *term_format_prompt(const char *working_dir, int plan_mode);

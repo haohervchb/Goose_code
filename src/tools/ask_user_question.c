@@ -174,7 +174,7 @@ static void print_question(FILE *output, const char *header, const char *questio
 
 static int read_response_line(FILE *input, FILE *output, char *line, size_t line_size) {
     if (input == stdin && output == stdout) {
-        char *response = term_read_line("");
+        char *response = term_read_line_opts("", 0, 0);
         if (!response) return 0;
         snprintf(line, line_size, "%s", response);
         free(response);

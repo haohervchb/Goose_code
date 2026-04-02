@@ -165,7 +165,7 @@ static char *collect_multiline_command(const char *first_line, const char *promp
     }
 
     while (1) {
-        char *line = term_read_line(prompt);
+        char *line = term_read_line_opts(prompt, 0, 0);
         if (!line) break;
         if (strcmp(line, ".") == 0) {
             free(line);
@@ -366,7 +366,7 @@ int agent_run_repl(Agent *agent) {
 
     while (agent->running) {
         char *prompt = term_format_prompt(agent->config.working_dir, agent->session && agent->session->plan_mode);
-        char *input = term_read_line(prompt);
+        char *input = term_read_line_opts(prompt, 1, 1);
         free(prompt);
         if (!input) {
             printf("\n");
