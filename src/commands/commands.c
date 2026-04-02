@@ -64,6 +64,7 @@ void command_registry_register_all(CommandRegistry *reg) {
     extern void cmd_branch_register(CommandRegistry *);
     extern void cmd_commit_register(CommandRegistry *);
     extern void cmd_review_register(CommandRegistry *);
+    extern void cmd_subagents_register(CommandRegistry *);
     extern void cmd_tasks_register(CommandRegistry *);
     extern void cmd_tools_register(CommandRegistry *);
 
@@ -80,6 +81,7 @@ void command_registry_register_all(CommandRegistry *reg) {
     cmd_branch_register(reg);
     cmd_commit_register(reg);
     cmd_review_register(reg);
+    cmd_subagents_register(reg);
     cmd_tasks_register(reg);
     cmd_tools_register(reg);
 }

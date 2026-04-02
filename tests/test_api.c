@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "../src/util/strbuf.h"
 #include "../src/util/json_util.h"
 #include "../src/util/sse.h"
@@ -1377,6 +1378,71 @@ void test_review_command_clean_tree(void) {
     printf("  PASS: test_review_command_clean_tree\n");
 }
 
+void test_subagents_command_list_show_clean_and_prune(void) {
+    tests_run++;
+
+    char base_dir[] = "/tmp/goosecode_cmd_subagents_XXXXXX";
+    assert(mkdtemp(base_dir) != NULL);
+    char sub_dir[1024];
+    char worktree_dir[1024];
+    snprintf(sub_dir, sizeof(sub_dir), "%s/subagents", base_dir);
+    snprintf(worktree_dir, sizeof(worktree_dir), "%s/worktrees", base_dir);
+    assert(mkdir(sub_dir, 0755) == 0);
+    assert(mkdir(worktree_dir, 0755) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.subagent_dir = sub_dir;
+    cfg.worktree_dir = worktree_dir;
+
+    SubagentRecord *record = subagent_record_new("subagent_test");
+    free(record->status);
+    record->status = strdup("completed");
+    record->description = strdup("Completed subagent");
+    record->subagent_type = strdup("explore");
+    record->workspace_mode = strdup("direct");
+    assert(subagent_record_save(&cfg, record) == NULL);
+    subagent_record_free(record);
+
+    char orphan_dir[2048];
+    snprintf(orphan_dir, sizeof(orphan_dir), "%s/orphan_worktree", worktree_dir);
+    assert(mkdir(orphan_dir, 0755) == 0);
+
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "subagents", "list", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "subagent_test [completed|explore|direct] Completed subagent") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "subagents", "show subagent_test", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "task_id: subagent_test") != NULL);
+    assert(strstr(result, "status: completed") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "subagents", "clean", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Removed 1 stale subagent record(s).\n") == 0);
+    free(result);
+
+    result = command_registry_execute(&reg, "subagents", "prune", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Removed 1 orphaned worktree(s).\n") == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", base_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_subagents_command_list_show_clean_and_prune\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1425,6 +1491,7 @@ int main(void) {
     test_commit_command_rejects_secret_like_files();
     test_review_command_reports_status_and_diff_checks();
     test_review_command_clean_tree();
+    test_subagents_command_list_show_clean_and_prune();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
