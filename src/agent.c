@@ -1,5 +1,6 @@
 #include "agent.h"
 #include "prompt.h"
+#include "prompt_sections.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include "util/terminal.h"
@@ -13,6 +14,7 @@
 
 Agent *agent_init(const char *working_dir) {
     Agent *agent = calloc(1, sizeof(*agent));
+    prompt_sections_clear_cache();
     agent->config = config_load();
     if (working_dir) {
         free(agent->config.working_dir);
@@ -355,6 +357,7 @@ int agent_run_turn(Agent *agent, const char *user_input) {
             char *summary = session_compact(agent->session, 10);
             if (summary) {
                 printf(TERM_DIM "[Context compacted before API call]\n" TERM_RESET);
+                prompt_sections_clear_cache();
                 free(summary);
             }
         }
@@ -513,6 +516,7 @@ int agent_run_repl(Agent *agent) {
             if (result && result[0]) printf("%s\n", result);
             free(result);
             agent_refresh_api_config(agent);
+            prompt_sections_clear_cache();
             free(owned_cmd_args);
         } else {
             int rc = agent_run_turn(agent, input);

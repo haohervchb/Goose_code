@@ -263,13 +263,13 @@ static char *prompt_section_plan_mode(const GooseConfig *cfg, const Session *ses
 
 char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     PromptSection sections[] = {
-        {"intro", prompt_section_intro},
-        {"doing_tasks", prompt_section_doing_tasks},
-        {"actions", prompt_section_actions},
-        {"environment", prompt_section_environment},
-        {"git", prompt_section_git},
-        {"instruction_files", prompt_section_instruction_files},
-        {"plan_mode", prompt_section_plan_mode},
+        {"intro", prompt_section_intro, 0},
+        {"doing_tasks", prompt_section_doing_tasks, 0},
+        {"actions", prompt_section_actions, 0},
+        {"environment", prompt_section_environment, 1},
+        {"git", prompt_section_git, 1},
+        {"instruction_files", prompt_section_instruction_files, 1},
+        {"plan_mode", prompt_section_plan_mode, 1},
     };
 
     char *resolved = prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),

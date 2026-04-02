@@ -69,11 +69,18 @@ static char *test_prompt_section_beta(const GooseConfig *cfg, const Session *ses
     return strdup("beta");
 }
 
+static int test_prompt_cached_calls = 0;
+static char *test_prompt_section_cached_counter(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)cfg; (void)sess; (void)working_dir;
+    test_prompt_cached_calls++;
+    return strdup("cached");
+}
+
 void test_prompt_sections_order(void) {
     tests_run++;
     PromptSection sections[] = {
-        {"alpha", test_prompt_section_alpha},
-        {"beta", test_prompt_section_beta},
+        {"alpha", test_prompt_section_alpha, 0},
+        {"beta", test_prompt_section_beta, 0},
     };
     char *prompt = prompt_sections_resolve(sections, 2, NULL, NULL, NULL);
     assert(prompt != NULL);
@@ -86,9 +93,9 @@ void test_prompt_sections_order(void) {
 void test_prompt_sections_skip_nulls(void) {
     tests_run++;
     PromptSection sections[] = {
-        {"alpha", test_prompt_section_alpha},
-        {"empty", test_prompt_section_empty},
-        {"beta", test_prompt_section_beta},
+        {"alpha", test_prompt_section_alpha, 0},
+        {"empty", test_prompt_section_empty, 0},
+        {"beta", test_prompt_section_beta, 0},
     };
     char *prompt = prompt_sections_resolve(sections, 3, NULL, NULL, NULL);
     assert(prompt != NULL);
@@ -97,6 +104,48 @@ void test_prompt_sections_skip_nulls(void) {
     free(prompt);
     tests_passed++;
     printf("  PASS: test_prompt_sections_skip_nulls\n");
+}
+
+void test_prompt_section_cache_hits(void) {
+    tests_run++;
+    PromptSection sections[] = {
+        {"cached_counter", test_prompt_section_cached_counter, 0},
+    };
+    prompt_sections_clear_cache();
+    test_prompt_cached_calls = 0;
+
+    char *prompt = prompt_sections_resolve(sections, 1, NULL, NULL, NULL);
+    free(prompt);
+    prompt = prompt_sections_resolve(sections, 1, NULL, NULL, NULL);
+    free(prompt);
+
+    assert(test_prompt_cached_calls == 1);
+    assert(prompt_sections_cache_size() == 1);
+    prompt_sections_clear_cache();
+
+    tests_passed++;
+    printf("  PASS: test_prompt_section_cache_hits\n");
+}
+
+void test_prompt_section_cache_clears(void) {
+    tests_run++;
+    PromptSection sections[] = {
+        {"cached_counter", test_prompt_section_cached_counter, 0},
+    };
+    prompt_sections_clear_cache();
+    test_prompt_cached_calls = 0;
+
+    char *prompt = prompt_sections_resolve(sections, 1, NULL, NULL, NULL);
+    free(prompt);
+    prompt_sections_clear_cache();
+    prompt = prompt_sections_resolve(sections, 1, NULL, NULL, NULL);
+    free(prompt);
+
+    assert(test_prompt_cached_calls == 2);
+    prompt_sections_clear_cache();
+
+    tests_passed++;
+    printf("  PASS: test_prompt_section_cache_clears\n");
 }
 
 void test_terminal_buffer_editing(void) {
@@ -1924,6 +1973,8 @@ int main(void) {
     test_strbuf_fmt();
     test_prompt_sections_order();
     test_prompt_sections_skip_nulls();
+    test_prompt_section_cache_hits();
+    test_prompt_section_cache_clears();
     test_terminal_prompt_format();
     test_terminal_buffer_editing();
     test_terminal_buffer_set_and_cursor();
