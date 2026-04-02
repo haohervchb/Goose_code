@@ -198,6 +198,14 @@ static char *prompt_section_output_style(const GooseConfig *cfg, const Session *
     return strbuf_detach(&out);
 }
 
+static char *prompt_section_language_preference(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)sess; (void)working_dir;
+    if (!cfg || !cfg->response_language || !cfg->response_language[0]) return strdup("");
+    StrBuf out = strbuf_from("# Language preference\n");
+    strbuf_append_fmt(&out, "- Prefer responding in %s unless the user explicitly asks for another language\n", cfg->response_language);
+    return strbuf_detach(&out);
+}
+
 static char *prompt_section_environment(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     (void)sess;
     char *date = get_date_str();
@@ -289,6 +297,7 @@ char *prompt_build_static_system_prefix(const GooseConfig *cfg, const Session *s
         {"actions", prompt_section_actions, 0},
         {"system_reminders", prompt_section_system_reminders, 0},
         {"output_style", prompt_section_output_style, 1},
+        {"language_preference", prompt_section_language_preference, 1},
     };
 
     return prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),

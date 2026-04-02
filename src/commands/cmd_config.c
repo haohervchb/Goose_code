@@ -15,6 +15,7 @@ static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *
         strbuf_append_fmt(&out, "  model: %s\n", cfg->model);
         strbuf_append_fmt(&out, "  base_url: %s\n", cfg->base_url);
         strbuf_append_fmt(&out, "  output_style: %s\n", (cfg->output_style && cfg->output_style[0]) ? cfg->output_style : "(default)");
+        strbuf_append_fmt(&out, "  response_language: %s\n", (cfg->response_language && cfg->response_language[0]) ? cfg->response_language : "(default)");
         strbuf_append_fmt(&out, "  api_key: %s\n", (cfg->api_key && cfg->api_key[0]) ? "configured" : "not configured");
         strbuf_append_fmt(&out, "  permission_mode: %s\n", config_perm_mode_str(cfg->permission_mode));
         strbuf_append_fmt(&out, "  max_tokens: %d\n", cfg->max_tokens);
@@ -67,6 +68,15 @@ static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *
         } else {
             strbuf_append_fmt(&out, "Current output style: %s\n", (cfg->output_style && cfg->output_style[0]) ? cfg->output_style : "(default)");
         }
+    } else if (strcmp(first, "response_language") == 0) {
+        if (rest && rest[0]) {
+            free(mutable_cfg->response_language);
+            mutable_cfg->response_language = strdup(rest);
+            config_save_user_settings(mutable_cfg);
+            strbuf_append_fmt(&out, "Response language set to: %s\n", rest);
+        } else {
+            strbuf_append_fmt(&out, "Current response language: %s\n", (cfg->response_language && cfg->response_language[0]) ? cfg->response_language : "(default)");
+        }
     } else if (strcmp(first, "api_key") == 0) {
         if (rest && rest[0]) {
             free(mutable_cfg->api_key);
@@ -90,7 +100,7 @@ static char *cmd_config_exec(const char *args, const GooseConfig *cfg, Session *
         else strbuf_append_fmt(&out, "Current working directory: %s\n", cfg->working_dir);
     } else {
         strbuf_append_fmt(&out, "Unknown setting: %s\n", first);
-        strbuf_append(&out, "Supported: provider, model, base_url, output_style, api_key, permission_mode, max_tokens, max_turns, working_dir\n");
+        strbuf_append(&out, "Supported: provider, model, base_url, output_style, response_language, api_key, permission_mode, max_tokens, max_turns, working_dir\n");
     }
 
     free(work);

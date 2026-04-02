@@ -1521,6 +1521,23 @@ void test_output_style_prompt_section_present_when_set(void) {
     printf("  PASS: test_output_style_prompt_section_present_when_set\n");
 }
 
+void test_language_preference_prompt_section_present_when_set(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    cfg.response_language = strdup("German");
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "# Language preference") != NULL);
+    assert(strstr(prompt, "German") != NULL);
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_language_preference_prompt_section_present_when_set\n");
+}
+
 void test_branch_command_show_list_create_and_switch(void) {
     tests_run++;
 
@@ -2425,6 +2442,7 @@ int main(void) {
     test_config_command_show_and_inspect();
     test_config_command_rejects_unknown_setting();
     test_output_style_prompt_section_present_when_set();
+    test_language_preference_prompt_section_present_when_set();
     test_branch_command_show_list_create_and_switch();
     test_branch_command_usage();
     test_commit_command_creates_commit_and_handles_no_changes();

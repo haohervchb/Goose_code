@@ -1,6 +1,7 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -Wpedantic -O2 -std=c11 -D_GNU_SOURCE
 LDFLAGS = -lcurl  -lpthread 
+DEPFLAGS = -MMD -MP
 PREFIX  ?= $(HOME)/.local
 INSTALL_BINDIR ?= $(PREFIX)/bin
 
@@ -82,6 +83,7 @@ CORE_SRCS = $(SRCDIR)/api.c \
 
 ALL_SRCS  = $(UTIL_SRCS) $(TOOL_SRCS) $(CMD_SRCS) $(CORE_SRCS)
 ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
+ALL_DEPS  = $(ALL_OBJS:.o=.d)
 
 TARGET    = $(BINDIR)/goosecode
 
@@ -95,7 +97,7 @@ $(TARGET): $(ALL_OBJS)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(SRCDIR) -c -o $@ $<
+	$(CC) $(CFLAGS) $(DEPFLAGS) -I$(SRCDIR) -c -o $@ $<
 
 test: $(TARGET)
 	@echo "Running tests..."
@@ -112,3 +114,5 @@ uninstall:
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) build/test_runner
+
+-include $(ALL_DEPS)
