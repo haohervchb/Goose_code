@@ -183,30 +183,31 @@ static cJSON *subagent_tool_definitions(const ToolRegistry *reg, const GooseConf
 }
 
 static char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *record) {
-    char *base = prompt_build_system(cfg, NULL, record->working_dir ? record->working_dir : cfg->working_dir);
-    StrBuf out = strbuf_from(base);
-    free(base);
+    char *base = prompt_build_default_system(cfg, NULL, record->working_dir ? record->working_dir : cfg->working_dir);
+    StrBuf instructions = strbuf_new();
 
-    strbuf_append(&out, "\n## Subagent Mode\n");
-    strbuf_append(&out, "- You are a delegated subagent working for a parent goosecode session\n");
-    strbuf_append(&out, "- Complete the delegated task autonomously and return a concise final answer for the parent\n");
-    strbuf_append(&out, "- Do not address the human directly or ask follow-up questions unless blocked\n");
-    strbuf_append(&out, "- Never spawn another subagent\n");
+    strbuf_append(&instructions, base);
+    free(base);
+    strbuf_append(&instructions, "\n## Subagent Mode\n");
+    strbuf_append(&instructions, "- You are a delegated subagent working for a parent goosecode session\n");
+    strbuf_append(&instructions, "- Complete the delegated task autonomously and return a concise final answer for the parent\n");
+    strbuf_append(&instructions, "- Do not address the human directly or ask follow-up questions unless blocked\n");
+    strbuf_append(&instructions, "- Never spawn another subagent\n");
 
     if (record->description) {
-        strbuf_append_fmt(&out, "- Delegated task: %s\n", record->description);
+        strbuf_append_fmt(&instructions, "- Delegated task: %s\n", record->description);
     }
 
     if (record->subagent_type && strcmp(record->subagent_type, "explore") == 0) {
-        strbuf_append(&out, "- This is an explore subagent: prefer searching, reading, and analysis over editing\n");
+        strbuf_append(&instructions, "- This is an explore subagent: prefer searching, reading, and analysis over editing\n");
     } else if (record->subagent_type && strcmp(record->subagent_type, "plan") == 0) {
-        strbuf_append(&out, "- This is a plan subagent: focus on producing a clear implementation or investigation plan\n");
-        strbuf_append(&out, "- Prefer read-only inspection and return actionable next steps\n");
+        strbuf_append(&instructions, "- This is a plan subagent: focus on producing a clear implementation or investigation plan\n");
+        strbuf_append(&instructions, "- Prefer read-only inspection and return actionable next steps\n");
     } else {
-        strbuf_append(&out, "- This is a general subagent: solve the task end-to-end within the allowed tools\n");
+        strbuf_append(&instructions, "- This is a general subagent: solve the task end-to-end within the allowed tools\n");
     }
 
-    return strbuf_detach(&out);
+    return strbuf_detach(&instructions);
 }
 
 static char *subagent_execute_tool(ToolRegistry *reg, const GooseConfig *cfg,

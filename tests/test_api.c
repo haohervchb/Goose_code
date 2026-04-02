@@ -576,6 +576,81 @@ void test_prompt_includes_plan_mode(void) {
     printf("  PASS: test_prompt_includes_plan_mode\n");
 }
 
+void test_prompt_override_precedence(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    cfg.override_system_prompt = strdup("override prompt");
+    cfg.system_prompt = strdup("custom prompt");
+    cfg.append_system_prompt = strdup("append prompt");
+
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", "agent prompt");
+    assert(prompt != NULL);
+    assert(strcmp(prompt, "override prompt") == 0);
+
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_override_precedence\n");
+}
+
+void test_prompt_agent_overrides_default(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", "agent prompt");
+    assert(prompt != NULL);
+    assert(strstr(prompt, "agent prompt") != NULL);
+    assert(strstr(prompt, "interactive AI coding agent") == NULL);
+
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_agent_overrides_default\n");
+}
+
+void test_prompt_append_layer_is_last(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    cfg.system_prompt = strdup("custom prompt");
+    cfg.append_system_prompt = strdup("append prompt");
+
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "custom prompt") != NULL);
+    assert(strstr(prompt, "append prompt") != NULL);
+    assert(strstr(prompt, "append prompt") > strstr(prompt, "custom prompt"));
+
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_append_layer_is_last\n");
+}
+
+void test_prompt_default_layer_still_present(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "interactive AI coding agent") != NULL);
+    assert(strstr(prompt, "# Doing tasks") != NULL);
+
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_prompt_default_layer_still_present\n");
+}
+
 void test_plan_mode_tools_toggle_session(void) {
     tests_run++;
 
@@ -1823,6 +1898,10 @@ int main(void) {
     test_tool_definitions_include_message_and_config_schemas();
     test_session_plan_persistence();
     test_prompt_includes_plan_mode();
+    test_prompt_override_precedence();
+    test_prompt_agent_overrides_default();
+    test_prompt_append_layer_is_last();
+    test_prompt_default_layer_still_present();
     test_plan_mode_tools_toggle_session();
     test_plan_command_updates_session();
     test_todo_write_persists_and_formats();

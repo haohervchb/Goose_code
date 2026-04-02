@@ -141,6 +141,9 @@ GooseConfig config_load(void) {
         const char *v;
         v = json_get_string(proj, "provider"); if (v && !env_provider) { free(cfg.provider); cfg.provider = strdup(v); }
         v = json_get_string(proj, "model"); if (v) { free(cfg.model); cfg.model = strdup(v); }
+        v = json_get_string(proj, "system_prompt"); if (v) { free(cfg.system_prompt); cfg.system_prompt = strdup(v); }
+        v = json_get_string(proj, "append_system_prompt"); if (v) { free(cfg.append_system_prompt); cfg.append_system_prompt = strdup(v); }
+        v = json_get_string(proj, "override_system_prompt"); if (v) { free(cfg.override_system_prompt); cfg.override_system_prompt = strdup(v); }
         v = json_get_string(proj, "base_url"); if (v) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(proj, "max_tokens", cfg.max_tokens);
@@ -166,6 +169,9 @@ GooseConfig config_load(void) {
         const char *v;
         v = json_get_string(user, "provider"); if (v && !env_provider) { free(cfg.provider); cfg.provider = strdup(v); }
         v = json_get_string(user, "model"); if (v && !env_model) { free(cfg.model); cfg.model = strdup(v); }
+        v = json_get_string(user, "system_prompt"); if (v) { free(cfg.system_prompt); cfg.system_prompt = strdup(v); }
+        v = json_get_string(user, "append_system_prompt"); if (v) { free(cfg.append_system_prompt); cfg.append_system_prompt = strdup(v); }
+        v = json_get_string(user, "override_system_prompt"); if (v) { free(cfg.override_system_prompt); cfg.override_system_prompt = strdup(v); }
         v = json_get_string(user, "base_url"); if (v && !env_base) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(user, "api_key"); if (v) { if (cfg.api_key) free(cfg.api_key); cfg.api_key = strdup(v); }
         v = json_get_string(user, "permission_mode"); if (v && !env_perms) cfg.permission_mode = config_perm_mode_from_str(v);
@@ -242,6 +248,9 @@ void config_free(GooseConfig *cfg) {
     free(cfg->base_url);
     free(cfg->api_key);
     free(cfg->model);
+    free(cfg->system_prompt);
+    free(cfg->append_system_prompt);
+    free(cfg->override_system_prompt);
     free(cfg->working_dir);
     free(cfg->session_dir);
     free(cfg->subagent_dir);

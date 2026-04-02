@@ -26,6 +26,9 @@ typedef struct {
     char *base_url;
     char *api_key;
     char *model;
+    char *system_prompt;
+    char *append_system_prompt;
+    char *override_system_prompt;
     PermissionMode permission_mode;
     int max_tokens;
     double temperature;

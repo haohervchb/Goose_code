@@ -143,7 +143,7 @@ static int read_claude_md_files(const char *start_dir, ClaudeMdEntry *entries, i
     return count;
 }
 
-char *prompt_build_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     StrBuf sys = strbuf_new();
 
     strbuf_append(&sys, "You are goosecode, an interactive AI coding agent running in a terminal. "
@@ -234,6 +234,38 @@ char *prompt_build_system(const GooseConfig *cfg, const Session *sess, const cha
     strbuf_append(&sys, "\n__SYSTEM_PROMPT_END__\n");
 
     return strbuf_detach(&sys);
+}
+
+char *prompt_build_effective_system(const GooseConfig *cfg, const Session *sess,
+                                    const char *working_dir, const char *agent_system_prompt) {
+    if (cfg && cfg->override_system_prompt && cfg->override_system_prompt[0]) {
+        return strdup(cfg->override_system_prompt);
+    }
+
+    char *default_prompt = prompt_build_default_system(cfg, sess, working_dir);
+    const char *base = default_prompt;
+
+    if (agent_system_prompt && agent_system_prompt[0]) {
+        base = agent_system_prompt;
+    } else if (cfg && cfg->system_prompt && cfg->system_prompt[0]) {
+        base = cfg->system_prompt;
+    }
+
+    if (cfg && cfg->append_system_prompt && cfg->append_system_prompt[0]) {
+        StrBuf out = strbuf_from(base);
+        if (out.len > 0 && out.data[out.len - 1] != '\n') strbuf_append_char(&out, '\n');
+        strbuf_append(&out, cfg->append_system_prompt);
+        free(default_prompt);
+        return strbuf_detach(&out);
+    }
+
+    char *result = strdup(base);
+    free(default_prompt);
+    return result;
+}
+
+char *prompt_build_system(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    return prompt_build_effective_system(cfg, sess, working_dir, NULL);
 }
 
 cJSON *prompt_build_user_message(const char *text) {
