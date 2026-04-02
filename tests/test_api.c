@@ -1208,6 +1208,85 @@ void test_branch_command_usage(void) {
     printf("  PASS: test_branch_command_usage\n");
 }
 
+void test_commit_command_creates_commit_and_handles_no_changes(void) {
+    tests_run++;
+
+    char repo_dir[] = "/tmp/goosecode_cmd_commit_XXXXXX";
+    assert(mkdtemp(repo_dir) != NULL);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "git init \"%s\" >/dev/null 2>&1", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.name tester", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.email tester@example.com", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'hello\\n' > \"%s/README.md\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = repo_dir;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "commit", "Initial commit", &cfg, sess);
+    assert(result != NULL);
+    assert(strstr(result, "Initial commit") != NULL || strstr(result, "files changed") != NULL);
+    free(result);
+
+    result = command_registry_execute(&reg, "commit", "Second commit", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "No changes to commit.\n") == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_commit_command_creates_commit_and_handles_no_changes\n");
+}
+
+void test_commit_command_rejects_secret_like_files(void) {
+    tests_run++;
+
+    char repo_dir[] = "/tmp/goosecode_cmd_commit_secret_XXXXXX";
+    assert(mkdtemp(repo_dir) != NULL);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "git init \"%s\" >/dev/null 2>&1", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.name tester", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "git -C \"%s\" config user.email tester@example.com", repo_dir);
+    assert(system(cmd) == 0);
+    snprintf(cmd, sizeof(cmd), "printf 'SECRET=1\\n' > \"%s/.env\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    GooseConfig cfg = {0};
+    cfg.working_dir = repo_dir;
+    Session *sess = session_new();
+    CommandRegistry reg = command_registry_init();
+    command_registry_register_all(&reg);
+
+    char *result = command_registry_execute(&reg, "commit", "Do not commit secrets", &cfg, sess);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: refusing to commit files that look like secrets. Review the status output manually first.\n") == 0);
+    free(result);
+
+    command_registry_free(&reg);
+    session_free(sess);
+
+    snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", repo_dir);
+    assert(system(cmd) == 0);
+
+    tests_passed++;
+    printf("  PASS: test_commit_command_rejects_secret_like_files\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -1252,6 +1331,8 @@ int main(void) {
     test_config_command_rejects_unknown_setting();
     test_branch_command_show_list_create_and_switch();
     test_branch_command_usage();
+    test_commit_command_creates_commit_and_handles_no_changes();
+    test_commit_command_rejects_secret_like_files();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
