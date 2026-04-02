@@ -1,4 +1,5 @@
 #include "session.h"
+#include "compact.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include <stdio.h>
@@ -173,7 +174,9 @@ void session_apply_compact_summary(Session *sess, int keep_recent, const char *s
     if (total <= keep_recent + 1) return;
 
     int compact_to = total - keep_recent;
-    cJSON *compact_msg = json_build_message("system", summary ? summary : "[Conversation context compacted]");
+    char *summary_msg = compact_build_user_summary_message(summary ? summary : "[Conversation context compacted]", keep_recent > 0);
+    cJSON *compact_msg = json_build_message("user", summary_msg);
+    free(summary_msg);
     cJSON_ReplaceItemInArray(sess->messages, 0, compact_msg);
 
     for (int i = compact_to; i < total; i++) {

@@ -2038,6 +2038,34 @@ void test_compact_formatter_extracts_summary(void) {
     printf("  PASS: test_compact_formatter_extracts_summary\n");
 }
 
+void test_partial_compact_prompt_scope(void) {
+    tests_run++;
+    char *prompt = compact_get_partial_prompt(COMPACT_PARTIAL_FROM);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "RECENT portion of the conversation") != NULL);
+    free(prompt);
+
+    prompt = compact_get_partial_prompt(COMPACT_PARTIAL_UP_TO);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "will be placed before newer preserved messages") != NULL);
+    free(prompt);
+
+    tests_passed++;
+    printf("  PASS: test_partial_compact_prompt_scope\n");
+}
+
+void test_compact_user_summary_message_mentions_preserved_recent(void) {
+    tests_run++;
+    char *msg = compact_build_user_summary_message("<summary>done</summary>", 1);
+    assert(msg != NULL);
+    assert(strstr(msg, "This session is being continued") != NULL);
+    assert(strstr(msg, "Summary:") != NULL);
+    assert(strstr(msg, "Recent messages are preserved verbatim") != NULL);
+    free(msg);
+    tests_passed++;
+    printf("  PASS: test_compact_user_summary_message_mentions_preserved_recent\n");
+}
+
 int main(void) {
     printf("Running tests...\n\n");
 
@@ -2113,6 +2141,8 @@ int main(void) {
     test_provider_settings_are_saved_per_provider();
     test_compact_prompt_includes_no_tools_rule();
     test_compact_formatter_extracts_summary();
+    test_partial_compact_prompt_scope();
+    test_compact_user_summary_message_mentions_preserved_recent();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;
