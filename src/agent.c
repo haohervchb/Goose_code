@@ -136,6 +136,27 @@ static void collector_free(ToolCallCollector *col) {
     col->count = 0;
 }
 
+static char *collect_multiline_command(const char *first_line, const char *prompt) {
+    StrBuf out = strbuf_new();
+    if (first_line && first_line[0]) {
+        strbuf_append(&out, first_line);
+    }
+
+    while (1) {
+        char *line = term_read_line(prompt);
+        if (!line) break;
+        if (strcmp(line, ".") == 0) {
+            free(line);
+            break;
+        }
+        if (out.len > 0) strbuf_append_char(&out, '\n');
+        strbuf_append(&out, line);
+        free(line);
+    }
+
+    return strbuf_detach(&out);
+}
+
 static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
                                    cJSON **tool_results_out) {
     if (calls->count == 0) return 0;
@@ -352,10 +373,22 @@ int agent_run_repl(Agent *agent) {
                 strncpy(cmd_name, cmd, sizeof(cmd_name) - 1);
             }
 
+            char *owned_cmd_args = NULL;
+            if (strcmp(cmd_name, "plan") == 0 && cmd_args && strcmp(cmd_args, "set") == 0) {
+                printf(TERM_DIM "Enter plan text. Finish with a single '.' on its own line.\n" TERM_RESET);
+                char *plan_text = collect_multiline_command(NULL, "plan> ");
+                StrBuf full_args = strbuf_from("set ");
+                strbuf_append(&full_args, plan_text);
+                owned_cmd_args = strbuf_detach(&full_args);
+                free(plan_text);
+                cmd_args = owned_cmd_args;
+            }
+
             if (strcmp(cmd_name, "exit") == 0 || strcmp(cmd_name, "quit") == 0) {
                 char *result = command_registry_execute(&agent->commands, "exit", NULL, &agent->config, agent->session);
                 if (result && result[0]) printf("%s", result);
                 free(result);
+                free(owned_cmd_args);
                 free(input);
                 agent->running = 0;
                 break;
@@ -364,6 +397,7 @@ int agent_run_repl(Agent *agent) {
             char *result = command_registry_execute(&agent->commands, cmd_name, cmd_args, &agent->config, agent->session);
             if (result && result[0]) printf("%s\n", result);
             free(result);
+            free(owned_cmd_args);
         } else {
             int rc = agent_run_turn(agent, input);
             if (rc != 0) {

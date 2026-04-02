@@ -1,6 +1,7 @@
 #include "tools/tools.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
+#include "util/terminal.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,6 +172,20 @@ static void print_question(FILE *output, const char *header, const char *questio
     fflush(output);
 }
 
+static int read_response_line(FILE *input, FILE *output, char *line, size_t line_size) {
+    if (input == stdin && output == stdout) {
+        char *response = term_read_line("");
+        if (!response) return 0;
+        snprintf(line, line_size, "%s", response);
+        free(response);
+        return 1;
+    }
+
+    if (!fgets(line, (int)line_size, input)) return 0;
+    line[strcspn(line, "\r\n")] = '\0';
+    return 1;
+}
+
 char *tool_execute_ask_user_question_with_io(const char *args, FILE *input, FILE *output) {
     cJSON *json = cJSON_Parse(args);
     if (!json) return strdup("Error: invalid JSON arguments");
@@ -229,14 +244,13 @@ char *tool_execute_ask_user_question_with_io(const char *args, FILE *input, FILE
         cJSON *selections = cJSON_CreateArray();
         while (1) {
             print_question(output, header, question, options, option_count, multiple, allow_custom);
-            if (!fgets(line, sizeof(line), input)) {
+            if (!read_response_line(input, output, line, sizeof(line))) {
                 free(options);
                 cJSON_Delete(result);
                 cJSON_Delete(json);
                 return strdup("Error: no user response received");
             }
 
-            line[strcspn(line, "\r\n")] = '\0';
             char *work = strdup(line);
             char *error = NULL;
             int rc = multiple
