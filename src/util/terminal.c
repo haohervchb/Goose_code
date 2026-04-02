@@ -82,10 +82,10 @@ void term_print_colored(const char *text, const char *color) {
 
 void term_print_banner(void) {
     printf(TERM_BOLD TERM_GREEN);
-    printf("  ╔══════════════════════════════════════╗\n");
-    printf("  ║          goosecode v0.1.0            ║\n");
-    printf("  ║   Local AI Coding Agent in C         ║\n");
-    printf("  ╚══════════════════════════════════════╝\n");
+    printf(" __      \n");
+    printf("___( o)>    GOOSE CODE\n");
+    printf("\\ <_. )     High-Performance Inference\n");
+    printf(" `---'      v0.1.0\n");
     printf(TERM_RESET);
     printf(TERM_DIM "  Type /help for commands. /exit to quit.\n\n" TERM_RESET);
     fflush(stdout);
