@@ -190,6 +190,14 @@ static char *prompt_section_system_reminders(const GooseConfig *cfg, const Sessi
     return strbuf_detach(&out);
 }
 
+static char *prompt_section_output_style(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
+    (void)sess; (void)working_dir;
+    if (!cfg || !cfg->output_style || !cfg->output_style[0]) return strdup("");
+    StrBuf out = strbuf_from("# Output style\n");
+    strbuf_append_fmt(&out, "- Use this response style preference unless the user overrides it explicitly: %s\n", cfg->output_style);
+    return strbuf_detach(&out);
+}
+
 static char *prompt_section_environment(const GooseConfig *cfg, const Session *sess, const char *working_dir) {
     (void)sess;
     char *date = get_date_str();
@@ -280,6 +288,7 @@ char *prompt_build_static_system_prefix(const GooseConfig *cfg, const Session *s
         {"doing_tasks", prompt_section_doing_tasks, 0},
         {"actions", prompt_section_actions, 0},
         {"system_reminders", prompt_section_system_reminders, 0},
+        {"output_style", prompt_section_output_style, 1},
     };
 
     return prompt_sections_resolve(sections, sizeof(sections) / sizeof(sections[0]),

@@ -150,6 +150,7 @@ GooseConfig config_load(void) {
         v = json_get_string(proj, "system_prompt"); if (v) { free(cfg.system_prompt); cfg.system_prompt = strdup(v); }
         v = json_get_string(proj, "append_system_prompt"); if (v) { free(cfg.append_system_prompt); cfg.append_system_prompt = strdup(v); }
         v = json_get_string(proj, "override_system_prompt"); if (v) { free(cfg.override_system_prompt); cfg.override_system_prompt = strdup(v); }
+        v = json_get_string(proj, "output_style"); if (v) { free(cfg.output_style); cfg.output_style = strdup(v); }
         v = json_get_string(proj, "base_url"); if (v) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(proj, "permission_mode"); if (v) cfg.permission_mode = config_perm_mode_from_str(v);
         cfg.max_tokens = json_get_int(proj, "max_tokens", cfg.max_tokens);
@@ -179,6 +180,7 @@ GooseConfig config_load(void) {
         v = json_get_string(user, "system_prompt"); if (v) { free(cfg.system_prompt); cfg.system_prompt = strdup(v); }
         v = json_get_string(user, "append_system_prompt"); if (v) { free(cfg.append_system_prompt); cfg.append_system_prompt = strdup(v); }
         v = json_get_string(user, "override_system_prompt"); if (v) { free(cfg.override_system_prompt); cfg.override_system_prompt = strdup(v); }
+        v = json_get_string(user, "output_style"); if (v) { free(cfg.output_style); cfg.output_style = strdup(v); }
         v = json_get_string(user, "base_url"); if (v && !env_base) { free(cfg.base_url); cfg.base_url = strdup(v); }
         v = json_get_string(user, "api_key"); if (v) { if (cfg.api_key) free(cfg.api_key); cfg.api_key = strdup(v); }
         v = json_get_string(user, "permission_mode"); if (v && !env_perms) cfg.permission_mode = config_perm_mode_from_str(v);
@@ -211,6 +213,9 @@ int config_save_user_settings(const GooseConfig *cfg) {
     json_set_string(json, "provider", cfg->provider ? cfg->provider : provider_profile_detect(cfg)->name);
     json_set_string(json, "base_url", cfg->base_url ? cfg->base_url : "");
     json_set_string(json, "model", cfg->model ? cfg->model : "");
+    if (cfg->output_style && cfg->output_style[0]) {
+        json_set_string(json, "output_style", cfg->output_style);
+    }
     if (cfg->api_key && cfg->api_key[0]) {
         json_set_string(json, "api_key", cfg->api_key);
     }
@@ -259,6 +264,7 @@ void config_free(GooseConfig *cfg) {
     free(cfg->system_prompt);
     free(cfg->append_system_prompt);
     free(cfg->override_system_prompt);
+    free(cfg->output_style);
     free(cfg->working_dir);
     free(cfg->session_dir);
     free(cfg->session_memory_dir);

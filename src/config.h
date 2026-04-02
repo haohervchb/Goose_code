@@ -29,6 +29,7 @@ typedef struct {
     char *system_prompt;
     char *append_system_prompt;
     char *override_system_prompt;
+    char *output_style;
     PermissionMode permission_mode;
     int max_tokens;
     double temperature;

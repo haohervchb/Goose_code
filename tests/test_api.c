@@ -1504,6 +1504,23 @@ void test_config_command_rejects_unknown_setting(void) {
     printf("  PASS: test_config_command_rejects_unknown_setting\n");
 }
 
+void test_output_style_prompt_section_present_when_set(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.model = strdup("test-model");
+    cfg.output_style = strdup("concise and bullet-first");
+    char *prompt = prompt_build_effective_system(&cfg, NULL, "/home/rah/goosecode", NULL);
+    assert(prompt != NULL);
+    assert(strstr(prompt, "# Output style") != NULL);
+    assert(strstr(prompt, "concise and bullet-first") != NULL);
+    free(prompt);
+    config_free(&cfg);
+
+    tests_passed++;
+    printf("  PASS: test_output_style_prompt_section_present_when_set\n");
+}
+
 void test_branch_command_show_list_create_and_switch(void) {
     tests_run++;
 
@@ -2407,6 +2424,7 @@ int main(void) {
     test_tasks_command_rejects_bad_status();
     test_config_command_show_and_inspect();
     test_config_command_rejects_unknown_setting();
+    test_output_style_prompt_section_present_when_set();
     test_branch_command_show_list_create_and_switch();
     test_branch_command_usage();
     test_commit_command_creates_commit_and_handles_no_changes();
