@@ -294,10 +294,18 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(todo_content, "type", "string");
     cJSON_AddStringToObject(todo_content, "description", "Content of the todo item");
     cJSON_AddItemToObject(todo_item_props, "content", todo_content);
+    cJSON *todo_id = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_id, "type", "string");
+    cJSON_AddStringToObject(todo_id, "description", "Optional task id to preserve when rewriting the list");
+    cJSON_AddItemToObject(todo_item_props, "id", todo_id);
     cJSON *todo_status = cJSON_CreateObject();
     cJSON_AddStringToObject(todo_status, "type", "string");
-    cJSON_AddStringToObject(todo_status, "description", "Status: pending, in_progress, completed");
+    cJSON_AddStringToObject(todo_status, "description", "Status: pending, in_progress, completed, or cancelled");
     cJSON_AddItemToObject(todo_item_props, "status", todo_status);
+    cJSON *todo_priority = cJSON_CreateObject();
+    cJSON_AddStringToObject(todo_priority, "type", "string");
+    cJSON_AddStringToObject(todo_priority, "description", "Priority: high, medium, or low");
+    cJSON_AddItemToObject(todo_item_props, "priority", todo_priority);
     cJSON_AddItemToObject(todo_item, "properties", todo_item_props);
     cJSON *todo_item_req = cJSON_CreateArray();
     cJSON_AddItemToArray(todo_item_req, cJSON_CreateString("content"));
@@ -321,6 +329,111 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .execute = tool_execute_todo_write
     };
     tool_registry_register(reg, todo_write);
+
+    cJSON *task_create_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_create_params, "type", "object");
+    cJSON *task_create_props = cJSON_CreateObject();
+    cJSON *task_create_content = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_create_content, "type", "string");
+    cJSON_AddStringToObject(task_create_content, "description", "Task content");
+    cJSON_AddItemToObject(task_create_props, "content", task_create_content);
+    cJSON *task_create_status = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_create_status, "type", "string");
+    cJSON_AddStringToObject(task_create_status, "description", "Optional initial status");
+    cJSON_AddItemToObject(task_create_props, "status", task_create_status);
+    cJSON *task_create_priority = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_create_priority, "type", "string");
+    cJSON_AddStringToObject(task_create_priority, "description", "Optional priority");
+    cJSON_AddItemToObject(task_create_props, "priority", task_create_priority);
+    cJSON_AddItemToObject(task_create_params, "properties", task_create_props);
+    cJSON *task_create_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(task_create_req, cJSON_CreateString("content"));
+    cJSON_AddItemToObject(task_create_params, "required", task_create_req);
+    Tool task_create = {
+        .name = strdup("task_create"),
+        .description = strdup("Create a single tracked task."),
+        .parameters_schema = task_create_params,
+        .required_mode = PERM_WORKSPACE_WRITE,
+        .is_read_only = 0,
+        .execute = tool_execute_task_create
+    };
+    tool_registry_register(reg, task_create);
+
+    cJSON *task_get_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_get_params, "type", "object");
+    cJSON *task_get_props = cJSON_CreateObject();
+    cJSON *task_get_id = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_get_id, "type", "string");
+    cJSON_AddStringToObject(task_get_id, "description", "Task id to retrieve");
+    cJSON_AddItemToObject(task_get_props, "task_id", task_get_id);
+    cJSON_AddItemToObject(task_get_params, "properties", task_get_props);
+    cJSON *task_get_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(task_get_req, cJSON_CreateString("task_id"));
+    cJSON_AddItemToObject(task_get_params, "required", task_get_req);
+    Tool task_get = {
+        .name = strdup("task_get"),
+        .description = strdup("Fetch a single task by id."),
+        .parameters_schema = task_get_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_task_get
+    };
+    tool_registry_register(reg, task_get);
+
+    cJSON *task_list_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_list_params, "type", "object");
+    cJSON *task_list_props = cJSON_CreateObject();
+    cJSON *task_list_status = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_list_status, "type", "string");
+    cJSON_AddStringToObject(task_list_status, "description", "Optional status filter");
+    cJSON_AddItemToObject(task_list_props, "status", task_list_status);
+    cJSON *task_list_priority = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_list_priority, "type", "string");
+    cJSON_AddStringToObject(task_list_priority, "description", "Optional priority filter");
+    cJSON_AddItemToObject(task_list_props, "priority", task_list_priority);
+    cJSON_AddItemToObject(task_list_params, "properties", task_list_props);
+    Tool task_list = {
+        .name = strdup("task_list"),
+        .description = strdup("List tracked tasks, optionally filtered."),
+        .parameters_schema = task_list_params,
+        .required_mode = PERM_READ_ONLY,
+        .is_read_only = 1,
+        .execute = tool_execute_task_list
+    };
+    tool_registry_register(reg, task_list);
+
+    cJSON *task_update_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_update_params, "type", "object");
+    cJSON *task_update_props = cJSON_CreateObject();
+    cJSON *task_update_id = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_update_id, "type", "string");
+    cJSON_AddStringToObject(task_update_id, "description", "Task id to update");
+    cJSON_AddItemToObject(task_update_props, "task_id", task_update_id);
+    cJSON *task_update_content = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_update_content, "type", "string");
+    cJSON_AddStringToObject(task_update_content, "description", "Optional updated task content");
+    cJSON_AddItemToObject(task_update_props, "content", task_update_content);
+    cJSON *task_update_status = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_update_status, "type", "string");
+    cJSON_AddStringToObject(task_update_status, "description", "Optional updated status");
+    cJSON_AddItemToObject(task_update_props, "status", task_update_status);
+    cJSON *task_update_priority = cJSON_CreateObject();
+    cJSON_AddStringToObject(task_update_priority, "type", "string");
+    cJSON_AddStringToObject(task_update_priority, "description", "Optional updated priority");
+    cJSON_AddItemToObject(task_update_props, "priority", task_update_priority);
+    cJSON_AddItemToObject(task_update_params, "properties", task_update_props);
+    cJSON *task_update_req = cJSON_CreateArray();
+    cJSON_AddItemToArray(task_update_req, cJSON_CreateString("task_id"));
+    cJSON_AddItemToObject(task_update_params, "required", task_update_req);
+    Tool task_update = {
+        .name = strdup("task_update"),
+        .description = strdup("Update an existing tracked task."),
+        .parameters_schema = task_update_params,
+        .required_mode = PERM_WORKSPACE_WRITE,
+        .is_read_only = 0,
+        .execute = tool_execute_task_update
+    };
+    tool_registry_register(reg, task_update);
 
     cJSON *skill_params = cJSON_CreateObject();
     cJSON_AddStringToObject(skill_params, "type", "object");

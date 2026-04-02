@@ -575,8 +575,8 @@ void test_todo_write_persists_and_formats(void) {
     char *result = tool_execute_todo_write(args, &cfg);
     assert(result != NULL);
     assert(strstr(result, "Todos updated:") != NULL);
-    assert(strstr(result, "[in_progress] Investigate crash") != NULL);
-    assert(strstr(result, "[pending] Add regression test") != NULL);
+    assert(strstr(result, "[in_progress|medium] Investigate crash") != NULL);
+    assert(strstr(result, "[pending|medium] Add regression test") != NULL);
 
     char *saved = json_read_file(todo_path);
     assert(saved != NULL);
@@ -586,6 +586,8 @@ void test_todo_write_persists_and_formats(void) {
     assert(cJSON_GetArraySize(saved_json) == 2);
     cJSON *first = cJSON_GetArrayItem(saved_json, 0);
     assert(strcmp(json_get_string(first, "content"), "Investigate crash") == 0);
+    assert(strcmp(json_get_string(first, "id"), "task_1") == 0);
+    assert(strcmp(json_get_string(first, "priority"), "medium") == 0);
 
     cJSON_Delete(saved_json);
     free(saved);
@@ -606,11 +608,124 @@ void test_todo_write_rejects_multiple_in_progress(void) {
         "{\"todos\":[{\"content\":\"One\",\"status\":\"in_progress\"},{\"content\":\"Two\",\"status\":\"in_progress\"}]}";
     char *result = tool_execute_todo_write(args, &cfg);
     assert(result != NULL);
-    assert(strcmp(result, "Error: only one todo can be 'in_progress' at a time") == 0);
+    assert(strcmp(result, "Error: only one task can be 'in_progress' at a time") == 0);
     free(result);
 
     tests_passed++;
     printf("  PASS: test_todo_write_rejects_multiple_in_progress\n");
+}
+
+void test_task_tools_create_get_list_update(void) {
+    tests_run++;
+
+    char todo_path[] = "/tmp/goosecode_tasks_XXXXXX.json";
+    int fd = mkstemps(todo_path, 5);
+    assert(fd != -1);
+    close(fd);
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = todo_path;
+
+    char *result = tool_execute_task_create(
+        "{\"content\":\"Implement task tools\",\"status\":\"in_progress\",\"priority\":\"high\"}",
+        &cfg);
+    assert(result != NULL);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *task = json_get_object(json, "task");
+    assert(task != NULL);
+    const char *task_id = json_get_string(task, "id");
+    assert(task_id != NULL && strcmp(task_id, "task_1") == 0);
+    assert(strcmp(json_get_string(task, "status"), "in_progress") == 0);
+    assert(strcmp(json_get_string(task, "priority"), "high") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    result = tool_execute_task_get("{\"task_id\":\"task_1\"}", &cfg);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    task = json_get_object(json, "task");
+    assert(task != NULL);
+    assert(strcmp(json_get_string(task, "content"), "Implement task tools") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    result = tool_execute_task_list("{}", &cfg);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *tasks = json_get_array(json, "tasks");
+    assert(tasks != NULL && cJSON_GetArraySize(tasks) == 1);
+    task = cJSON_GetArrayItem(tasks, 0);
+    assert(strcmp(json_get_string(task, "id"), "task_1") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    result = tool_execute_task_update(
+        "{\"task_id\":\"task_1\",\"status\":\"completed\",\"priority\":\"low\"}",
+        &cfg);
+    json = cJSON_Parse(result);
+    assert(json != NULL);
+    task = json_get_object(json, "task");
+    assert(task != NULL);
+    assert(strcmp(json_get_string(task, "status"), "completed") == 0);
+    assert(strcmp(json_get_string(task, "priority"), "low") == 0);
+    cJSON_Delete(json);
+    free(result);
+
+    remove(todo_path);
+
+    tests_passed++;
+    printf("  PASS: test_task_tools_create_get_list_update\n");
+}
+
+void test_task_tools_see_todo_write_entries(void) {
+    tests_run++;
+
+    char todo_path[] = "/tmp/goosecode_tasks_compat_XXXXXX.json";
+    int fd = mkstemps(todo_path, 5);
+    assert(fd != -1);
+    close(fd);
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = todo_path;
+
+    char *result = tool_execute_todo_write(
+        "{\"todos\":[{\"content\":\"Legacy todo\",\"status\":\"pending\"}]}",
+        &cfg);
+    assert(result != NULL);
+    free(result);
+
+    result = tool_execute_task_list("{}", &cfg);
+    cJSON *json = cJSON_Parse(result);
+    assert(json != NULL);
+    cJSON *tasks = json_get_array(json, "tasks");
+    assert(tasks != NULL && cJSON_GetArraySize(tasks) == 1);
+    cJSON *task = cJSON_GetArrayItem(tasks, 0);
+    assert(strcmp(json_get_string(task, "content"), "Legacy todo") == 0);
+    assert(strcmp(json_get_string(task, "id"), "task_1") == 0);
+    cJSON_Delete(json);
+    free(result);
+    remove(todo_path);
+
+    tests_passed++;
+    printf("  PASS: test_task_tools_see_todo_write_entries\n");
+}
+
+void test_task_update_rejects_unknown_task(void) {
+    tests_run++;
+
+    GooseConfig cfg = {0};
+    cfg.todo_store = "/tmp/goosecode_missing_task.json";
+
+    char *result = tool_execute_task_update(
+        "{\"task_id\":\"task_999\",\"status\":\"completed\"}",
+        &cfg);
+    assert(result != NULL);
+    assert(strcmp(result, "Error: task not found") == 0);
+    free(result);
+
+    tests_passed++;
+    printf("  PASS: test_task_update_rejects_unknown_task\n");
 }
 
 int main(void) {
@@ -640,6 +755,9 @@ int main(void) {
     test_plan_command_updates_session();
     test_todo_write_persists_and_formats();
     test_todo_write_rejects_multiple_in_progress();
+    test_task_tools_create_get_list_update();
+    test_task_tools_see_todo_write_entries();
+    test_task_update_rejects_unknown_task();
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

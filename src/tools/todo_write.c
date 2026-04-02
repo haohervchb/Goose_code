@@ -1,4 +1,5 @@
 #include "tools/tools.h"
+#include "tools/task_store.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include <stdio.h>
@@ -15,43 +16,34 @@ char *tool_execute_todo_write(const char *args, const GooseConfig *cfg) {
         return strdup("Error: 'todos' array required");
     }
 
-    int count = cJSON_GetArraySize(todos);
-    if (count == 0) {
+    char *err = task_store_validate_and_normalize(todos, 0);
+    if (err) {
         cJSON_Delete(json);
-        return strdup("Error: todos array must not be empty");
-    }
-    if (count > 50) {
-        cJSON_Delete(json);
-        return strdup("Error: too many todos (max 50)");
+        return err;
     }
 
-    int in_progress_count = 0;
-    cJSON *item;
-    cJSON_ArrayForEach(item, todos) {
-        const char *status = json_get_string(item, "status");
-        const char *content = json_get_string(item, "content");
-        if (!content || strlen(content) == 0) {
-            cJSON_Delete(json);
-            return strdup("Error: each todo must have non-empty 'content'");
-        }
-        if (status && strcmp(status, "in_progress") == 0) {
-            in_progress_count++;
-        }
-    }
-    if (in_progress_count > 1) {
+    err = task_store_save(cfg, todos);
+    if (err) {
         cJSON_Delete(json);
-        return strdup("Error: only one todo can be 'in_progress' at a time");
+        return err;
     }
-
-    json_write_file(cfg->todo_store, todos);
 
     StrBuf out = strbuf_new();
     strbuf_append(&out, "Todos updated:\n");
     int i = 0;
+    int in_progress_count = 0;
+    cJSON *item;
     cJSON_ArrayForEach(item, todos) {
+        const char *task_id = json_get_string(item, "id");
         const char *content = json_get_string(item, "content");
         const char *status = json_get_string(item, "status");
-        strbuf_append_fmt(&out, "  %d. [%s] %s\n", ++i, status ? status : "pending", content);
+        const char *priority = json_get_string(item, "priority");
+        if (status && strcmp(status, "in_progress") == 0) in_progress_count++;
+        strbuf_append_fmt(&out, "  %d. [%s|%s] %s (%s)\n", ++i,
+                          status ? status : "pending",
+                          priority ? priority : "medium",
+                          content,
+                          task_id ? task_id : "no-id");
     }
     if (in_progress_count == 1) {
         strbuf_append(&out, "\nRemember to verify your work when you complete the in-progress task.");

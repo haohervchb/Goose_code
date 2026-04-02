@@ -17,7 +17,11 @@ static char *cmd_tools_exec(const char *args, const GooseConfig *cfg, Session *s
     strbuf_append(&out, "  grep_search     - Search file contents\n");
     strbuf_append(&out, "  web_fetch       - Fetch URL content\n");
     strbuf_append(&out, "  web_search      - Search the web\n");
-    strbuf_append(&out, "  todo_write       - Manage todo list\n");
+    strbuf_append(&out, "  todo_write      - Manage todo list\n");
+    strbuf_append(&out, "  task_create     - Create a tracked task\n");
+    strbuf_append(&out, "  task_get        - Fetch a task by id\n");
+    strbuf_append(&out, "  task_list       - List tracked tasks\n");
+    strbuf_append(&out, "  task_update     - Update a tracked task\n");
     strbuf_append(&out, "  skill           - Load skill files\n");
     strbuf_append(&out, "  agent           - Spawn sub-agents\n");
     strbuf_append(&out, "  tool_search     - List available tools\n");
