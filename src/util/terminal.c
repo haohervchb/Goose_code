@@ -126,23 +126,37 @@ void term_buffer_move_end(TermInputBuffer *buf) {
     buf->cursor = buf->len;
 }
 
-static size_t term_count_lines(const char *text) {
+static size_t term_count_visual_lines(const char *text, size_t prompt_len, size_t cont_len, size_t term_cols) {
+    if (!text || !text[0]) return 1;
     size_t lines = 1;
-    for (const char *p = text; p && *p; p++) {
-        if (*p == '\n') lines++;
+    size_t col = prompt_len;
+    for (const char *p = text; *p; p++) {
+        if (*p == '\n') {
+            lines++;
+            col = cont_len;
+            continue;
+        }
+        col++;
+        if (term_cols > 0 && col >= term_cols) {
+            lines++;
+            col = 0;
+        }
     }
     return lines;
 }
 
 static void term_render_input(const char *prompt, const char *continuation_prompt,
-                              const TermInputBuffer *buf, size_t previous_lines) {
+                              const TermInputBuffer *buf, size_t previous_visual_lines) {
     size_t cursor_row = 0;
     size_t cursor_col = 0;
     size_t prompt_len = term_visible_width(prompt ? prompt : "");
     size_t cont_len = term_visible_width(continuation_prompt ? continuation_prompt : "");
+    int rows = 0, cols = 0;
+    term_get_size(&rows, &cols);
+    size_t term_cols = (size_t)(cols > 0 ? cols : 80);
 
-    if (previous_lines > 1) {
-        printf("\033[%zuA", previous_lines - 1);
+    if (previous_visual_lines > 1) {
+        printf("\033[%zuA", previous_visual_lines - 1);
     }
     printf("\r\033[J");
 
@@ -166,10 +180,15 @@ static void term_render_input(const char *prompt, const char *continuation_promp
             cursor_col = 0;
         } else {
             cursor_col++;
+            size_t cur_prompt = (cursor_row == 0) ? prompt_len : cont_len;
+            if (term_cols > 0 && cursor_col + cur_prompt >= term_cols) {
+                cursor_row++;
+                cursor_col = 0;
+            }
         }
     }
 
-    size_t rendered_lines = term_count_lines(buf->text);
+    size_t rendered_lines = term_count_visual_lines(buf->text, prompt_len, cont_len, term_cols);
     if (rendered_lines > 0 && rendered_lines - 1 > cursor_row) {
         printf("\033[%zuA", (rendered_lines - 1) - cursor_row);
     }
@@ -245,7 +264,7 @@ char *term_read_line_opts(const char *prompt, int multiline, int history_enabled
 
     term_init();
     term_render_input(prompt ? prompt : "", continuation, &input, previous_lines);
-    previous_lines = term_count_lines(input.text);
+    previous_lines = term_count_visual_lines(input.text, term_visible_width(prompt ? prompt : ""), term_visible_width(continuation), 80);
 
     while (1) {
         char c;
@@ -345,7 +364,7 @@ char *term_read_line_opts(const char *prompt, int multiline, int history_enabled
         }
 
         term_render_input(prompt ? prompt : "", continuation, &input, previous_lines);
-        previous_lines = term_count_lines(input.text);
+        previous_lines = term_count_visual_lines(input.text, term_visible_width(prompt ? prompt : ""), term_visible_width(continuation), 80);
     }
 }
 
