@@ -5,6 +5,38 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <limits.h>
+#include <libgen.h>
+
+static int path_is_within_dir(const char *path, const char *dir) {
+    char resolved_path[PATH_MAX];
+    char resolved_dir[PATH_MAX];
+
+    if (!realpath(dir, resolved_dir)) return 0;
+
+    if (!realpath(path, resolved_path)) {
+        char *dir_copy = strdup(path);
+        if (!dir_copy) return 0;
+        char *parent = dirname(dir_copy);
+        int parent_ok = 0;
+        if (realpath(parent, resolved_dir)) {
+            char *base = basename(dir_copy);
+            size_t dir_len = strlen(resolved_dir);
+            size_t base_len = strlen(base);
+            if (dir_len + 1 + base_len < PATH_MAX) {
+                snprintf(resolved_path, PATH_MAX, "%s/%s", resolved_dir, base);
+                parent_ok = 1;
+            }
+        }
+        free(dir_copy);
+        if (!parent_ok) return 0;
+    }
+
+    size_t dir_len = strlen(resolved_dir);
+    if (strncmp(resolved_path, resolved_dir, dir_len) != 0) return 0;
+    if (resolved_path[dir_len] != '\0' && resolved_path[dir_len] != '/') return 0;
+    return 1;
+}
 
 char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
     (void)cfg;
@@ -18,6 +50,15 @@ char *tool_execute_read_file(const char *args, const GooseConfig *cfg) {
     if (!path) {
         cJSON_Delete(json);
         return strdup("Error: 'file_path' argument required");
+    }
+
+    if (cfg && cfg->working_dir && cfg->working_dir[0]) {
+        if (!path_is_within_dir(path, cfg->working_dir)) {
+            char err[512];
+            snprintf(err, sizeof(err), "Error: file '%s' is outside the working directory '%s'", path, cfg->working_dir);
+            cJSON_Delete(json);
+            return strdup(err);
+        }
     }
 
     FILE *f = fopen(path, "r");
