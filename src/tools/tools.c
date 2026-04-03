@@ -210,6 +210,14 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(read_path, "type", "string");
     cJSON_AddStringToObject(read_path, "description", "Path to the file to read");
     cJSON_AddItemToObject(read_props, "file_path", read_path);
+    cJSON *read_offset = cJSON_CreateObject();
+    cJSON_AddStringToObject(read_offset, "type", "integer");
+    cJSON_AddStringToObject(read_offset, "description", "Line number to start reading from (1-indexed). Defaults to 1.");
+    cJSON_AddItemToObject(read_props, "offset", read_offset);
+    cJSON *read_limit = cJSON_CreateObject();
+    cJSON_AddStringToObject(read_limit, "type", "integer");
+    cJSON_AddStringToObject(read_limit, "description", "Maximum number of lines to read. Defaults to 0 (read all).");
+    cJSON_AddItemToObject(read_props, "limit", read_limit);
     cJSON_AddItemToObject(read_params, "properties", read_props);
     cJSON *read_req = cJSON_CreateArray();
     cJSON_AddItemToArray(read_req, cJSON_CreateString("file_path"));
