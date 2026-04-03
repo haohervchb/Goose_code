@@ -7,6 +7,7 @@
 
 #define SESSION_MEMORY_MAX_SECTION_CHARS 8000
 #define SESSION_MEMORY_COMPACT_SECTION_CHARS 2000
+#define SESSION_MEMORY_COMPACT_TOTAL_CHARS 12000
 
 static char *extract_last_role_content(const Session *sess, const char *role) {
     if (!sess || !sess->messages) return strdup("");
@@ -290,7 +291,16 @@ SessionMemoryTruncateResult session_memory_truncate_for_compact(const char *cont
         cursor = section_end;
     }
 
-    result.truncated_content = strbuf_detach(&out);
+    if (out.len > SESSION_MEMORY_COMPACT_TOTAL_CHARS) {
+        result.was_truncated = 1;
+        out.data[SESSION_MEMORY_COMPACT_TOTAL_CHARS] = '\0';
+        out.len = SESSION_MEMORY_COMPACT_TOTAL_CHARS;
+        strbuf_append(&out, "\n[... total memory budget reached ...]");
+        result.truncated_content = strbuf_detach(&out);
+    } else {
+        result.truncated_content = strbuf_detach(&out);
+    }
+
     return result;
 }
 
