@@ -2375,9 +2375,11 @@ void test_compact_user_summary_message_mentions_preserved_recent(void) {
     tests_run++;
     char *msg = compact_build_user_summary_message("<summary>done</summary>", 1);
     assert(msg != NULL);
+    assert(strstr(msg, "<system-reminder>") != NULL);
     assert(strstr(msg, "This session is being continued") != NULL);
     assert(strstr(msg, "Summary:") != NULL);
     assert(strstr(msg, "Recent messages are preserved verbatim") != NULL);
+    assert(strstr(msg, "</system-reminder>") != NULL);
     free(msg);
     tests_passed++;
     printf("  PASS: test_compact_user_summary_message_mentions_preserved_recent\n");

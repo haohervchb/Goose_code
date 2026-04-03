@@ -108,13 +108,15 @@ char *compact_format_summary(const char *summary) {
 }
 
 char *compact_build_user_summary_message(const char *summary, int recent_messages_preserved) {
-    StrBuf out = strbuf_from("This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\n");
+    StrBuf out = strbuf_from("<system-reminder>\n");
+    strbuf_append(&out, "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\n");
     char *formatted = compact_format_summary(summary ? summary : "");
     strbuf_append(&out, formatted);
     free(formatted);
     if (recent_messages_preserved) {
         strbuf_append(&out, "\n\nRecent messages are preserved verbatim.");
     }
+    strbuf_append(&out, "\n</system-reminder>");
     return strbuf_detach(&out);
 }
 
