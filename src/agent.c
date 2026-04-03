@@ -368,8 +368,18 @@ int agent_run_turn(Agent *agent, const char *user_input) {
     int max_turns = agent->config.max_turns;
     int retry_count = 0;
     int max_retries = 2;
+    long turn_start_ms = monotonic_millis();
+    const long max_turn_duration_ms = 300000; /* 5 minutes per turn */
 
     while (turn < max_turns && agent->running) {
+        long elapsed_ms = monotonic_millis() - turn_start_ms;
+        if (elapsed_ms > max_turn_duration_ms) {
+            printf(TERM_RED "\n[Turn timed out after %.0f seconds]\n" TERM_RESET,
+                   (double)elapsed_ms / 1000.0);
+            cJSON_Delete(tools_def);
+            return -1;
+        }
+
         if (turn > 0) {
             char label[32];
             snprintf(label, sizeof(label), "turn %d", turn + 1);
