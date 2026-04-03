@@ -51,6 +51,8 @@ SubagentRecord *subagent_record_load(const GooseConfig *cfg, const char *task_id
     s = json_get_string(json, "error");
     if (s) record->error = strdup(s);
 
+    record->fork_mode = json_get_int(json, "fork_mode", 0);
+
     cJSON *messages = json_get_array(json, "messages");
     record->messages = messages ? cJSON_Duplicate(messages, 1) : cJSON_CreateArray();
     cJSON_Delete(json);
@@ -69,6 +71,7 @@ char *subagent_record_save(const GooseConfig *cfg, const SubagentRecord *record)
     if (record->workspace_mode) cJSON_AddStringToObject(json, "workspace_mode", record->workspace_mode);
     if (record->result) cJSON_AddStringToObject(json, "result", record->result);
     if (record->error) cJSON_AddStringToObject(json, "error", record->error);
+    cJSON_AddBoolToObject(json, "fork_mode", record->fork_mode);
     cJSON_AddItemToObject(json, "messages", record->messages ? cJSON_Duplicate(record->messages, 1) : cJSON_CreateArray());
 
     int rc = json_write_file(path, json);
