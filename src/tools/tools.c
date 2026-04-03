@@ -695,10 +695,6 @@ void tool_registry_register_all(ToolRegistry *reg) {
     cJSON_AddStringToObject(agent_task_id, "type", "string");
     cJSON_AddStringToObject(agent_task_id, "description", "Optional existing subagent task_id to resume");
     cJSON_AddItemToObject(agent_props, "task_id", agent_task_id);
-    cJSON *agent_fork = cJSON_CreateObject();
-    cJSON_AddStringToObject(agent_fork, "type", "boolean");
-    cJSON_AddStringToObject(agent_fork, "description", "When true, inherit the parent session's conversation context instead of starting fresh");
-    cJSON_AddItemToObject(agent_props, "fork", agent_fork);
     cJSON_AddItemToObject(agent_params, "properties", agent_props);
     Tool agent_tool = {
         .name = strdup("agent"),

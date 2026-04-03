@@ -8,16 +8,6 @@
 #define SESSION_MEMORY_MAX_SECTION_CHARS 8000
 #define SESSION_MEMORY_COMPACT_SECTION_CHARS 2000
 #define SESSION_MEMORY_COMPACT_TOTAL_CHARS 12000
-#define SESSION_MEMORY_IMPORTANT_SECTION_CHARS 4000
-
-static int section_is_important(const char *header) {
-    if (!header) return 0;
-    if (strstr(header, "# Current State")) return 1;
-    if (strstr(header, "# Errors and Corrections")) return 1;
-    if (strstr(header, "# Files and Functions")) return 1;
-    if (strstr(header, "# Worklog")) return 1;
-    return 0;
-}
 
 static char *extract_last_role_content(const Session *sess, const char *role) {
     if (!sess || !sess->messages) return strdup("");
@@ -289,15 +279,11 @@ SessionMemoryTruncateResult session_memory_truncate_for_compact(const char *cont
         const char *section_end = next ? next + 1 : content + strlen(content);
         size_t section_len = (size_t)(section_end - section);
 
-        size_t section_limit = section_is_important(section)
-            ? SESSION_MEMORY_IMPORTANT_SECTION_CHARS
-            : SESSION_MEMORY_COMPACT_SECTION_CHARS;
-
-        if (section_len <= section_limit) {
+        if (section_len <= SESSION_MEMORY_COMPACT_SECTION_CHARS) {
             strbuf_append_len(&out, section, section_len);
         } else {
             result.was_truncated = 1;
-            strbuf_append_len(&out, section, section_limit);
+            strbuf_append_len(&out, section, SESSION_MEMORY_COMPACT_SECTION_CHARS);
             if (out.len > 0 && out.data[out.len - 1] != '\n') strbuf_append_char(&out, '\n');
             strbuf_append(&out, "[... section truncated for length ...]\n");
         }

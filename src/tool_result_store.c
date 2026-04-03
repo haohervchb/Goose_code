@@ -26,8 +26,13 @@ static char *tool_result_path(const GooseConfig *cfg, const Session *sess, const
     return path;
 }
 
-static void write_tool_result(const char *path, const char *content) {
-    FILE *f = fopen(path, "w");
+static void write_if_missing(const char *path, const char *content) {
+    FILE *f = fopen(path, "r");
+    if (f) {
+        fclose(f);
+        return;
+    }
+    f = fopen(path, "w");
     if (!f) return;
     fputs(content, f);
     fclose(f);
@@ -36,7 +41,7 @@ static void write_tool_result(const char *path, const char *content) {
 static char *tool_result_store_persist_forced(const GooseConfig *cfg, const Session *sess,
                                               const char *tool_call_id, const char *content) {
     char *path = tool_result_path(cfg, sess, tool_call_id);
-    write_tool_result(path, content);
+    write_if_missing(path, content);
 
     StrBuf out = strbuf_new();
     strbuf_append(&out, "<persisted-output>\n");

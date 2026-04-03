@@ -193,13 +193,7 @@ char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *recor
     strbuf_append(&instructions, "- Complete the delegated task autonomously and return a concise final answer for the parent\n");
     strbuf_append(&instructions, "- Do not address the human directly or ask follow-up questions unless blocked\n");
     strbuf_append(&instructions, "- Never spawn another subagent\n");
-
-    if (record->fork_mode) {
-        strbuf_append(&instructions, "- Fork mode: You inherit the parent session's conversation context and are continuing its work\n");
-        strbuf_append(&instructions, "- Use the parent's prior messages as background context, but focus on the delegated task\n");
-    } else {
-        strbuf_append(&instructions, "- The parent chose to delegate because this task is better handled in a fresh subagent context\n");
-    }
+    strbuf_append(&instructions, "- The parent chose to delegate because this task is better handled in a fresh subagent context\n");
 
     if (record->description) {
         strbuf_append_fmt(&instructions, "- Delegated task: %s\n", record->description);
@@ -225,11 +219,9 @@ char *subagent_system_prompt(const GooseConfig *cfg, const SubagentRecord *recor
         strbuf_append(&instructions, "- Be decisive: gather the minimum context required, do the work, and report the concrete result\n");
     }
 
-    if (!record->fork_mode) {
-        strbuf_append(&instructions, "\n## Fresh Context Reminder\n");
-        strbuf_append(&instructions, "- You are not continuing the entire parent transcript; you are acting from the delegated prompt plus the files and tools you inspect\n");
-        strbuf_append(&instructions, "- If the delegated prompt lacks critical context, say what is missing instead of inventing it\n");
-    }
+    strbuf_append(&instructions, "\n## Fresh Context Reminder\n");
+    strbuf_append(&instructions, "- You are not continuing the entire parent transcript; you are acting from the delegated prompt plus the files and tools you inspect\n");
+    strbuf_append(&instructions, "- If the delegated prompt lacks critical context, say what is missing instead of inventing it\n");
 
     return strbuf_detach(&instructions);
 }
@@ -405,7 +397,6 @@ char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
     const char *task_id = json_get_string(json, "task_id");
     const char *requested_working_dir = json_get_string(json, "working_dir");
     int use_worktree = parse_bool_arg(json, "use_worktree", 0);
-    int fork_mode = parse_bool_arg(json, "fork", 0);
 
     const char *effective_type = subagent_type ? subagent_type : "general";
     if (!subagent_type_valid(effective_type)) {
@@ -436,7 +427,6 @@ char *tool_execute_agent_tool(const char *args, const GooseConfig *cfg) {
         replace_owned_string(&record->description, description);
         replace_owned_string(&record->subagent_type, effective_type);
         replace_owned_string(&record->model, model ? model : cfg->model);
-        record->fork_mode = fork_mode;
     }
 
     if (description && description[0] && !record->description) {

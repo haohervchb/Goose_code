@@ -14,7 +14,6 @@ typedef struct {
     char *workspace_mode;
     char *result;
     char *error;
-    int fork_mode;
     cJSON *messages;
 } SubagentRecord;
 
