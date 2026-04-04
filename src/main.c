@@ -257,5 +257,6 @@ int main(int argc, char *argv[]) {
     agent_run_repl(g_agent);
     agent_free(g_agent);
     g_agent = NULL;
+    early_input_capture_stop();
     return 0;
 }
