@@ -5,6 +5,7 @@
 #include "prompt_sections.h"
 #include "session_memory.h"
 #include "tool_result_store.h"
+#include "util/http.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include "util/terminal.h"
@@ -27,6 +28,10 @@ Agent *agent_init(const char *working_dir) {
     if (working_dir) {
         free(agent->config.working_dir);
         agent->config.working_dir = strdup(working_dir);
+    }
+    
+    if (agent->config.base_url) {
+        http_preconnect(agent->config.base_url);
     }
 
     agent->api_cfg.base_url = agent->config.base_url;

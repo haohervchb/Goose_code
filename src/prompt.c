@@ -324,6 +324,8 @@ char *prompt_build_default_system(const GooseConfig *cfg, const Session *sess, c
     strbuf_append(&sys, prefix);
     free(prefix);
     if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');
+    strbuf_append(&sys, "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n");
+    if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');
     strbuf_append(&sys, suffix);
     free(suffix);
     if (sys.len > 0 && sys.data[sys.len - 1] != '\n') strbuf_append_char(&sys, '\n');

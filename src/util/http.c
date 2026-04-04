@@ -134,3 +134,19 @@ void http_response_free(HttpResponse *resp) {
     free(resp->error);
     resp->error = NULL;
 }
+
+int http_preconnect(const char *base_url) {
+    if (!base_url || !*base_url) return 0;
+    
+    CURL *curl = curl_easy_init();
+    if (!curl) return 0;
+    
+    curl_easy_setopt(curl, CURLOPT_URL, base_url);
+    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    
+    CURLcode rc = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    
+    return rc == CURLE_OK ? 1 : 0;
+}
