@@ -176,6 +176,26 @@ void session_apply_compact_summary(Session *sess, int keep_recent, const char *s
     }
 }
 
+void session_record_compact_failure(Session *sess) {
+    if (!sess) return;
+    sess->compact_failure_count++;
+    sess->compact_success_count = 0;
+}
+
+void session_record_compact_success(Session *sess) {
+    if (!sess) return;
+    sess->compact_success_count++;
+    if (sess->compact_success_count >= 3) {
+        sess->compact_failure_count = 0;
+        sess->compact_success_count = 0;
+    }
+}
+
+int session_compact_circuit_open(const Session *sess) {
+    if (!sess) return 0;
+    return sess->compact_failure_count >= MAX_CONSECUTIVE_COMPACT_FAILURES;
+}
+
 char *session_list(const char *session_dir) {
     DIR *dir = opendir(session_dir);
     if (!dir) return strdup("No sessions found.");

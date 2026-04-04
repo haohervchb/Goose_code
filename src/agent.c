@@ -379,27 +379,35 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         }
 
         if (session_needs_compact(agent->session, agent->config.context_window)) {
-            int total = cJSON_GetArraySize(agent->session->messages);
-            int keep_recent = 10;
-            int compact_to = total - keep_recent;
-            cJSON *prefix_messages = cJSON_CreateArray();
-            for (int i = 0; i < compact_to && i < total; i++) {
-                cJSON *item = cJSON_GetArrayItem(agent->session->messages, i);
-                if (item) cJSON_AddItemToArray(prefix_messages, cJSON_Duplicate(item, 1));
-            }
-            char *summary = compact_generate_partial_summary(&agent->api_cfg, prefix_messages, COMPACT_PARTIAL_UP_TO);
-            cJSON_Delete(prefix_messages);
-            if (summary) {
-                session_apply_compact_summary(agent->session, keep_recent, summary);
-                printf(TERM_DIM "[Context compacted before API call]\n" TERM_RESET);
-                prompt_sections_clear_cache();
-                free(summary);
+            if (session_compact_circuit_open(agent->session)) {
+                printf(TERM_YELLOW "[Context compaction circuit breaker open - too many failures, skipping compaction]\n" TERM_RESET);
             } else {
-                char *fallback = session_compact(agent->session, keep_recent);
-                if (fallback) {
-                    printf(TERM_DIM "[Context compacted with fallback summary]\n" TERM_RESET);
+                int total = cJSON_GetArraySize(agent->session->messages);
+                int keep_recent = 10;
+                int compact_to = total - keep_recent;
+                cJSON *prefix_messages = cJSON_CreateArray();
+                for (int i = 0; i < compact_to && i < total; i++) {
+                    cJSON *item = cJSON_GetArrayItem(agent->session->messages, i);
+                    if (item) cJSON_AddItemToArray(prefix_messages, cJSON_Duplicate(item, 1));
+                }
+                char *summary = compact_generate_partial_summary(&agent->api_cfg, prefix_messages, COMPACT_PARTIAL_UP_TO);
+                cJSON_Delete(prefix_messages);
+                if (summary) {
+                    session_record_compact_success(agent->session);
+                    session_apply_compact_summary(agent->session, keep_recent, summary);
+                    printf(TERM_DIM "[Context compacted before API call]\n" TERM_RESET);
                     prompt_sections_clear_cache();
-                    free(fallback);
+                    free(summary);
+                } else {
+                    char *fallback = session_compact(agent->session, keep_recent);
+                    if (fallback) {
+                        session_record_compact_success(agent->session);
+                        printf(TERM_DIM "[Context compacted with fallback summary]\n" TERM_RESET);
+                        prompt_sections_clear_cache();
+                        free(fallback);
+                    } else {
+                        session_record_compact_failure(agent->session);
+                    }
                 }
             }
         }

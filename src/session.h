@@ -5,6 +5,7 @@
 #include "util/cJSON.h"
 
 #define SESSION_VERSION 1
+#define MAX_CONSECUTIVE_COMPACT_FAILURES 3
 
 typedef struct {
     char *id;
@@ -14,6 +15,8 @@ typedef struct {
     int turn_count;
     int plan_mode;
     char *plan_content;
+    int compact_failure_count;
+    int compact_success_count;
 } Session;
 
 Session *session_new(void);
@@ -29,6 +32,9 @@ const char *session_get_plan(const Session *sess);
 int session_needs_compact(Session *sess, int context_window);
 char *session_compact(Session *sess, int keep_recent);
 void session_apply_compact_summary(Session *sess, int keep_recent, const char *summary);
+void session_record_compact_failure(Session *sess);
+void session_record_compact_success(Session *sess);
+int session_compact_circuit_open(const Session *sess);
 char *session_list(const char *session_dir);
 
 #endif
