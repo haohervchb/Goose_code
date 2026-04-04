@@ -240,6 +240,8 @@ int main(int argc, char *argv[]) {
             printf("Resumed session: %s (%d messages)\n", session_id, cJSON_GetArraySize(loaded->messages));
         } else {
             fprintf(stderr, "Warning: session '%s' not found, starting new session\n", session_id);
+            free(g_agent->session->id);
+            g_agent->session->id = strdup(session_id);
         }
     }
 
