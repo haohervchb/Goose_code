@@ -36,5 +36,6 @@ typedef struct {
 BashSecurityResult bash_check(const char *command);
 
 int bash_security_is_check_enabled(int check_id);
+void bash_security_init(void);
 
 #endif

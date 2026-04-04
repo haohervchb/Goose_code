@@ -15,7 +15,8 @@ UTIL_SRCS = $(SRCDIR)/util/cJSON.c \
             $(SRCDIR)/util/sse.c \
             $(SRCDIR)/util/json_util.c \
             $(SRCDIR)/util/terminal.c \
-            $(SRCDIR)/util/markdown.c
+            $(SRCDIR)/util/markdown.c \
+            $(SRCDIR)/util/early_input.c
 
 TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/bash.c \
