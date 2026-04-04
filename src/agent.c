@@ -531,9 +531,21 @@ int agent_run_repl(Agent *agent) {
            agent->config.base_url ? agent->config.base_url : "(none)");
 
     while (agent->running) {
-        char *prompt = term_format_prompt(agent->config.working_dir, agent->session && agent->session->plan_mode);
-        char *input = term_read_line_opts(prompt, 1, 1);
-        free(prompt);
+        char *input = NULL;
+        
+        if (early_input_has_pending()) {
+            input = early_input_consume();
+            if (input) {
+                printf("%s\n", input);
+            }
+        }
+        
+        if (!input) {
+            char *prompt = term_format_prompt(agent->config.working_dir, agent->session && agent->session->plan_mode);
+            input = term_read_line_opts(prompt, 1, 1);
+            free(prompt);
+        }
+        
         if (!input) {
             printf("\n");
             agent->running = 0;

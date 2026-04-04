@@ -9,6 +9,19 @@ static size_t g_early_input_len = 0;
 static size_t g_early_input_cap = 0;
 static pthread_mutex_t g_early_input_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int g_initialized = 0;
+static int g_capturing = 0;
+
+void early_input_capture_start(void) {
+    pthread_mutex_lock(&g_early_input_mutex);
+    g_capturing = 1;
+    pthread_mutex_unlock(&g_early_input_mutex);
+}
+
+void early_input_capture_stop(void) {
+    pthread_mutex_lock(&g_early_input_mutex);
+    g_capturing = 0;
+    pthread_mutex_unlock(&g_early_input_mutex);
+}
 
 void early_input_init(void) {
     pthread_mutex_lock(&g_early_input_mutex);

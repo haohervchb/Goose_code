@@ -4,6 +4,8 @@
 #include <stddef.h>
 
 void early_input_init(void);
+void early_input_capture_start(void);
+void early_input_capture_stop(void);
 void early_input_capture(const char *input, size_t len);
 char *early_input_consume(void);
 int early_input_has_pending(void);

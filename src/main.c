@@ -3,6 +3,7 @@
 #include "util/terminal.h"
 #include "util/strbuf.h"
 #include "util/cJSON.h"
+#include "util/early_input.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,6 +199,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, signal_handler);
 
     g_agent = agent_init(NULL);
+    early_input_capture_start();
 
     if (provider_override) {
         provider_apply_preset(&g_agent->config, provider_override, 1);
