@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "tools/bash_security.h"
 #include "compact.h"
 #include "prompt.h"
 #include "prompt_sections.h"
@@ -20,6 +21,7 @@ static Agent *g_current_agent = NULL;
 Agent *agent_init(const char *working_dir) {
     Agent *agent = calloc(1, sizeof(*agent));
     g_current_agent = agent;
+    bash_security_init();
     prompt_sections_clear_cache();
     agent->config = config_load();
     if (working_dir) {

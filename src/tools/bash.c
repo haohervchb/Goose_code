@@ -1,4 +1,5 @@
 #include "tools/tools.h"
+#include "tools/bash_security.h"
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include <stdio.h>
@@ -106,6 +107,16 @@ char *tool_execute_bash(const char *args, const GooseConfig *cfg) {
     if (!cmd_copy) return strdup("Error: 'command' argument required");
     if (timeout <= 0) timeout = 120;
     if (timeout > 7200) timeout = 7200;
+
+    BashSecurityResult sec = bash_check(cmd_copy);
+    if (sec.blocked) {
+        char *err = malloc(256);
+        snprintf(err, 256, "Error: Command blocked for security: %s (check_id=%d)", sec.message, sec.check_id);
+        free(sec.message);
+        free(cmd_copy);
+        return err;
+    }
+    free(sec.message);
 
     char *result = run_command(cmd_copy, timeout);
     free(cmd_copy);

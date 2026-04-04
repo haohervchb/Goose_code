@@ -1,6 +1,6 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -Wpedantic -O2 -std=c11 -D_GNU_SOURCE
-LDFLAGS = -lcurl  -lpthread 
+CFLAGS  = -Wall -Wextra -Wpedantic -O2 -std=c11 -D_GNU_SOURCE -Isrc
+LDFLAGS = -lcurl -lpthread 
 DEPFLAGS = -MMD -MP
 PREFIX  ?= $(HOME)/.local
 INSTALL_BINDIR ?= $(PREFIX)/bin
@@ -19,6 +19,7 @@ UTIL_SRCS = $(SRCDIR)/util/cJSON.c \
 
 TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/bash.c \
+            $(SRCDIR)/tools/bash_security.c \
             $(SRCDIR)/tools/file_read.c \
             $(SRCDIR)/tools/file_write.c \
             $(SRCDIR)/tools/file_edit.c \
