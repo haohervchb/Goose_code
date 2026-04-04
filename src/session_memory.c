@@ -310,3 +310,46 @@ void session_memory_truncate_result_free(SessionMemoryTruncateResult *result) {
     result->truncated_content = NULL;
     result->was_truncated = 0;
 }
+
+char *session_memory_truncate_for_display(const char *content) {
+    if (!content) return strdup("");
+    
+    int line_count = 0;
+    size_t byte_count = 0;
+    const char *last_newline = NULL;
+    const char *p = content;
+    
+    while (*p && byte_count < SESSION_MEMORY_MAX_BYTES) {
+        if (*p == '\n') {
+            line_count++;
+            last_newline = p;
+        }
+        byte_count++;
+        p++;
+        
+        if (line_count >= SESSION_MEMORY_MAX_LINES && last_newline) {
+            break;
+        }
+    }
+    
+    int was_truncated = (*p != '\0' || line_count >= SESSION_MEMORY_MAX_LINES);
+    
+    size_t result_len = (size_t)(last_newline ? last_newline - content : byte_count);
+    if (result_len > SESSION_MEMORY_MAX_BYTES) {
+        result_len = SESSION_MEMORY_MAX_BYTES;
+    }
+    
+    char *result = malloc(result_len + 256);
+    memcpy(result, content, result_len);
+    
+    if (was_truncated) {
+        snprintf(result + result_len, 256,
+            "\n\n> WARNING: Session memory truncated. Only %d lines of %d shown. "
+            "Full memory saved to session file.",
+            line_count, SESSION_MEMORY_MAX_LINES);
+    } else {
+        result[result_len] = '\0';
+    }
+    
+    return result;
+}
