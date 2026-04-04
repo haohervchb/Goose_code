@@ -406,10 +406,10 @@ void term_print_tool_result(const char *name, int is_error) {
 
 void term_print_banner(void) {
     printf(TERM_BOLD TERM_GREEN);
-    printf(" __      \n");
+    printf("    __      \n");
     printf("___( o)>    GOOSE CODE\n");
     printf("\\ <_. )     High-Performance Inference\n");
-    printf(" `---'      v0.1.0\n");
+    printf(" `---'      v0.2.0\n");
     printf(TERM_RESET);
     printf(TERM_DIM "  Type /help for commands. /exit to quit.\n\n" TERM_RESET);
     fflush(stdout);
