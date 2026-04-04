@@ -31,25 +31,29 @@ static char *tool_schema_cache_key(const GooseConfig *cfg) {
     return strbuf_detach(&key);
 }
 
-static int tool_is_deferred_candidate(const char *name) {
-    return strcmp(name, "list_mcp_resources") == 0 ||
-           strcmp(name, "read_mcp_resource") == 0 ||
-           strcmp(name, "lsp") == 0 ||
-           strcmp(name, "notebook_edit") == 0;
+static int tool_is_deferred_candidate(const Tool *t) {
+    if (!t) return 0;
+    if (t->always_load) return 0;
+    return 1;
 }
 
 static int tool_registry_should_defer(const ToolRegistry *reg, const GooseConfig *cfg) {
     size_t total = 0;
+    int loadable_count = 0;
     for (int i = 0; i < reg->count; i++) {
         Tool *t = reg->tools[i];
         if (cfg && !permissions_tool_visible(cfg, t->name, t->required_mode)) continue;
-        total += strlen(t->name) + strlen(t->description);
-        if (t->parameters_schema) {
-            char *schema = json_to_string(t->parameters_schema);
-            if (schema) {
-                total += strlen(schema);
-                free(schema);
+        if (tool_is_deferred_candidate(t)) {
+            total += strlen(t->name) + strlen(t->description);
+            if (t->parameters_schema) {
+                char *schema = json_to_string(t->parameters_schema);
+                if (schema) {
+                    total += strlen(schema);
+                    free(schema);
+                }
             }
+        } else {
+            loadable_count++;
         }
     }
     return total > TOOL_SCHEMA_DEFER_THRESHOLD;
@@ -127,7 +131,7 @@ cJSON *tool_registry_get_definitions(const ToolRegistry *reg, const GooseConfig 
         if (cfg && !permissions_tool_visible(cfg, t->name, t->required_mode)) {
             continue;
         }
-        if (defer_heavy && tool_is_deferred_candidate(t->name)) {
+        if (defer_heavy && tool_is_deferred_candidate(t)) {
             continue;
         }
         cJSON *def = json_build_tool_def_openai(t->name, t->description,
@@ -199,6 +203,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = bash_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_bash
     };
     tool_registry_register(reg, bash);
@@ -228,6 +233,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = read_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_read_file
     };
     tool_registry_register(reg, read_file);
@@ -254,6 +260,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = write_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_write_file
     };
     tool_registry_register(reg, write_file);
@@ -285,6 +292,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = edit_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_edit_file
     };
     tool_registry_register(reg, edit_file);
@@ -306,6 +314,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = glob_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_glob_search
     };
     tool_registry_register(reg, glob_search);
@@ -327,6 +336,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = grep_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_grep_search
     };
     tool_registry_register(reg, grep_search);

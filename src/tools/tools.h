@@ -14,6 +14,7 @@ typedef struct {
     cJSON *parameters_schema;
     PermissionMode required_mode;
     int is_read_only;
+    int always_load;
     char *(*execute)(const char *args_json, const GooseConfig *cfg);
 } Tool;
 
