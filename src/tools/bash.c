@@ -109,6 +109,16 @@ char *tool_execute_bash(const char *args, const GooseConfig *cfg) {
     if (timeout > 7200) timeout = 7200;
 
     BashSecurityResult sec = bash_check(cmd_copy);
+    int is_trivial = bash_security_is_command_trivial(cmd_copy);
+    int has_features = strchr(cmd_copy, '$') != NULL || strchr(cmd_copy, '|') != NULL || 
+                       strchr(cmd_copy, ';') != NULL || strchr(cmd_copy, '&') != NULL;
+    if (is_trivial && !has_features) {
+        fprintf(stderr, "[security] trivial: 0 checks\n");
+    } else if (sec.blocked) {
+        fprintf(stderr, "[security] blocked: %s\n", sec.message);
+    } else {
+        fprintf(stderr, "[security] full check (passed)\n");
+    }
     if (sec.blocked) {
         char *err = malloc(256);
         snprintf(err, 256, "Error: Command blocked for security: %s (check_id=%d)", sec.message, sec.check_id);

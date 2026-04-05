@@ -34,6 +34,8 @@ typedef struct {
 #define BASH_CHECK_QUOTED_NEWLINE        23
 
 BashSecurityResult bash_check(const char *command);
+int bash_security_is_command_trivial(const char *command);
+int bash_security_get_checks_performed(void);
 
 int bash_security_is_check_enabled(int check_id);
 void bash_security_init(void);
