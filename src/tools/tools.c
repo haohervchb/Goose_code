@@ -362,6 +362,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = web_fetch_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_web_fetch
     };
     tool_registry_register(reg, web_fetch);
@@ -397,6 +398,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = web_search_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_web_search
     };
     tool_registry_register(reg, web_search);
@@ -444,6 +446,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = todo_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_todo_write
     };
     tool_registry_register(reg, todo_write);
@@ -473,6 +476,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = task_create_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_task_create
     };
     tool_registry_register(reg, task_create);
@@ -494,6 +498,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = task_get_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_task_get
     };
     tool_registry_register(reg, task_get);
@@ -516,6 +521,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = task_list_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_task_list
     };
     tool_registry_register(reg, task_list);
@@ -549,6 +555,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = task_update_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_task_update
     };
     tool_registry_register(reg, task_update);
@@ -570,6 +577,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = mcp_list_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_list_mcp_resources
     };
     tool_registry_register(reg, list_mcp_resources);
@@ -596,6 +604,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = mcp_read_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_read_mcp_resource
     };
     tool_registry_register(reg, read_mcp_resource);
@@ -645,6 +654,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = lsp_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_lsp
     };
     tool_registry_register(reg, lsp);
@@ -666,6 +676,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = skill_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_skill
     };
     tool_registry_register(reg, skill);
@@ -712,6 +723,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = agent_params,
         .required_mode = PERM_DANGER_FULL_ACCESS,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_agent_tool
     };
     tool_registry_register(reg, agent_tool);
@@ -734,6 +746,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = tool_search_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_tool_search
     };
     tool_registry_register(reg, tool_search);
@@ -772,6 +785,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = notebook_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_notebook_edit
     };
     tool_registry_register(reg, notebook_edit);
@@ -790,6 +804,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = sleep_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_sleep
     };
     tool_registry_register(reg, sleep);
@@ -827,6 +842,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = send_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_send_message
     };
     tool_registry_register(reg, send_message);
@@ -903,6 +919,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = question_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_ask_user_question
     };
     tool_registry_register(reg, ask_user_question);
@@ -925,6 +942,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = enter_plan_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_enter_plan_mode
     };
     tool_registry_register(reg, enter_plan_mode);
@@ -938,6 +956,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = exit_plan_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_exit_plan_mode
     };
     tool_registry_register(reg, exit_plan_mode);
@@ -960,6 +979,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = config_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_config_tool
     };
     tool_registry_register(reg, config_tool);
@@ -982,6 +1002,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = structured_params,
         .required_mode = PERM_READ_ONLY,
         .is_read_only = 1,
+        .always_load = 1,
         .execute = tool_execute_structured_out
     };
     tool_registry_register(reg, structured_out);
@@ -1007,6 +1028,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = repl_params,
         .required_mode = PERM_DANGER_FULL_ACCESS,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_repl_tool
     };
     tool_registry_register(reg, repl_tool);
@@ -1032,6 +1054,7 @@ void tool_registry_register_all(ToolRegistry *reg) {
         .parameters_schema = powershell_params,
         .required_mode = PERM_WORKSPACE_WRITE,
         .is_read_only = 0,
+        .always_load = 1,
         .execute = tool_execute_powershell
     };
     tool_registry_register(reg, powershell);
