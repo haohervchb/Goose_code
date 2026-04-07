@@ -311,6 +311,14 @@ static int run_tui_mode(int argc, char *argv[]) {
     g_agent->api_cfg.base_url = g_agent->config.base_url;
     g_agent->api_cfg.model = g_agent->config.model;
     
+    // Set up TUI callbacks for streaming output
+    agent_set_callbacks(g_agent, 
+        tui_on_text,
+        tui_on_tool_start,
+        tui_on_tool_output,
+        tui_on_tool_done,
+        NULL);
+    
     tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir);
     
     while (1) {

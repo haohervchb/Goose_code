@@ -175,3 +175,23 @@ void tui_protocol_send_session_info(int message_count, int plan_mode) {
     free(str);
     cJSON_Delete(json);
 }
+
+void tui_on_text(const char *text, void *ctx) {
+    (void)ctx;
+    tui_protocol_send_response_chunk(text, 0);
+}
+
+void tui_on_tool_start(const char *id, const char *name, const char *args, void *ctx) {
+    (void)ctx;
+    tui_protocol_send_tool_start(name, id, args);
+}
+
+void tui_on_tool_output(const char *id, const char *output, void *ctx) {
+    (void)ctx;
+    tui_protocol_send_tool_output(id, output);
+}
+
+void tui_on_tool_done(const char *id, int success, const char *error, void *ctx) {
+    (void)ctx;
+    tui_protocol_send_tool_end(id, success, error);
+}
