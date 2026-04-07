@@ -182,6 +182,11 @@ int main(int argc, char *argv[]) {
             return 0;
         } else if (strcmp(argv[i], "--repl") == 0) {
             use_tui = 0;  // Use legacy REPL instead of TUI
+        } else if (strcmp(argv[i], "--tui-mode") == 0) {
+            // TUI mode: run as backend for the TUI subprocess
+            // This will be implemented in later phases
+            fprintf(stderr, "TUI protocol mode not yet implemented.\n");
+            return 1;
         } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
             provider_override = argv[++i];
         } else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
