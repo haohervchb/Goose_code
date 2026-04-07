@@ -10,6 +10,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <pwd.h>
@@ -267,8 +268,23 @@ int main(int argc, char *argv[]) {
     }
 
     if (use_tui) {
-        execl("./goosecode-tui", "goosecode-tui", NULL);
-        fprintf(stderr, "Failed to launch TUI. Falling back to REPL mode...\n");
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Child - exec TUI
+            execl("./goosecode-tui", "goosecode-tui", NULL);
+            _exit(1);
+        } else if (pid > 0) {
+            // Parent - wait for TUI
+            int status;
+            waitpid(pid, &status, 0);
+            // If TUI exited with error, fall back to REPL
+            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                fprintf(stderr, "TUI exited with code %d, falling back to REPL...\n", WEXITSTATUS(status));
+            }
+        } else {
+            // Fork failed
+            fprintf(stderr, "Failed to fork TUI. Falling back to REPL mode...\n");
+        }
     }
 
     agent_run_repl(g_agent);
