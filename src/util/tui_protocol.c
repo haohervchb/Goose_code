@@ -93,7 +93,7 @@ void tui_protocol_send_init_ok(const char *session_id, const char *session_dir) 
     cJSON_AddStringToObject(json, "type", "init_ok");
     cJSON_AddStringToObject(json, "session_id", session_id);
     cJSON_AddStringToObject(json, "session_dir", session_dir);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -105,7 +105,7 @@ void tui_protocol_send_response_chunk(const char *content, int done) {
     cJSON_AddStringToObject(json, "type", "response");
     cJSON_AddStringToObject(json, "content", content);
     cJSON_AddBoolToObject(json, "done", done);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -121,7 +121,7 @@ void tui_protocol_send_tool_start(const char *name, const char *id, const char *
     if (args) {
         cJSON_AddItemToObject(json, "args", args);
     }
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -133,7 +133,7 @@ void tui_protocol_send_tool_output(const char *id, const char *output) {
     cJSON_AddStringToObject(json, "type", "tool_output");
     cJSON_AddStringToObject(json, "id", id);
     cJSON_AddStringToObject(json, "output", output);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -146,7 +146,7 @@ void tui_protocol_send_tool_end(const char *id, int success, const char *error) 
     cJSON_AddStringToObject(json, "id", id);
     cJSON_AddBoolToObject(json, "success", success);
     if (error) cJSON_AddStringToObject(json, "error", error);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -157,7 +157,7 @@ void tui_protocol_send_error(const char *message) {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "type", "error");
     cJSON_AddStringToObject(json, "message", message);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
@@ -169,7 +169,7 @@ void tui_protocol_send_session_info(int message_count, int plan_mode) {
     cJSON_AddStringToObject(json, "type", "session_info");
     cJSON_AddNumberToObject(json, "message_count", message_count);
     cJSON_AddBoolToObject(json, "plan_mode", plan_mode);
-    char *str = cJSON_Print(json);
+    char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
     free(str);
