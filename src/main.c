@@ -320,6 +320,7 @@ static int run_tui_mode(int argc, char *argv[]) {
     tui_protocol_init();
     
     g_agent = agent_init(NULL);
+    g_agent->tui_mode = 1;
     
     if (provider_override) {
         provider_apply_preset(&g_agent->config, provider_override, 1);

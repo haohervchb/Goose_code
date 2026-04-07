@@ -461,7 +461,9 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         cJSON *messages = prompt_build_messages_with_tools(
             agent->system_message, agent->session->messages, NULL);
 
-        term_print_block_header("assistant", TERM_GREEN);
+        if (!agent->tui_mode) {
+            term_print_block_header("assistant", TERM_GREEN);
+        }
 
         ToolCallCollector calls = {agent, 0, NULL, NULL, NULL};
         TurnInterruptMonitor interrupt_mon;

@@ -15,6 +15,7 @@ typedef struct {
     ApiConfig api_cfg;
     cJSON *system_message;
     int running;
+    int tui_mode;
     long total_input_tokens;
     long total_output_tokens;
     

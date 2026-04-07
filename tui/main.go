@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Backend struct {
@@ -256,6 +257,7 @@ func newModel(backend *Backend) model {
 	ti.Prompt = "> "
 	ti.CharLimit = 1000
 	ti.Width = 80
+	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32"))
 	ti.Focus()
 
 	vp := viewport.New(80, 20)
@@ -303,10 +305,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.planMode = !m.planMode
 			m.backend.SendCommand("plan", "")
+			// Update cursor color based on mode
 			if m.planMode {
-				return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode enabled]\n") })
+				m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
+				return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n\033[33m[PLAN mode]\033[0m\n") })
 			}
-			return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode disabled]\n") })
+			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
+			return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n\033[32m[BUILD mode]\033[0m\n") })
 		case "enter":
 			if m.textInput.Value() == "" {
 				return m, textinput.Blink
@@ -424,7 +429,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 	case tea.WindowSizeMsg:
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 5 // Leave space for header and input
+		m.viewport.Height = msg.Height - 11 // 4 header + 1 sep + 3 input + 3 extra
+		m.textInput.Width = msg.Width
+		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
 		return m, textinput.Blink
 	}
@@ -435,25 +442,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var s strings.Builder
 
-	s.WriteString("\033[1;36m  __  \033[0m\n")
-	s.WriteString("\033[1;36m ___ >-   GOOSE CODE\033[0m\n")
-	s.WriteString("\033[1;36m  <_. )   TUI Mode  \033[0m\n")
-	s.WriteString("\033[1;36m   `-'\033[0m\n\n")
-
-	if m.connected {
-		s.WriteString("\033[32mConnected! Session: " + m.backend.sessionID + "\033[0m")
+	// Header (fixed at top)
+	if m.planMode {
+		s.WriteString("\033[1m  __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.2.0 \033[33m[PLAN]\033[0m | /help, /exit to quit\n")
 	} else {
-		s.WriteString("\033[33mConnecting...\033[0m")
+		s.WriteString("\033[1m  __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.2.0 \033[32m[BUILD]\033[0m | /help, /exit to quit\n")
 	}
+	s.WriteString("\033[1m___( o)>  \033[0m\n")
+	s.WriteString("\033[1m\\ <_. )   \033[0m\n")
+	s.WriteString("\033[1m `---'    \033[0m\n")
 
-	if m.fallback {
-		s.WriteString(" | \033[33mPress Enter to continue in REPL mode\033[0m")
-	}
-
-	s.WriteString("\n\n")
-
+	// Chat messages (scrollable viewport)
 	s.WriteString(m.viewport.View())
-	s.WriteString("\n")
+
+	// Input area (fixed at bottom)
+	if m.planMode {
+		s.WriteString("\n\033[33m────────────────────────────────────────────────────────\033[0m\n")
+	} else {
+		s.WriteString("\n\033[36m────────────────────────────────────────────────────────\033[0m\n")
+	}
 	s.WriteString(m.textInput.View())
 
 	return s.String()
@@ -578,7 +585,9 @@ func main() {
 
 	m := newModel(backend)
 	m.connected = true
-	m.output = fmt.Sprintf("\033[32mConnected! Session: %s\033[0m\n\n", resp.SessionID)
+	m.output = fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID)
+	m.viewport.SetContent(m.output)
+	m.viewport.GotoBottom()
 
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
