@@ -444,9 +444,9 @@ func (m model) View() string {
 
 	// Header (fixed at top)
 	if m.planMode {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.2.0 \033[33m[PLAN]\033[0m | /help, /exit to quit\n")
+		s.WriteString("\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.0 \033[33m[PLAN]\033[0m | /help, /exit to quit\n")
 	} else {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.2.0 \033[32m[BUILD]\033[0m | /help, /exit to quit\n")
+		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.0 \033[32m[BUILD]\033[0m | /help, /exit to quit\n")
 	}
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
