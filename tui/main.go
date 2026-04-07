@@ -477,7 +477,7 @@ const (
 type exitToReplMsg struct{}
 
 func main() {
-	backendPath := flag.String("backend", "./goosecode", "Path to goosecode backend")
+	backendPath := flag.String("backend", "./goosecode-backend", "Path to goosecode backend")
 	model := flag.String("model", "", "Model to use")
 	provider := flag.String("provider", "", "Provider preset")
 	baseURL := flag.String("base-url", "", "API base URL")

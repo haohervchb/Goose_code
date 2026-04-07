@@ -88,22 +88,25 @@ ALL_SRCS  = $(UTIL_SRCS) $(TOOL_SRCS) $(CMD_SRCS) $(CORE_SRCS)
 ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
 ALL_DEPS  = $(ALL_OBJS:.o=.d)
 
-TARGET    = $(BINDIR)/goosecode
+TARGET    = $(BINDIR)/goosecode-backend
 TUI_TARGET = $(BINDIR)/goosecode-tui
 GO        = $(HOME)/go/bin/go
 
 .PHONY: all clean test install uninstall tui
 
-all: $(TARGET) tui
+all: backend tui
 
 $(TARGET): $(ALL_OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+backend: $(TARGET)
+
 tui:
 	cd tui && $(GO) build -o ../$(TUI_TARGET) .
 
 $(TUI_TARGET): tui
+	@ln -sf $(TUI_TARGET) $(BINDIR)/goosecode
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
