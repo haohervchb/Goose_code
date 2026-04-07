@@ -260,8 +260,9 @@ func newModel(backend *Backend) model {
 
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
+	vp.YOffset = 0
 
-	return model{
+	m := model{
 		backend:   backend,
 		textInput: ti,
 		viewport:  vp,
@@ -270,6 +271,8 @@ func newModel(backend *Backend) model {
 		quit:      false,
 		fallback:  false,
 	}
+	m.output = ""
+	return m
 }
 
 func (m model) Init() tea.Cmd {
@@ -321,20 +324,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if cmdName == "quit" || cmdName == "exit" {
-					// Fall back to REPL instead of exiting
-					m.fallback = true
+					// Clean exit - just quit without fallback
 					m.backend.SendQuit()
-					m.output += "\n\033[33mFalling back to REPL...\033[0m\n"
-					m.viewport.SetContent(m.output)
-					// Spawn REPL in background
-					go func() {
-						replCmd := exec.Command("./goosecode", "--repl")
-						replCmd.Stdout = os.Stdout
-						replCmd.Stdin = os.Stdin
-						replCmd.Stderr = os.Stderr
-						replCmd.Run()
-						os.Exit(0)
-					}()
 					return m, tea.Quit
 				}
 
@@ -374,10 +365,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case responseMsg:
 		m.output += string(msg)
 		m.viewport.SetContent(m.output)
+		m.viewport.YOffset = 0
+		m.viewport.GotoBottom()
 		return m, textinput.Blink
 	case backendErrorMsg:
 		m.output += string(msg) + "\n"
 		m.viewport.SetContent(m.output)
+		m.viewport.YOffset = 0
+		m.viewport.GotoBottom()
 		return m, textinput.Blink
 	case toolStartMsg:
 		m.currentTool = msg.name
@@ -387,6 +382,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			toolStyle, msg.name, resetStyleTool,
 			toolArgsStyle, msg.args, resetStyleTool)
 		m.viewport.SetContent(m.output)
+		m.viewport.YOffset = 0
+		m.viewport.GotoBottom()
 		return m, textinput.Blink
 	case toolOutputMsg:
 		if m.currentToolID == msg.id {
@@ -405,6 +402,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.output += output
 			}
 			m.viewport.SetContent(m.output)
+			m.viewport.YOffset = 0
+			m.viewport.GotoBottom()
 		}
 		return m, textinput.Blink
 	case toolEndMsg:
@@ -419,11 +418,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentToolID = ""
 			m.currentToolOutput = ""
 			m.viewport.SetContent(m.output)
+			m.viewport.YOffset = 0
+			m.viewport.GotoBottom()
 		}
 		return m, textinput.Blink
 	case tea.WindowSizeMsg:
 		m.viewport.Width = msg.Width
 		m.viewport.Height = msg.Height - 5 // Leave space for header and input
+		m.viewport.GotoBottom()
 		return m, textinput.Blink
 	}
 
@@ -464,6 +466,8 @@ const (
 	successStyle = "\033[32m"
 	resetStyle   = "\033[0m"
 )
+
+type exitToReplMsg struct{}
 
 func main() {
 	backendPath := flag.String("backend", "./goosecode", "Path to goosecode backend")
@@ -585,6 +589,7 @@ func main() {
 
 	p := tea.NewProgram(&m, tea.WithAltScreen(), tea.WithInput(tty), tea.WithOutput(tty))
 
+	// Run goroutines to send messages to TUI
 	go func() {
 		for msg := range respChan {
 			p.Send(msg)
@@ -615,8 +620,9 @@ func main() {
 		}
 	}()
 
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
+	// Run the TUI program
+	if _, runErr := p.Run(); runErr != nil {
+		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", runErr)
 		os.Exit(1)
 	}
 }

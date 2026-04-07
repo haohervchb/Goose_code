@@ -277,9 +277,13 @@ int main(int argc, char *argv[]) {
             // Parent - wait for TUI
             int status;
             waitpid(pid, &status, 0);
-            // If TUI exited with error, fall back to REPL
+            // If TUI exited with non-zero, fall back to REPL
             if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
                 fprintf(stderr, "TUI exited with code %d, falling back to REPL...\n", WEXITSTATUS(status));
+            } else {
+                // TUI exited successfully - don't run REPL
+                early_input_capture_stop();
+                return 0;
             }
         } else {
             // Fork failed
