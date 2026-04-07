@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -88,7 +89,6 @@ func (b *Backend) Start(backendPath string, cfg BackendConfig) error {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	cmd.Dir = "."
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
@@ -477,7 +477,13 @@ const (
 type exitToReplMsg struct{}
 
 func main() {
-	backendPath := flag.String("backend", "./goosecode-backend", "Path to goosecode backend")
+	execPath, err := os.Executable()
+	if err != nil {
+		execPath = "./goosecode-backend"
+	} else {
+		execPath = filepath.Join(filepath.Dir(execPath), "goosecode-backend")
+	}
+	backendPath := flag.String("backend", execPath, "Path to goosecode backend")
 	model := flag.String("model", "", "Model to use")
 	provider := flag.String("provider", "", "Provider preset")
 	baseURL := flag.String("base-url", "", "API base URL")
