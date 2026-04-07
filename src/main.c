@@ -283,6 +283,10 @@ static int run_tui_mode(int argc, char *argv[]) {
     const char *provider_override = NULL;
     const char *base_url_override = NULL;
     
+    // Redirect stdout to stderr temporarily to avoid polluting protocol
+    int saved_stdout = dup(STDOUT_FILENO);
+    freopen("/dev/null", "w", stdout);
+    
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             model_override = argv[++i];
@@ -318,6 +322,10 @@ static int run_tui_mode(int argc, char *argv[]) {
         tui_on_tool_output,
         tui_on_tool_done,
         NULL);
+    
+    // Restore stdout for protocol output
+    dup2(saved_stdout, STDOUT_FILENO);
+    close(saved_stdout);
     
     tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir);
     
