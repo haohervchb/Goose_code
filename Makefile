@@ -88,14 +88,21 @@ ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
 ALL_DEPS  = $(ALL_OBJS:.o=.d)
 
 TARGET    = $(BINDIR)/goosecode
+TUI_TARGET = $(BINDIR)/goosecode-tui
+GO        = $(HOME)/go/bin/go
 
-.PHONY: all clean test install uninstall
+.PHONY: all clean test install uninstall tui
 
-all: $(TARGET)
+all: $(TARGET) tui
 
 $(TARGET): $(ALL_OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+tui:
+	cd tui && $(GO) build -o ../$(TUI_TARGET) .
+
+$(TUI_TARGET): tui
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
@@ -105,10 +112,11 @@ test: $(TARGET)
 	@echo "Running tests..."
 	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/tool_result_store.c $(SRCDIR)/system_init.c $(SRCDIR)/session.c $(SRCDIR)/session_memory.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
 
-install: $(TARGET)
+install: $(TARGET) tui
 	@mkdir -p "$(INSTALL_BINDIR)"
 	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode"
-	@printf 'Installed goosecode to %s/goosecode\n' "$(INSTALL_BINDIR)"
+	@install -m 755 "$(TUI_TARGET)" "$(INSTALL_BINDIR)/goosecode-tui"
+	@printf 'Installed goosecode to %s/goosecode and %s/goosecode-tui\n' "$(INSTALL_BINDIR)" "$(INSTALL_BINDIR)"
 
 uninstall:
 	@rm -f "$(INSTALL_BINDIR)/goosecode"

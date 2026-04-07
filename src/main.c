@@ -36,6 +36,7 @@ static void print_usage(const char *prog) {
     printf("  --permission <mode>   Set permission mode (read-only, workspace-write, danger-full-access, prompt, allow)\n");
     printf("  --max-turns <n>       Set max tool-use turns per message\n");
     printf("  --session <id>        Resume a saved session\n");
+    printf("  --repl                Use legacy REPL instead of TUI (default: TUI)\n");
     printf("  --help                Show this help\n");
     printf("\nEnvironment variables:\n");
     printf("  OPENAI_API_KEY        API key (optional for local servers)\n");
@@ -171,6 +172,7 @@ int main(int argc, char *argv[]) {
     const char *base_url_override = NULL;
     const char *perm_override = NULL;
     const char *session_id = NULL;
+    int use_tui = 1;  // Default to TUI mode
     int max_turns_override = 0;
     const char *prompt = NULL;
 
@@ -178,6 +180,8 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "--repl") == 0) {
+            use_tui = 0;  // Use legacy REPL instead of TUI
         } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
             provider_override = argv[++i];
         } else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
@@ -254,6 +258,11 @@ int main(int argc, char *argv[]) {
         agent_free(g_agent);
         g_agent = NULL;
         return rc == 0 ? 0 : 1;
+    }
+
+    if (use_tui) {
+        execl("./goosecode-tui", "goosecode-tui", NULL);
+        fprintf(stderr, "Failed to launch TUI. Falling back to REPL mode...\n");
     }
 
     agent_run_repl(g_agent);
