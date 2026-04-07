@@ -74,6 +74,20 @@ Agent *agent_current(void) {
     return g_current_agent;
 }
 
+void agent_set_callbacks(Agent *agent, 
+    void (*on_text)(const char *, void *),
+    void (*on_tool_start)(const char *, const char *, const char *, void *),
+    void (*on_tool_output)(const char *, const char *, void *),
+    void (*on_tool_done)(const char *, int, const char *, void *),
+    void *ctx) {
+    if (!agent) return;
+    agent->on_text = on_text;
+    agent->on_tool_start = on_tool_start;
+    agent->on_tool_output = on_tool_output;
+    agent->on_tool_done = on_tool_done;
+    agent->callback_ctx = ctx;
+}
+
 typedef struct {
     ToolRegistry *tools;
     const char *name;
@@ -193,19 +207,25 @@ static void agent_refresh_api_config(Agent *agent) {
     agent->api_cfg.temperature = agent->config.temperature;
 }
 
-static void stream_text_cb(const char *text, size_t len, void *ctx) {
-    (void)len;
-    (void)ctx;
-    printf("%s", text);
-    fflush(stdout);
-}
-
 typedef struct {
+    Agent *agent;
     int count;
     char **ids;
     char **names;
     char **args;
 } ToolCallCollector;
+
+static void stream_text_cb(const char *text, size_t len, void *ctx) {
+    (void)len;
+    ToolCallCollector *col = (ToolCallCollector *)ctx;
+    Agent *agent = col ? col->agent : NULL;
+    if (agent && agent->on_text) {
+        agent->on_text(text, agent->callback_ctx);
+    } else {
+        printf("%s", text);
+        fflush(stdout);
+    }
+}
 
 static void stream_tool_cb(const char *id, const char *name, const char *args, void *ctx) {
     ToolCallCollector *col = (ToolCallCollector *)ctx;
@@ -216,7 +236,13 @@ static void stream_tool_cb(const char *id, const char *name, const char *args, v
     col->ids[idx] = strdup(id);
     col->names[idx] = strdup(name);
     col->args[idx] = args ? strdup(args) : strdup("{}");
-    term_print_tool_call(name, args ? args : "");
+    
+    Agent *agent = col->agent;
+    if (agent && agent->on_tool_start) {
+        agent->on_tool_start(id, name, args ? args : "{}", agent->callback_ctx);
+    } else {
+        term_print_tool_call(name, args ? args : "");
+    }
 }
 
 static void stream_done_cb(void *ctx) {
@@ -348,9 +374,20 @@ static int execute_tools_parallel(Agent *agent, ToolCallCollector *calls,
             tasks[i].is_error = 1;
         }
 
+        // Send tool output callback
+        if (agent->on_tool_output) {
+            agent->on_tool_output(calls->ids[i], prepared_results[i], agent->callback_ctx);
+        }
+
         cJSON_AddBoolToObject(result_obj, "is_error", tasks[i].is_error);
         cJSON_AddStringToObject(result_obj, "content", prepared_results[i]);
         cJSON_AddItemToArray(results, result_obj);
+
+        // Send tool done callback
+        if (agent->on_tool_done) {
+            agent->on_tool_done(calls->ids[i], !tasks[i].is_error, 
+                tasks[i].is_error ? prepared_results[i] : NULL, agent->callback_ctx);
+        }
 
         term_print_tool_result(calls->names[i], tasks[i].is_error);
         session_add_tool_result(agent->session, &agent->config, calls->ids[i], prepared_results[i]);
@@ -424,9 +461,11 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         cJSON *messages = prompt_build_messages_with_tools(
             agent->system_message, agent->session->messages, NULL);
 
-        term_print_block_header("assistant", TERM_GREEN);
+        if (!agent->tui_mode) {
+            term_print_block_header("assistant", TERM_GREEN);
+        }
 
-        ToolCallCollector calls = {0, NULL, NULL, NULL};
+        ToolCallCollector calls = {agent, 0, NULL, NULL, NULL};
         TurnInterruptMonitor interrupt_mon;
         interrupt_monitor_start(&interrupt_mon);
         ApiStreamCallbacks cbs = {stream_text_cb, stream_tool_cb, stream_done_cb, &calls, &interrupt_mon.abort_flag};

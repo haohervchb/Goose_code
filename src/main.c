@@ -4,16 +4,20 @@
 #include "util/strbuf.h"
 #include "util/cJSON.h"
 #include "util/early_input.h"
+#include "util/tui_protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <pwd.h>
 
 static Agent *g_agent = NULL;
+
+static int run_tui_mode(int argc, char *argv[]);
 
 static int file_exists(const char *path) {
     return access(path, F_OK) == 0;
@@ -36,6 +40,7 @@ static void print_usage(const char *prog) {
     printf("  --permission <mode>   Set permission mode (read-only, workspace-write, danger-full-access, prompt, allow)\n");
     printf("  --max-turns <n>       Set max tool-use turns per message\n");
     printf("  --session <id>        Resume a saved session\n");
+    printf("  --repl                Use legacy REPL instead of TUI (default: TUI)\n");
     printf("  --help                Show this help\n");
     printf("\nEnvironment variables:\n");
     printf("  OPENAI_API_KEY        API key (optional for local servers)\n");
@@ -171,6 +176,7 @@ int main(int argc, char *argv[]) {
     const char *base_url_override = NULL;
     const char *perm_override = NULL;
     const char *session_id = NULL;
+    int use_tui = 1;  // Default to TUI mode
     int max_turns_override = 0;
     const char *prompt = NULL;
 
@@ -178,6 +184,11 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "--repl") == 0) {
+            use_tui = 0;  // Use legacy REPL instead of TUI
+        } else if (strcmp(argv[i], "--tui-mode") == 0) {
+            // TUI mode: run as backend for the TUI subprocess
+            return run_tui_mode(argc, argv);
         } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
             provider_override = argv[++i];
         } else if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
@@ -256,9 +267,163 @@ int main(int argc, char *argv[]) {
         return rc == 0 ? 0 : 1;
     }
 
+    if (use_tui) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Child - exec TUI
+            execl("./goosecode-tui", "goosecode-tui", NULL);
+            _exit(1);
+        } else if (pid > 0) {
+            // Parent - wait for TUI
+            int status;
+            waitpid(pid, &status, 0);
+            // If TUI exited with non-zero, fall back to REPL
+            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                fprintf(stderr, "TUI exited with code %d, falling back to REPL...\n", WEXITSTATUS(status));
+            } else {
+                // TUI exited successfully - don't run REPL
+                early_input_capture_stop();
+                return 0;
+            }
+        } else {
+            // Fork failed
+            fprintf(stderr, "Failed to fork TUI. Falling back to REPL mode...\n");
+        }
+    }
+
     agent_run_repl(g_agent);
     agent_free(g_agent);
     g_agent = NULL;
     early_input_capture_stop();
+    return 0;
+}
+
+static int run_tui_mode(int argc, char *argv[]) {
+    const char *model_override = NULL;
+    const char *provider_override = NULL;
+    const char *base_url_override = NULL;
+    
+    // Redirect stdout to stderr temporarily to avoid polluting protocol
+    int saved_stdout = dup(STDOUT_FILENO);
+    freopen("/dev/null", "w", stdout);
+    
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
+            model_override = argv[++i];
+        } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
+            provider_override = argv[++i];
+        } else if (strcmp(argv[i], "--base-url") == 0 && i + 1 < argc) {
+            base_url_override = argv[++i];
+        }
+    }
+    
+    tui_protocol_init();
+    
+    g_agent = agent_init(NULL);
+    g_agent->tui_mode = 1;
+    
+    if (provider_override) {
+        provider_apply_preset(&g_agent->config, provider_override, 1);
+    }
+    if (base_url_override) {
+        free(g_agent->config.base_url);
+        g_agent->config.base_url = strdup(base_url_override);
+    }
+    if (model_override) {
+        free(g_agent->config.model);
+        g_agent->config.model = strdup(model_override);
+    }
+    g_agent->api_cfg.base_url = g_agent->config.base_url;
+    g_agent->api_cfg.model = g_agent->config.model;
+    
+    // Set up TUI callbacks for streaming output
+    agent_set_callbacks(g_agent, 
+        tui_on_text,
+        tui_on_tool_start,
+        tui_on_tool_output,
+        tui_on_tool_done,
+        NULL);
+    
+    // Restore stdout for protocol output
+    dup2(saved_stdout, STDOUT_FILENO);
+    close(saved_stdout);
+    
+    tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir);
+    
+    while (1) {
+        TUIRequest req;
+        if (tui_protocol_read_request(&req) != 0) {
+            break;
+        }
+        
+        switch (req.type) {
+            case TUI_MSG_INIT:
+                if (req.working_dir) {
+                    free(g_agent->config.working_dir);
+                    g_agent->config.working_dir = strdup(req.working_dir);
+                }
+                // Apply provider first (sets defaults), then override with explicit config
+                if (req.provider) {
+                    provider_apply_preset(&g_agent->config, req.provider, 1);
+                }
+                if (req.base_url) {
+                    free(g_agent->config.base_url);
+                    g_agent->config.base_url = strdup(req.base_url);
+                    g_agent->api_cfg.base_url = g_agent->config.base_url;
+                }
+                // Model must be set AFTER provider (so it doesn't get overwritten)
+                if (req.model) {
+                    free(g_agent->config.model);
+                    g_agent->config.model = strdup(req.model);
+                    g_agent->api_cfg.model = g_agent->config.model;
+                } else if (!model_override && req.provider) {
+                    // Use provider's default model if no explicit model was given
+                    g_agent->api_cfg.model = g_agent->config.model;
+                }
+                break;
+                
+            case TUI_MSG_PROMPT:
+                if (req.text) {
+                    agent_run_turn(g_agent, req.text);
+                    tui_protocol_send_response_chunk("", 1);
+                    tui_protocol_send_session_info(
+                        cJSON_GetArraySize(g_agent->session->messages),
+                        g_agent->session->plan_mode
+                    );
+                }
+                break;
+                
+            case TUI_MSG_COMMAND:
+                if (req.cmd_name) {
+                    char *result = command_registry_execute(
+                        &g_agent->commands, 
+                        req.cmd_name, 
+                        req.cmd_args, 
+                        &g_agent->config, 
+                        g_agent->session
+                    );
+                    if (result) {
+                        tui_protocol_send_response_chunk(result, 1);
+                        free(result);
+                    }
+                }
+                break;
+                
+            case TUI_MSG_QUIT:
+                tui_protocol_free_request(&req);
+                goto done;
+                
+            default:
+                break;
+        }
+        
+        tui_protocol_free_request(&req);
+    }
+    
+done:
+    session_save(g_agent->config.session_dir, g_agent->session);
+    agent_free(g_agent);
+    g_agent = NULL;
+    tui_protocol_cleanup();
     return 0;
 }

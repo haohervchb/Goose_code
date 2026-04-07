@@ -16,7 +16,8 @@ UTIL_SRCS = $(SRCDIR)/util/cJSON.c \
             $(SRCDIR)/util/json_util.c \
             $(SRCDIR)/util/terminal.c \
             $(SRCDIR)/util/markdown.c \
-            $(SRCDIR)/util/early_input.c
+            $(SRCDIR)/util/early_input.c \
+            $(SRCDIR)/util/tui_protocol.c
 
 TOOL_SRCS = $(SRCDIR)/tools/tools.c \
             $(SRCDIR)/tools/bash.c \
@@ -87,15 +88,25 @@ ALL_SRCS  = $(UTIL_SRCS) $(TOOL_SRCS) $(CMD_SRCS) $(CORE_SRCS)
 ALL_OBJS  = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(ALL_SRCS))
 ALL_DEPS  = $(ALL_OBJS:.o=.d)
 
-TARGET    = $(BINDIR)/goosecode
+TARGET    = $(BINDIR)/goosecode-backend
+TUI_TARGET = $(BINDIR)/goosecode-tui
+GO        = $(HOME)/go/bin/go
 
-.PHONY: all clean test install uninstall
+.PHONY: all clean test install uninstall tui
 
-all: $(TARGET)
+all: backend tui
 
 $(TARGET): $(ALL_OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+backend: $(TARGET)
+
+tui:
+	cd tui && $(GO) build -o ../$(TUI_TARGET) .
+
+$(TUI_TARGET): tui
+	@ln -sf $(TUI_TARGET) $(BINDIR)/goosecode
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
@@ -105,10 +116,11 @@ test: $(TARGET)
 	@echo "Running tests..."
 	@$(CC) $(CFLAGS) -I$(SRCDIR) -o build/test_runner tests/test_api.c $(UTIL_SRCS) $(SRCDIR)/api.c $(SRCDIR)/config.c $(SRCDIR)/provider.c $(SRCDIR)/tool_result_store.c $(SRCDIR)/system_init.c $(SRCDIR)/session.c $(SRCDIR)/session_memory.c $(SRCDIR)/compact.c $(SRCDIR)/permissions.c $(SRCDIR)/prompt_sections.c $(SRCDIR)/prompt.c $(SRCDIR)/agent.c $(TOOL_SRCS) $(CMD_SRCS) $(LDFLAGS) && ./build/test_runner
 
-install: $(TARGET)
+install: $(TARGET) tui
 	@mkdir -p "$(INSTALL_BINDIR)"
 	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode"
-	@printf 'Installed goosecode to %s/goosecode\n' "$(INSTALL_BINDIR)"
+	@install -m 755 "$(TUI_TARGET)" "$(INSTALL_BINDIR)/goosecode-tui"
+	@printf 'Installed goosecode to %s/goosecode and %s/goosecode-tui\n' "$(INSTALL_BINDIR)" "$(INSTALL_BINDIR)"
 
 uninstall:
 	@rm -f "$(INSTALL_BINDIR)/goosecode"
