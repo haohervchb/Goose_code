@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -38,6 +39,11 @@ type BackendResponse struct {
 	Success    bool   `json:"success,omitempty"`
 	Error      string `json:"error,omitempty"`
 	Message    string `json:"message,omitempty"`
+	// Tool-related fields
+	ToolName   string                 `json:"name,omitempty"`
+	ToolID     string                 `json:"id,omitempty"`
+	ToolOutput string                 `json:"output,omitempty"`
+	ToolArgs   map[string]interface{} `json:"args,omitempty"`
 }
 
 type TUIRequest struct {
@@ -205,15 +211,44 @@ func (b *Backend) WaitForInit(timeout time.Duration) (*BackendResponse, error) {
 
 type responseMsg string
 type backendErrorMsg string
+type toolStartMsg struct {
+	id   string
+	name string
+	args string
+}
+type toolOutputMsg struct {
+	id     string
+	output string
+}
+type toolEndMsg struct {
+	id      string
+	success bool
+	error   string
+}
 
 type model struct {
 	backend   *Backend
 	textInput textinput.Model
+	viewport  viewport.Model
 	output    string
 	planMode  bool
 	connected bool
 	quit      bool
+	fallback  bool // true if falling back to REPL
+	// Tool state
+	currentTool       string
+	currentToolID     string
+	currentToolOutput string
 }
+
+const (
+	toolStyle        = "\033[1;36m" // Bold cyan for tool name
+	toolArgsStyle    = "\033[90m"   // Dim gray for args
+	toolOutputStyle  = "\033[37m"   // White for output
+	toolSuccessStyle = "\033[32m"   // Green for success
+	toolErrorStyle   = "\033[31m"   // Red for error
+	resetStyleTool   = "\033[0m"
+)
 
 func newModel(backend *Backend) model {
 	ti := textinput.New()
@@ -223,12 +258,17 @@ func newModel(backend *Backend) model {
 	ti.Width = 80
 	ti.Focus()
 
+	vp := viewport.New(80, 20)
+	vp.SetContent("")
+
 	return model{
 		backend:   backend,
 		textInput: ti,
+		viewport:  vp,
 		planMode:  false,
 		connected: false,
 		quit:      false,
+		fallback:  false,
 	}
 }
 
@@ -249,6 +289,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.backend.SendQuit()
 			}
 			return m, tea.Quit
+		case "up", "pageup":
+			// Scroll up in viewport
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
+		case "down", "pagedown":
+			// Scroll down in viewport
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		case "tab":
 			m.planMode = !m.planMode
 			m.backend.SendCommand("plan", "")
@@ -273,9 +321,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if cmdName == "quit" || cmdName == "exit" {
-					m.quit = true
+					// Fall back to REPL instead of exiting
+					m.fallback = true
 					m.backend.SendQuit()
+					m.output += "\n\033[33mFalling back to REPL...\033[0m\n"
+					m.viewport.SetContent(m.output)
+					// Spawn REPL in background
+					go func() {
+						replCmd := exec.Command("./goosecode", "--repl")
+						replCmd.Stdout = os.Stdout
+						replCmd.Stdin = os.Stdin
+						replCmd.Stderr = os.Stderr
+						replCmd.Run()
+						os.Exit(0)
+					}()
 					return m, tea.Quit
+				}
+
+				if cmdName == "clear" {
+					// Handle clear locally in TUI
+					m.output = ""
+					return m, textinput.Blink
 				}
 
 				if cmdName == "tab" {
@@ -289,6 +355,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				m.backend.SendCommand(cmdName, args)
+				// Show command feedback
+				m.output += fmt.Sprintf("\n%s[%s]%s %s\n", toolStyle, cmdName, resetStyleTool, args)
 				return m, textinput.Blink
 			}
 
@@ -305,11 +373,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		m.output += string(msg)
+		m.viewport.SetContent(m.output)
 		return m, textinput.Blink
 	case backendErrorMsg:
 		m.output += string(msg) + "\n"
+		m.viewport.SetContent(m.output)
+		return m, textinput.Blink
+	case toolStartMsg:
+		m.currentTool = msg.name
+		m.currentToolID = msg.id
+		m.currentToolOutput = ""
+		m.output += fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
+			toolStyle, msg.name, resetStyleTool,
+			toolArgsStyle, msg.args, resetStyleTool)
+		m.viewport.SetContent(m.output)
+		return m, textinput.Blink
+	case toolOutputMsg:
+		if m.currentToolID == msg.id {
+			// Truncate long output
+			output := msg.output
+			if len(m.currentToolOutput)+len(output) > 10000 {
+				remaining := 10000 - len(m.currentToolOutput)
+				if remaining > 0 {
+					output = output[:remaining] + "... (truncated)"
+				} else {
+					output = ""
+				}
+			}
+			if output != "" {
+				m.currentToolOutput += output
+				m.output += output
+			}
+			m.viewport.SetContent(m.output)
+		}
+		return m, textinput.Blink
+	case toolEndMsg:
+		if m.currentToolID == msg.id {
+			if msg.success {
+				m.output += fmt.Sprintf("%s[✓]%s ", toolSuccessStyle, resetStyleTool)
+			} else {
+				m.output += fmt.Sprintf("%s[✗]%s %s", toolErrorStyle, resetStyleTool, msg.error)
+			}
+			m.output += "\n"
+			m.currentTool = ""
+			m.currentToolID = ""
+			m.currentToolOutput = ""
+			m.viewport.SetContent(m.output)
+		}
 		return m, textinput.Blink
 	case tea.WindowSizeMsg:
+		m.viewport.Width = msg.Width
+		m.viewport.Height = msg.Height - 5 // Leave space for header and input
 		return m, textinput.Blink
 	}
 
@@ -325,17 +439,19 @@ func (m model) View() string {
 	s.WriteString("\033[1;36m   `-'\033[0m\n\n")
 
 	if m.connected {
-		s.WriteString("\033[32mConnected! Session: " + m.backend.sessionID + "\033[0m\n")
+		s.WriteString("\033[32mConnected! Session: " + m.backend.sessionID + "\033[0m")
 	} else {
-		s.WriteString("\033[33mConnecting...\033[0m\n")
+		s.WriteString("\033[33mConnecting...\033[0m")
 	}
 
+	if m.fallback {
+		s.WriteString(" | \033[33mPress Enter to continue in REPL mode\033[0m")
+	}
+
+	s.WriteString("\n\n")
+
+	s.WriteString(m.viewport.View())
 	s.WriteString("\n")
-
-	if m.output != "" {
-		s.WriteString(m.output)
-	}
-
 	s.WriteString(m.textInput.View())
 
 	return s.String()
@@ -399,6 +515,10 @@ func main() {
 
 	respChan := make(chan responseMsg, 100)
 	errChan := make(chan backendErrorMsg, 10)
+	toolStartChan := make(chan toolStartMsg, 10)
+	toolOutputChan := make(chan toolOutputMsg, 100)
+	toolEndChan := make(chan toolEndMsg, 10)
+
 	go func() {
 		for {
 			resp, err := backend.ReadResponse()
@@ -415,11 +535,41 @@ func main() {
 					}
 				} else if resp.Type == "error" {
 					errChan <- backendErrorMsg(errorStyle + "Error: " + resp.Message + resetStyle)
+				} else if resp.Type == "tool_start" {
+					// Format args as string for display
+					argsStr := ""
+					if resp.ToolArgs != nil {
+						for k, v := range resp.ToolArgs {
+							if argsStr != "" {
+								argsStr += ", "
+							}
+							argsStr += fmt.Sprintf("%s=%v", k, v)
+						}
+					}
+					toolStartChan <- toolStartMsg{
+						id:   resp.ToolID,
+						name: resp.ToolName,
+						args: argsStr,
+					}
+				} else if resp.Type == "tool_output" {
+					toolOutputChan <- toolOutputMsg{
+						id:     resp.ToolID,
+						output: resp.ToolOutput,
+					}
+				} else if resp.Type == "tool_end" {
+					toolEndChan <- toolEndMsg{
+						id:      resp.ToolID,
+						success: resp.Success,
+						error:   resp.Error,
+					}
 				}
 			}
 		}
 		close(respChan)
 		close(errChan)
+		close(toolStartChan)
+		close(toolOutputChan)
+		close(toolEndChan)
 	}()
 
 	m := newModel(backend)
@@ -443,6 +593,24 @@ func main() {
 
 	go func() {
 		for msg := range errChan {
+			p.Send(msg)
+		}
+	}()
+
+	go func() {
+		for msg := range toolStartChan {
+			p.Send(msg)
+		}
+	}()
+
+	go func() {
+		for msg := range toolOutputChan {
+			p.Send(msg)
+		}
+	}()
+
+	go func() {
+		for msg := range toolEndChan {
 			p.Send(msg)
 		}
 	}()
