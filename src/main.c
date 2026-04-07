@@ -49,8 +49,14 @@ static void print_usage(const char *prog) {
     printf("  GOOSECODE_PROVIDER    Provider preset\n");
     printf("  GOOSECODE_PERMS       Default permission mode\n");
     printf("  GOOSECODE_MAX_TURNS   Max turns per message\n");
+    printf("\nTUI Features:\n");
+    printf("  - Default mode: TUI (Go-based bubbletea)\n");
+    printf("  - Press Tab to toggle PLAN/BUILD mode\n");
+    printf("  - Cursor color: yellow (PLAN), green (BUILD)\n");
+    printf("  - Slash commands: /help, /exit, /clear, /plan, etc.\n");
     printf("\nExamples:\n");
-    printf("  %s                          Start interactive REPL\n", prog);
+    printf("  %s                          Start TUI (default)\n", prog);
+    printf("  %s --repl                   Start legacy REPL\n", prog);
     printf("  %s \"explain this code\"      Single-turn query\n", prog);
     printf("  %s --model gpt-4o-mini      Use a different model\n", prog);
 }

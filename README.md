@@ -2,7 +2,7 @@
 
 A claude code like thingy, Vibed by GPT-5.4 with C, just for fun.
 
-`goosecode` is a local AI coding agent written in C with an OpenAI-compatible API client, a tool loop, slash commands, sessions, subagents, MCP support, and a terminal-first workflow.
+`goosecode` is a local AI coding agent with a Go-based TUI (terminal user interface) and C backend. It features an OpenAI-compatible API client, tool loop, slash commands, sessions, subagents, MCP support, and a terminal-first workflow.
 
 It works with:
 - local OpenAI-compatible servers such as Ollama, vLLM, llama.cpp, ik-llama, LM Studio, text-generation-webui proxies, or custom gateways
@@ -10,7 +10,11 @@ It works with:
 
 ## What It Can Do
 
-- interactive REPL with multiline input, history, arrows, and slash-command completion
+- **TUI Mode** (default): Interactive terminal UI with bubbletea
+  - Color-coded Plan/Build mode toggle (Tab key)
+  - Scrollable chat history
+  - Visible cursor with mode-specific colors
+- **REPL Mode** (fallback): Legacy interactive REPL with multiline input
 - one-shot prompt mode from the shell
 - file editing and shell execution
 - task tracking and plan mode
@@ -82,18 +86,17 @@ If Homebrew curl is not on your default compiler path, set the include/library f
 ### Build Commands
 
 ```bash
-make
-make test
+make        # Build goosecode (TUI) and goosecode-backend
+make tui    # Build only the TUI
+make clean  # Clean build artifacts
 make install
 make uninstall
-make clean
 ```
 
-Binary output:
-
-```bash
-./goosecode
-```
+Build output:
+- `./goosecode` - TUI launcher (symlink to goosecode-tui)
+- `./goosecode-tui` - TUI binary (Go)
+- `./goosecode-backend` - C backend
 
 User-local install path by default:
 
@@ -115,10 +118,22 @@ make install INSTALL_BINDIR=/usr/local/bin
 
 ## Usage
 
-### Interactive REPL
+### Interactive TUI (default)
 
 ```bash
 ./goosecode
+```
+
+TUI features:
+- Press **Tab** to toggle between PLAN and BUILD mode
+- Cursor color changes: yellow (PLAN), green (BUILD)
+- Separator line color matches mode
+- Type messages or use slash commands (e.g., `/help`, `/exit`)
+
+### Legacy REPL mode
+
+```bash
+./goosecode --repl
 ```
 
 ### One-shot Prompt
