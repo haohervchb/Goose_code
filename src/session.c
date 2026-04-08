@@ -9,6 +9,9 @@
 #include <time.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <ctype.h>
+
+#define SUMMARY_MAX_LEN 60
 
 static char *session_path(const char *dir, const char *id) {
     size_t len = strlen(dir) + strlen(id) + 16;
@@ -17,13 +20,32 @@ static char *session_path(const char *dir, const char *id) {
     return p;
 }
 
+static void generate_random_suffix(char *buf, size_t len) {
+    static const char chars[] = "abcdef0123456789";
+    for (size_t i = 0; i < len - 1; i++) {
+        buf[i] = chars[rand() % (sizeof(chars) - 1)];
+    }
+    buf[len - 1] = '\0';
+}
+
 Session *session_new(void) {
     Session *s = calloc(1, sizeof(*s));
     char ts[64];
     struct timespec ts_now;
+    struct tm *tm_info;
     clock_gettime(CLOCK_REALTIME, &ts_now);
-    snprintf(ts, sizeof(ts), "%ld_%ld", (long)ts_now.tv_sec, (long)ts_now.tv_nsec);
-    s->id = strdup(ts);
+    tm_info = localtime(&ts_now.tv_sec);
+    snprintf(ts, sizeof(ts), "%04d%02d%02d_%02d%02d%02d",
+             tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
+             tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+    
+    char suffix[8];
+    generate_random_suffix(suffix, sizeof(suffix));
+    
+    size_t id_len = strlen(ts) + strlen(suffix) + 2;
+    s->id = malloc(id_len);
+    snprintf(s->id, id_len, "%s_%s", ts, suffix);
+    
     s->messages = cJSON_CreateArray();
     return s;
 }
@@ -49,6 +71,8 @@ Session *session_load(const char *session_dir, const char *id) {
     s->plan_mode = json_get_int(json, "plan_mode", 0);
     const char *plan_content = json_get_string(json, "plan_content");
     if (plan_content) s->plan_content = strdup(plan_content);
+    const char *summary = json_get_string(json, "summary");
+    if (summary) s->summary = strdup(summary);
     cJSON_Delete(json);
     return s;
 }
@@ -66,6 +90,9 @@ int session_save(const char *session_dir, Session *sess) {
     if (sess->plan_content) {
         cJSON_AddStringToObject(json, "plan_content", sess->plan_content);
     }
+    if (sess->summary) {
+        cJSON_AddStringToObject(json, "summary", sess->summary);
+    }
     int rc = json_write_file(path, json);
     cJSON_Delete(json);
     free(path);
@@ -75,6 +102,7 @@ int session_save(const char *session_dir, Session *sess) {
 void session_free(Session *sess) {
     if (!sess) return;
     free(sess->id);
+    free(sess->summary);
     if (sess->messages) cJSON_Delete(sess->messages);
     free(sess->plan_content);
     free(sess);
@@ -83,6 +111,16 @@ void session_free(Session *sess) {
 void session_add_message(Session *sess, cJSON *msg) {
     cJSON_AddItemToArray(sess->messages, cJSON_Duplicate(msg, 1));
     sess->turn_count++;
+    
+    // Auto-generate summary from first user message if not set
+    if (!sess->summary && msg) {
+        cJSON *role = cJSON_GetObjectItem(msg, "role");
+        cJSON *content = cJSON_GetObjectItem(msg, "content");
+        if (role && content && strcmp(role->valuestring, "user") == 0 && content->valuestring) {
+            // Use first user message as summary (truncated)
+            session_set_summary(sess, content->valuestring);
+        }
+    }
 }
 
 void session_add_tool_result(Session *sess, const GooseConfig *cfg, const char *tool_call_id, const char *result) {
@@ -115,6 +153,30 @@ void session_clear_plan(Session *sess) {
 const char *session_get_plan(const Session *sess) {
     if (!sess) return NULL;
     return sess->plan_content;
+}
+
+void session_set_summary(Session *sess, const char *summary) {
+    if (!sess) return;
+    free(sess->summary);
+    sess->summary = NULL;
+    if (summary && summary[0]) {
+        // Truncate long summaries
+        size_t len = strlen(summary);
+        if (len > SUMMARY_MAX_LEN) {
+            char *truncated = malloc(SUMMARY_MAX_LEN + 1);
+            strncpy(truncated, summary, SUMMARY_MAX_LEN - 3);
+            truncated[SUMMARY_MAX_LEN - 3] = '\0';
+            strcat(truncated, "...");
+            sess->summary = truncated;
+        } else {
+            sess->summary = strdup(summary);
+        }
+    }
+}
+
+const char *session_get_summary(const Session *sess) {
+    if (!sess) return NULL;
+    return sess->summary;
 }
 
 int session_needs_compact(Session *sess, int context_window) {
@@ -196,6 +258,39 @@ int session_compact_circuit_open(const Session *sess) {
     return sess->compact_failure_count >= MAX_CONSECUTIVE_COMPACT_FAILURES;
 }
 
+static int parse_session_id_datetime(const char *id, struct tm *tm_out) {
+    if (!id || !tm_out) return -1;
+    
+    // Try new format: YYYYMMDD_HHMMSS_XXXXXX
+    if (strlen(id) >= 15 && id[8] == '_') {
+        int y, m, d, h, min, s;
+        if (sscanf(id, "%4d%2d%2d_%2d%2d%2d", &y, &m, &d, &h, &min, &s) == 6) {
+            tm_out->tm_year = y - 1900;
+            tm_out->tm_mon = m - 1;
+            tm_out->tm_mday = d;
+            tm_out->tm_hour = h;
+            tm_out->tm_min = min;
+            tm_out->tm_sec = s;
+            return 0;
+        }
+    }
+    
+    // Try old format: timestamp_nanoseconds
+    if (strlen(id) > 10) {
+        long ts = strtol(id, NULL, 10);
+        if (ts > 0) {
+            time_t t = ts;
+            struct tm *tm = localtime(&t);
+            if (tm) {
+                *tm_out = *tm;
+                return 0;
+            }
+        }
+    }
+    
+    return -1;
+}
+
 char *session_list(const char *session_dir) {
     DIR *dir = opendir(session_dir);
     if (!dir) return strdup("No sessions found.");
@@ -212,9 +307,15 @@ char *session_list(const char *session_dir) {
 
             Session *s = session_load(session_dir, id);
             if (s) {
-                strbuf_append_fmt(&out, "  %-40s  %d msgs  in=%ld out=%ld\n",
-                                  s->id, cJSON_GetArraySize(s->messages),
-                                  s->total_input_tokens, s->total_output_tokens);
+                char datetime[64] = "unknown";
+                struct tm tm_info;
+                if (parse_session_id_datetime(id, &tm_info) == 0) {
+                    strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M", &tm_info);
+                }
+                
+                const char *summary = s->summary ? s->summary : "(no summary)";
+                strbuf_append_fmt(&out, "  %-16s  %-16s  %-25s  %d msgs\n",
+                                  id, datetime, summary, cJSON_GetArraySize(s->messages));
                 session_free(s);
                 count++;
             }

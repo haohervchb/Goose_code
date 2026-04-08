@@ -9,6 +9,9 @@ static char *cmd_session_exec(const char *args, const GooseConfig *cfg, Session 
 
     if (!args || strlen(args) == 0) {
         strbuf_append_fmt(&out, "Current session: %s\n", sess->id);
+        if (sess->summary) {
+            strbuf_append_fmt(&out, "Summary: %s\n", sess->summary);
+        }
         strbuf_append_fmt(&out, "Messages: %d\n", cJSON_GetArraySize(sess->messages));
         strbuf_append_fmt(&out, "Turns: %d\n", sess->turn_count);
         strbuf_append_fmt(&out, "Input tokens: %ld\n", sess->total_input_tokens);
@@ -28,6 +31,9 @@ static char *cmd_session_exec(const char *args, const GooseConfig *cfg, Session 
         Session *loaded = session_load(cfg->session_dir, args);
         if (loaded) {
             strbuf_append_fmt(&out, "Loaded session: %s\n", loaded->id);
+            if (loaded->summary) {
+                strbuf_append_fmt(&out, "Summary: %s\n", loaded->summary);
+            }
             strbuf_append_fmt(&out, "Messages: %d\n", cJSON_GetArraySize(loaded->messages));
             session_free(loaded);
         } else {

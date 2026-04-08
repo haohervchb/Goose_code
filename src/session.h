@@ -9,6 +9,7 @@
 
 typedef struct {
     char *id;
+    char *summary;
     cJSON *messages;
     long total_input_tokens;
     long total_output_tokens;
@@ -36,5 +37,7 @@ void session_record_compact_failure(Session *sess);
 void session_record_compact_success(Session *sess);
 int session_compact_circuit_open(const Session *sess);
 char *session_list(const char *session_dir);
+void session_set_summary(Session *sess, const char *summary);
+const char *session_get_summary(const Session *sess);
 
 #endif
