@@ -126,44 +126,19 @@ void session_add_message(Session *sess, cJSON *msg) {
 void session_add_tool_result(Session *sess, const GooseConfig *cfg, const char *tool_call_id, const char *result) {
     char *prepared = tool_result_store_prepare(cfg, sess, tool_call_id, result);
     
-    cJSON *last_msg = NULL;
-    int msg_count = cJSON_GetArraySize(sess->messages);
-    for (int i = msg_count - 1; i >= 0; i--) {
-        cJSON *item = cJSON_GetArrayItem(sess->messages, i);
-        if (item) {
-            cJSON *role = cJSON_GetObjectItem(item, "role");
-            if (role && strcmp(role->valuestring, "user") == 0) {
-                last_msg = item;
-                break;
-            }
-        }
-    }
+    cJSON *tool_result = cJSON_CreateObject();
+    cJSON_AddStringToObject(tool_result, "type", "tool_result");
+    cJSON_AddStringToObject(tool_result, "tool_call_id", tool_call_id);
+    cJSON_AddStringToObject(tool_result, "content", prepared);
     
-    if (last_msg) {
-        cJSON *content = cJSON_GetObjectItem(last_msg, "content");
-        
-        cJSON *tool_result = cJSON_CreateObject();
-        cJSON_AddStringToObject(tool_result, "type", "tool_result");
-        cJSON_AddStringToObject(tool_result, "tool_call_id", tool_call_id);
-        cJSON_AddStringToObject(tool_result, "content", prepared);
-        
-        if (!content) {
-            cJSON_AddItemToObject(last_msg, "content", tool_result);
-        } else if (cJSON_IsString(content)) {
-            cJSON *new_content = cJSON_CreateArray();
-            cJSON_AddItemToArray(new_content, cJSON_CreateString(content->valuestring));
-            cJSON_AddItemToArray(new_content, tool_result);
-            cJSON_ReplaceItemInObject(last_msg, "content", new_content);
-        } else if (cJSON_IsArray(content)) {
-            cJSON_AddItemToArray(content, tool_result);
-        } else {
-            cJSON_AddItemToObject(last_msg, "content", tool_result);
-        }
-    } else {
-        cJSON *msg = json_build_tool_result(tool_call_id, prepared);
-        cJSON_AddItemToArray(sess->messages, msg);
-    }
+    cJSON *content = cJSON_CreateArray();
+    cJSON_AddItemToArray(content, tool_result);
     
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "role", "user");
+    cJSON_AddItemToObject(msg, "content", content);
+    
+    cJSON_AddItemToArray(sess->messages, msg);
     free(prepared);
 }
 
