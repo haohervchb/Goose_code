@@ -39,5 +39,6 @@ int session_compact_circuit_open(const Session *sess);
 char *session_list(const char *session_dir);
 void session_set_summary(Session *sess, const char *summary);
 const char *session_get_summary(const Session *sess);
+cJSON *session_normalize_for_api(const cJSON *messages);
 
 #endif

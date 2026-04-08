@@ -1,5 +1,6 @@
 #include "prompt.h"
 #include "prompt_sections.h"
+#include "session.h"
 #include "util/strbuf.h"
 #include "util/json_util.h"
 #include <stdio.h>
@@ -376,10 +377,12 @@ cJSON *prompt_build_messages_with_tools(const cJSON *system_msg, const cJSON *hi
         cJSON_AddItemToArray(messages, cJSON_Duplicate(system_msg, 1));
     }
     if (history) {
+        cJSON *normalized = session_normalize_for_api(history);
         cJSON *item;
-        cJSON_ArrayForEach(item, history) {
+        cJSON_ArrayForEach(item, normalized) {
             cJSON_AddItemToArray(messages, cJSON_Duplicate(item, 1));
         }
+        cJSON_Delete(normalized);
     }
     if (user_msg) cJSON_AddItemToArray(messages, cJSON_Duplicate(user_msg, 1));
     return messages;

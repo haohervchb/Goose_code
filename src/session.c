@@ -125,9 +125,46 @@ void session_add_message(Session *sess, cJSON *msg) {
 
 void session_add_tool_result(Session *sess, const GooseConfig *cfg, const char *tool_call_id, const char *result) {
     char *prepared = tool_result_store_prepare(cfg, sess, tool_call_id, result);
-    cJSON *msg = json_build_tool_result(tool_call_id, prepared);
+    
+    cJSON *last_msg = NULL;
+    int msg_count = cJSON_GetArraySize(sess->messages);
+    for (int i = msg_count - 1; i >= 0; i--) {
+        cJSON *item = cJSON_GetArrayItem(sess->messages, i);
+        if (item) {
+            cJSON *role = cJSON_GetObjectItem(item, "role");
+            if (role && strcmp(role->valuestring, "user") == 0) {
+                last_msg = item;
+                break;
+            }
+        }
+    }
+    
+    if (last_msg) {
+        cJSON *content = cJSON_GetObjectItem(last_msg, "content");
+        
+        cJSON *tool_result = cJSON_CreateObject();
+        cJSON_AddStringToObject(tool_result, "type", "tool_result");
+        cJSON_AddStringToObject(tool_result, "tool_call_id", tool_call_id);
+        cJSON_AddStringToObject(tool_result, "content", prepared);
+        
+        if (!content) {
+            cJSON_AddItemToObject(last_msg, "content", tool_result);
+        } else if (cJSON_IsString(content)) {
+            cJSON *new_content = cJSON_CreateArray();
+            cJSON_AddItemToArray(new_content, cJSON_CreateString(content->valuestring));
+            cJSON_AddItemToArray(new_content, tool_result);
+            cJSON_ReplaceItemInObject(last_msg, "content", new_content);
+        } else if (cJSON_IsArray(content)) {
+            cJSON_AddItemToArray(content, tool_result);
+        } else {
+            cJSON_AddItemToObject(last_msg, "content", tool_result);
+        }
+    } else {
+        cJSON *msg = json_build_tool_result(tool_call_id, prepared);
+        cJSON_AddItemToArray(sess->messages, msg);
+    }
+    
     free(prepared);
-    cJSON_AddItemToArray(sess->messages, msg);
 }
 
 void session_set_plan_mode(Session *sess, int enabled) {
@@ -179,6 +216,142 @@ const char *session_get_summary(const Session *sess) {
     return sess->summary;
 }
 
+cJSON *session_normalize_for_api(const cJSON *messages) {
+    if (!messages) return cJSON_CreateArray();
+    
+    cJSON *result = cJSON_CreateArray();
+    int result_size = 0;
+    
+    cJSON *item;
+    cJSON_ArrayForEach(item, messages) {
+        cJSON *role = cJSON_GetObjectItem(item, "role");
+        if (!role) continue;
+        
+        if (strcmp(role->valuestring, "user") == 0) {
+            cJSON *content = cJSON_GetObjectItem(item, "content");
+            
+            if (cJSON_IsString(content)) {
+                cJSON_AddItemToArray(result, cJSON_Duplicate(item, 1));
+                result_size++;
+            } else if (cJSON_IsArray(content)) {
+                cJSON *user_text = NULL;
+                cJSON *tool_results = cJSON_CreateArray();
+                
+                cJSON *block;
+                cJSON_ArrayForEach(block, content) {
+                    cJSON *type = cJSON_GetObjectItem(block, "type");
+                    if (type && strcmp(type->valuestring, "tool_result") == 0) {
+                        cJSON_AddItemToArray(tool_results, cJSON_Duplicate(block, 1));
+                    } else if (!user_text) {
+                        user_text = cJSON_Duplicate(block, 1);
+                    }
+                }
+                
+                if (user_text) {
+                    cJSON *umsg = cJSON_CreateObject();
+                    cJSON_AddStringToObject(umsg, "role", "user");
+                    
+                    cJSON *text_val = cJSON_GetObjectItem(user_text, "text");
+                    if (text_val) {
+                        cJSON_AddStringToObject(umsg, "content", text_val->valuestring);
+                    } else {
+                        cJSON_AddItemToObject(umsg, "content", user_text);
+                    }
+                    cJSON_AddItemToArray(result, umsg);
+                    result_size++;
+                }
+                
+                cJSON_Delete(tool_results);
+            } else {
+                cJSON_AddItemToArray(result, cJSON_Duplicate(item, 1));
+                result_size++;
+            }
+        } else if (strcmp(role->valuestring, "assistant") == 0) {
+            cJSON_AddItemToArray(result, cJSON_Duplicate(item, 1));
+            result_size++;
+            
+            cJSON *tool_calls = cJSON_GetObjectItem(item, "tool_calls");
+            if (tool_calls && cJSON_IsArray(tool_calls)) {
+                cJSON *tc;
+                cJSON_ArrayForEach(tc, tool_calls) {
+                    cJSON *tc_id = cJSON_GetObjectItem(tc, "id");
+                    if (!tc_id) continue;
+                    
+                    int found_result = 0;
+                    int search_from = result_size;
+                    int total = cJSON_GetArraySize(messages);
+                    
+                    for (int i = search_from; i < total && !found_result; i++) {
+                        cJSON *next_msg = cJSON_GetArrayItem(messages, i);
+                        cJSON *next_role = cJSON_GetObjectItem(next_msg, "role");
+                        if (!next_role) continue;
+                        
+                        if (strcmp(next_role->valuestring, "user") == 0) {
+                            cJSON *next_content = cJSON_GetObjectItem(next_msg, "content");
+                            if (cJSON_IsArray(next_content)) {
+                                cJSON *block;
+                                cJSON_ArrayForEach(block, next_content) {
+                                    cJSON *type = cJSON_GetObjectItem(block, "type");
+                                    if (type && strcmp(type->valuestring, "tool_result") == 0) {
+                                        cJSON *result_id = cJSON_GetObjectItem(block, "tool_call_id");
+                                        if (result_id && strcmp(result_id->valuestring, tc_id->valuestring) == 0) {
+                                            cJSON *tmsg = cJSON_CreateObject();
+                                            cJSON_AddStringToObject(tmsg, "role", "tool");
+                                            cJSON_AddStringToObject(tmsg, "tool_call_id", tc_id->valuestring);
+                                            
+                                            cJSON *res_content = cJSON_GetObjectItem(block, "content");
+                                            if (cJSON_IsString(res_content)) {
+                                                cJSON_AddStringToObject(tmsg, "content", res_content->valuestring);
+                                            } else if (cJSON_IsArray(res_content)) {
+                                                cJSON *txt = NULL;
+                                                cJSON *b;
+                                                cJSON_ArrayForEach(b, res_content) {
+                                                    cJSON *bt = cJSON_GetObjectItem(b, "type");
+                                                    if (bt && strcmp(bt->valuestring, "text") == 0) {
+                                                        txt = cJSON_GetObjectItem(b, "text");
+                                                        break;
+                                                    }
+                                                }
+                                                cJSON_AddStringToObject(tmsg, "content", txt ? txt->valuestring : "");
+                                            } else {
+                                                cJSON_AddStringToObject(tmsg, "content", "");
+                                            }
+                                            
+                                            cJSON_AddItemToArray(result, tmsg);
+                                            result_size++;
+                                            found_result = 1;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (strcmp(next_role->valuestring, "tool") == 0) {
+                            cJSON *result_id = cJSON_GetObjectItem(next_msg, "tool_call_id");
+                            if (result_id && strcmp(result_id->valuestring, tc_id->valuestring) == 0) {
+                                cJSON_AddItemToArray(result, cJSON_Duplicate(next_msg, 1));
+                                result_size++;
+                                found_result = 1;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (strcmp(role->valuestring, "tool") == 0) {
+            cJSON *tool_call_id = cJSON_GetObjectItem(item, "tool_call_id");
+            cJSON *tool_content = cJSON_GetObjectItem(item, "content");
+            
+            if (tool_call_id && tool_content) {
+                cJSON_AddItemToArray(result, cJSON_Duplicate(item, 1));
+                result_size++;
+            }
+        } else {
+            cJSON_AddItemToArray(result, cJSON_Duplicate(item, 1));
+            result_size++;
+        }
+    }
+    return result;
+}
+
 int session_needs_compact(Session *sess, int context_window) {
     if (!sess || !sess->messages) return 0;
     int msg_count = cJSON_GetArraySize(sess->messages);
@@ -219,19 +392,10 @@ void session_apply_compact_summary(Session *sess, int keep_recent, const char *s
     int total = cJSON_GetArraySize(sess->messages);
     if (total <= keep_recent + 1) return;
 
-    int compact_to = total - keep_recent;
     char *summary_msg = compact_build_user_summary_message(summary ? summary : "[Conversation context compacted]", keep_recent > 0);
     cJSON *compact_msg = json_build_message("user", summary_msg);
     free(summary_msg);
     cJSON_ReplaceItemInArray(sess->messages, 0, compact_msg);
-
-    for (int i = compact_to; i < total; i++) {
-        cJSON *item = cJSON_GetArrayItem(sess->messages, i);
-        if (item) {
-            cJSON_DetachItemFromArray(sess->messages, i);
-            cJSON_AddItemToArray(sess->messages, item);
-        }
-    }
 
     while (cJSON_GetArraySize(sess->messages) > keep_recent + 1) {
         cJSON_DeleteItemFromArray(sess->messages, 1);
