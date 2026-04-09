@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -50,6 +51,25 @@ func separatorString(width int) string {
 	}
 
 	return strings.Repeat("─", width)
+}
+
+func formatToolArgs(args map[string]interface{}) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", key, args[key]))
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 type Backend struct {
@@ -672,20 +692,10 @@ func main() {
 				} else if resp.Type == "error" {
 					errChan <- backendErrorMsg(errorStyle + "Error: " + resp.Message + resetStyle)
 				} else if resp.Type == "tool_start" {
-					// Format args as string for display
-					argsStr := ""
-					if resp.ToolArgs != nil {
-						for k, v := range resp.ToolArgs {
-							if argsStr != "" {
-								argsStr += ", "
-							}
-							argsStr += fmt.Sprintf("%s=%v", k, v)
-						}
-					}
 					toolStartChan <- toolStartMsg{
 						id:   resp.ToolID,
 						name: resp.ToolName,
-						args: argsStr,
+						args: formatToolArgs(resp.ToolArgs),
 					}
 				} else if resp.Type == "tool_output" {
 					toolOutputChan <- toolOutputMsg{

@@ -37,6 +37,19 @@ func TestSeparatorStringMatchesWidth(t *testing.T) {
 	}
 }
 
+func TestFormatToolArgsSortsKeys(t *testing.T) {
+	got := formatToolArgs(map[string]interface{}{
+		"working_dir": "/tmp",
+		"command":     "ls",
+		"timeout":     120000,
+	})
+
+	want := "command=ls, timeout=120000, working_dir=/tmp"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
 func TestWrapTextLimitsVisibleLineWidth(t *testing.T) {
 	wrapped := wrapText("\033[32m"+strings.Repeat("a", 24)+"\033[0m", 10)
 
