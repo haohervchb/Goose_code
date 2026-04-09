@@ -1,3 +1,17 @@
 build/
 goosecode
 *.o
+
+# Local binaries
+goosecode-tui
+goosecode-backend
+tui/goosecode-tui
+tui/goosecode-backend
+tui/test_build
+tests/test_session
+
+# Local scratch / temp files
+sum_1_to_n.py
+
+# If this is just a local test file
+tui/test_textarea.go
