@@ -104,6 +104,13 @@ func TestFormatToolStartLineShowsArgsAsIndentedBlock(t *testing.T) {
 	}
 }
 
+func TestRenderToolStartEntryKeepsGutterOnWrappedArgs(t *testing.T) {
+	got := ansi.Strip(renderToolStartEntryAtWidth("bash", strings.Repeat("x", 20), 8))
+	if strings.Count(got, "│ ") < 2 {
+		t.Fatalf("expected wrapped tool args to keep gutter, got %q", got)
+	}
+}
+
 func TestFormatToolEndLineIncludesDoneState(t *testing.T) {
 	if got := ansi.Strip(formatToolEndLine(true, "", false)); got != "└ [✓] done\n" {
 		t.Fatalf("expected successful tool end line, got %q", got)

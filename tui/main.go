@@ -121,6 +121,10 @@ func formatToolOutputChunk(chunk string, lineOpen bool) (string, bool) {
 }
 
 func formatToolStartLine(name, args string) string {
+	return renderToolStartEntryAtWidth(name, args, 80)
+}
+
+func renderToolStartEntryAtWidth(name, args string, width int) string {
 	var line strings.Builder
 	line.WriteByte('\n')
 	line.WriteString(toolStyle)
@@ -134,11 +138,7 @@ func formatToolStartLine(name, args string) string {
 		return line.String()
 	}
 
-	line.WriteString(toolArgsStyle)
-	line.WriteString("│ ")
-	line.WriteString(args)
-	line.WriteString(resetStyleTool)
-	line.WriteByte('\n')
+	line.WriteString(renderIndentedBlockAtWidth(args, width))
 	return line.String()
 }
 
@@ -681,7 +681,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptError:
 		return renderErrorEntryAtWidth(entry.text, m.renderWidth())
 	case transcriptToolStart:
-		return formatToolStartLine(entry.text, entry.meta)
+		return renderToolStartEntryAtWidth(entry.text, entry.meta, m.renderWidth())
 	case transcriptToolOutput:
 		return renderToolOutputEntryAtWidth(entry.text, m.showToolOutput, m.renderWidth())
 	case transcriptToolEnd:
