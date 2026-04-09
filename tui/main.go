@@ -322,6 +322,49 @@ func renderSystemEntry(text string) string {
 	return renderLabeledBlock("info>", successStyle, trimmed)
 }
 
+func toolOutputLineCount(text string) int {
+	trimmed := strings.TrimRight(text, "\n")
+	if trimmed == "" {
+		return 0
+	}
+
+	return strings.Count(trimmed, "\n") + 1
+}
+
+func shouldCompactToolOutput(text string) bool {
+	return toolOutputLineCount(text) > 6 || len(text) > 500
+}
+
+func renderToolOutputEntry(text string, expanded bool) string {
+	if text == "" {
+		return ""
+	}
+	if expanded || !shouldCompactToolOutput(text) {
+		rendered, _ := formatToolOutputChunk(text, false)
+		return rendered
+	}
+
+	trimmed := strings.TrimRight(text, "\n")
+	lines := strings.Split(trimmed, "\n")
+	previewCount := 3
+	if len(lines) < previewCount {
+		previewCount = len(lines)
+	}
+
+	previewText := strings.Join(lines[:previewCount], "\n")
+	if strings.HasSuffix(text, "\n") || previewCount < len(lines) {
+		previewText += "\n"
+	}
+	preview, _ := formatToolOutputChunk(previewText, false)
+
+	hidden := len(lines) - previewCount
+	if hidden < 0 {
+		hidden = 0
+	}
+
+	return preview + toolArgsStyle + "⋮ " + resetStyleTool + fmt.Sprintf("%d more line(s) hidden, Ctrl+O expands\n", hidden)
+}
+
 func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
@@ -594,6 +637,7 @@ type model struct {
 	toolOutputLineOpen      bool
 	isRunning               bool // true when a tool is executing
 	hasUnseenOutput         bool
+	showToolOutput          bool
 	awaitingAssistantPrefix bool
 	viewportWidth           int // current viewport width for text wrapping
 	windowHeight            int
@@ -640,8 +684,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptToolStart:
 		return formatToolStartLine(entry.text, entry.meta)
 	case transcriptToolOutput:
-		rendered, _ := formatToolOutputChunk(entry.text, false)
-		return rendered
+		return renderToolOutputEntry(entry.text, m.showToolOutput)
 	case transcriptToolEnd:
 		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
 	default:
@@ -683,6 +726,9 @@ func (m model) sessionStatus() string {
 	if m.viewport.TotalLineCount() > m.viewport.Height && !m.viewport.AtBottom() {
 		parts = append(parts, fmt.Sprintf("scroll %d%%", int(m.viewport.ScrollPercent()*100)))
 	}
+	if !m.showToolOutput {
+		parts = append(parts, "tools compact")
+	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
 }
@@ -708,6 +754,9 @@ func (m model) promptStatus() string {
 	}
 	if width >= 92 {
 		parts = append(parts, "\033[90m/clear resets transcript\033[0m")
+	}
+	if width >= 112 {
+		parts = append(parts, "\033[90mCtrl+O toggles tool output\033[0m")
 	}
 
 	if m.activeProvider != "" || m.activeModel != "" {
@@ -823,6 +872,7 @@ func newModel(backend *Backend) model {
 		fallback:               false,
 		currentToolOutputEntry: -1,
 		currentAssistantEntry:  -1,
+		showToolOutput:         false,
 		viewportWidth:          80,
 		windowHeight:           29,
 	}
@@ -866,6 +916,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end":
 			m.viewport.GotoBottom()
 			m.hasUnseenOutput = false
+			return m, nil
+		case "ctrl+o":
+			follow := m.viewport.AtBottom()
+			m.showToolOutput = !m.showToolOutput
+			m.syncViewport(follow)
 			return m, nil
 		case "tab":
 			m.planMode = !m.planMode

@@ -66,6 +66,30 @@ func TestFormatToolOutputChunkPrefixesNewLinesAndContinuesOpenLine(t *testing.T)
 	}
 }
 
+func TestRenderToolOutputEntryCompactsLongOutput(t *testing.T) {
+	longOutput := strings.Join([]string{"1", "2", "3", "4", "5", "6", "7"}, "\n") + "\n"
+	got := ansi.Strip(renderToolOutputEntry(longOutput, false))
+
+	if !strings.Contains(got, "│ 1\n│ 2\n│ 3\n") {
+		t.Fatalf("expected compact tool preview, got %q", got)
+	}
+	if !strings.Contains(got, "4 more line(s) hidden, Ctrl+O expands") {
+		t.Fatalf("expected compact tool summary, got %q", got)
+	}
+}
+
+func TestRenderToolOutputEntryExpandsLongOutput(t *testing.T) {
+	longOutput := strings.Join([]string{"1", "2", "3", "4", "5", "6", "7"}, "\n") + "\n"
+	got := ansi.Strip(renderToolOutputEntry(longOutput, true))
+
+	if strings.Contains(got, "hidden, Ctrl+O expands") {
+		t.Fatalf("expected expanded tool output without compact summary, got %q", got)
+	}
+	if !strings.Contains(got, "│ 7\n") {
+		t.Fatalf("expected expanded tool output to include all lines, got %q", got)
+	}
+}
+
 func TestFormatToolStartLineOmitsBlankArgs(t *testing.T) {
 	got := ansi.Strip(formatToolStartLine("bash", ""))
 	if got != "\ntool> bash\n" {
@@ -302,7 +326,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "transcript"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "Ctrl+O to", "ggles tool output", "transcript"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}
@@ -590,6 +614,7 @@ func TestBannerShowsScrollPercentWhenReadingOlderOutput(t *testing.T) {
 
 func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
 	m := newModel(nil)
+	m.showToolOutput = true
 	m.currentToolID = "call_1"
 
 	updated, _ := m.Update(toolOutputMsg{id: "call_1", output: "line one\nline two\n"})
@@ -600,6 +625,31 @@ func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected tool output transcript to contain %q, got %q", needle, view)
 		}
+	}
+}
+
+func TestLongToolOutputStartsCompactAndCtrlOTogglesExpansion(t *testing.T) {
+	m := newModel(nil)
+	m.currentToolID = "call_1"
+	longOutput := strings.Join([]string{"1", "2", "3", "4", "5", "6", "7"}, "\n") + "\n"
+
+	updated, _ := m.Update(toolOutputMsg{id: "call_1", output: longOutput})
+	compact := updated.(model)
+	compactTranscript := ansi.Strip(compact.output)
+
+	if !strings.Contains(compactTranscript, "4 more line(s) hidden, Ctrl+O expands") {
+		t.Fatalf("expected compact tool output summary by default, got %q", compactTranscript)
+	}
+
+	updated, _ = compact.Update(tea.KeyMsg{Type: tea.KeyCtrlO})
+	expanded := updated.(model)
+	expandedTranscript := ansi.Strip(expanded.output)
+
+	if strings.Contains(expandedTranscript, "hidden, Ctrl+O expands") {
+		t.Fatalf("expected expanded tool output after Ctrl+O, got %q", expandedTranscript)
+	}
+	if !strings.Contains(expandedTranscript, "│ 7") {
+		t.Fatalf("expected expanded tool output to show later lines, got %q", expandedTranscript)
 	}
 }
 
