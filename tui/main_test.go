@@ -85,6 +85,12 @@ func TestFormatUserPromptAddsYouPrefix(t *testing.T) {
 	}
 }
 
+func TestFormatCommandFeedbackFormatsSlashCommand(t *testing.T) {
+	if got := ansi.Strip(formatCommandFeedback("model", "gpt-5")); got != "\ncmd> /model gpt-5\n" {
+		t.Fatalf("expected formatted command feedback, got %q", got)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -268,6 +274,19 @@ func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
 	}
 	if strings.Contains(view, "[Sent] hello world") {
 		t.Fatalf("expected submit flow to avoid duplicate sent line, got %q", view)
+	}
+}
+
+func TestSlashCommandUsesCommandFeedbackPrefix(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("/model gpt-5")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	commanded := updated.(model)
+	transcript := ansi.Strip(commanded.output)
+
+	if !strings.Contains(transcript, "cmd> /model gpt-5") {
+		t.Fatalf("expected slash command feedback in transcript, got %q", transcript)
 	}
 }
 

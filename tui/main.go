@@ -161,6 +161,15 @@ func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
 
+func formatCommandFeedback(name, args string) string {
+	command := "/" + name
+	if strings.TrimSpace(args) != "" {
+		command += " " + args
+	}
+
+	return "\n" + toolArgsStyle + "cmd>" + resetStyle + " " + command + "\n"
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -645,7 +654,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				m.sendCommand(cmdName, args)
 				// Show command feedback
-				m.output += fmt.Sprintf("\n%s[%s]%s %s\n", toolStyle, cmdName, resetStyleTool, args)
+				m.output += formatCommandFeedback(cmdName, args)
+				m.syncViewport(true)
 				return m, textarea.Blink
 			}
 
