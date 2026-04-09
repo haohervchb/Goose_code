@@ -157,6 +157,53 @@ func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
 	return chunk[:idx] + prefix + chunk[idx:], false
 }
 
+func renderAssistantEntry(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	var rendered strings.Builder
+	lines := strings.SplitAfter(text, "\n")
+	printedLabel := false
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		endsLine := strings.HasSuffix(line, "\n")
+		content := strings.TrimSuffix(line, "\n")
+
+		if !printedLabel {
+			if content == "" && endsLine {
+				rendered.WriteByte('\n')
+				continue
+			}
+			rendered.WriteString(headerStyle)
+			rendered.WriteString("goose>")
+			rendered.WriteString(resetStyle)
+			rendered.WriteByte(' ')
+			rendered.WriteString(content)
+			printedLabel = true
+		} else {
+			rendered.WriteString(toolArgsStyle)
+			rendered.WriteString("│ ")
+			rendered.WriteString(resetStyle)
+			rendered.WriteString(content)
+		}
+
+		if endsLine {
+			rendered.WriteByte('\n')
+		}
+	}
+
+	if !printedLabel {
+		return text
+	}
+
+	return rendered.String()
+}
+
 func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
@@ -466,8 +513,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptUser:
 		return formatUserPrompt(entry.text)
 	case transcriptAssistant:
-		rendered, _ := formatAssistantChunk(entry.text, true)
-		return rendered
+		return renderAssistantEntry(entry.text)
 	case transcriptCommand:
 		return formatCommandFeedback(entry.text, entry.meta)
 	case transcriptError:

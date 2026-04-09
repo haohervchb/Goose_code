@@ -373,6 +373,20 @@ func TestAssistantPrefixRearmsForNextReply(t *testing.T) {
 	}
 }
 
+func TestAssistantRepliesRenderAsMultiLineBlocks(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("hello")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.(model).Update(responseMsg("line one\nline two\n"))
+	replied := updated.(model)
+	transcript := ansi.Strip(replied.output)
+
+	if !strings.Contains(transcript, "goose> line one\n│ line two") {
+		t.Fatalf("expected multi-line assistant block rendering, got %q", transcript)
+	}
+}
+
 func TestTranscriptStoresSeparateTypedEntries(t *testing.T) {
 	m := newModel(nil)
 	m.textInput.SetValue("hello")
