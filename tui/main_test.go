@@ -182,6 +182,15 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 	}
 }
 
+func TestPromptViewHidesLineNumbers(t *testing.T) {
+	m := newModel(nil)
+	view := ansi.Strip(m.textInput.View())
+
+	if strings.Contains(view, ">   1 ") {
+		t.Fatalf("expected textarea prompt to hide editor-style line numbers, got %q", view)
+	}
+}
+
 func TestClearCommandResetsViewportContent(t *testing.T) {
 	m := newModel(nil)
 	m.output = "existing output"

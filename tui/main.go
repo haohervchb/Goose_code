@@ -497,6 +497,7 @@ func newModel(backend *Backend) model {
 	ti := textarea.New()
 	ti.Placeholder = "Type your message or /command..."
 	ti.Prompt = "> "
+	ti.ShowLineNumbers = false
 	ti.CharLimit = 1000
 	ti.SetWidth(80)
 	ti.SetHeight(3)
