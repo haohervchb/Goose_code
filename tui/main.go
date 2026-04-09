@@ -544,9 +544,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.output += "\n> " + text + "\n"
 			m.sendPrompt(text)
-			return m, tea.Batch(textarea.Blink, func() tea.Msg {
-				return responseMsg("[Sent] " + text + "\n")
-			})
+			m.syncViewport(true)
+			return m, textarea.Blink
 		default:
 			// Let textarea handle all other keys (typing)
 			m.textInput, cmd = m.textInput.Update(msg)

@@ -173,6 +173,22 @@ func TestClearCommandResetsViewportContent(t *testing.T) {
 	}
 }
 
+func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("hello world")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	submitted := updated.(model)
+	view := ansi.Strip(submitted.viewport.View())
+
+	if !strings.Contains(view, "> hello world") {
+		t.Fatalf("expected submitted prompt to appear in transcript, got %q", view)
+	}
+	if strings.Contains(view, "[Sent] hello world") {
+		t.Fatalf("expected submit flow to avoid duplicate sent line, got %q", view)
+	}
+}
+
 func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
