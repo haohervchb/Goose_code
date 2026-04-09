@@ -588,11 +588,19 @@ func (m model) promptStatus() string {
 		modeColor = "\033[33m"
 	}
 
-	parts := []string{
-		modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle + "  " + "\033[90mTab toggles mode\033[0m",
-		"\033[90mPgUp/PgDn scroll\033[0m",
-		"\033[90mHome/End jump\033[0m",
-		"\033[90m/clear resets transcript\033[0m",
+	parts := []string{modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle}
+	width := m.renderWidth()
+	if width >= 45 {
+		parts = append(parts, "\033[90mTab toggles mode\033[0m")
+	}
+	if width >= 60 {
+		parts = append(parts, "\033[90mPgUp/PgDn scroll\033[0m")
+	}
+	if width >= 74 {
+		parts = append(parts, "\033[90mHome/End jump\033[0m")
+	}
+	if width >= 92 {
+		parts = append(parts, "\033[90m/clear resets transcript\033[0m")
 	}
 
 	if m.activeProvider != "" || m.activeModel != "" {

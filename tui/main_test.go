@@ -126,8 +126,8 @@ func TestWindowResizeAccountsForPromptStatusHeight(t *testing.T) {
 	updated, _ = wide.Update(tea.WindowSizeMsg{Width: 40, Height: 30})
 	narrow := updated.(model)
 
-	if narrow.viewport.Height >= wide.viewport.Height {
-		t.Fatalf("expected viewport height to shrink when prompt status wraps, got %d then %d", wide.viewport.Height, narrow.viewport.Height)
+	if narrow.viewport.Height < wide.viewport.Height {
+		t.Fatalf("expected compact footer to preserve viewport height on narrow terminals, got %d then %d", wide.viewport.Height, narrow.viewport.Height)
 	}
 }
 
@@ -262,12 +262,32 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 	m := newModel(nil)
 	m.activeProvider = "ollama"
 	m.activeModel = "llama3"
+	m.viewportWidth = 120
+	m.relayout()
 
 	view := ansi.Strip(m.View())
 
 	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "transcript"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
+		}
+	}
+}
+
+func TestPromptStatusCompactsOnNarrowTerminals(t *testing.T) {
+	m := newModel(nil)
+	m.activeProvider = "ollama"
+	m.activeModel = "llama3"
+	m.viewportWidth = 40
+	m.relayout()
+
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "mode BUILD") {
+		t.Fatalf("expected compact prompt status to keep mode, got %q", view)
+	}
+	for _, hidden := range []string{"PgUp/PgDn scroll", "Home/End jump", "/clear resets transcript"} {
+		if strings.Contains(view, hidden) {
+			t.Fatalf("expected compact prompt status to hide %q, got %q", hidden, view)
 		}
 	}
 }
