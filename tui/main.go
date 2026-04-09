@@ -675,6 +675,17 @@ func (m model) sendCommand(name, args string) {
 	_ = m.backend.SendCommand(name, args)
 }
 
+func (m *model) applyComposerState() {
+	if m.assistantResponding || m.isRunning {
+		m.textInput.Prompt = "… "
+		m.textInput.Placeholder = "Goose is working; you can keep typing your next prompt..."
+		return
+	}
+
+	m.textInput.Prompt = "> "
+	m.textInput.Placeholder = "Type your message or /command..."
+}
+
 func (m *model) appendTranscriptEntry(kind transcriptKind, text, meta string, success bool) int {
 	m.entries = append(m.entries, transcriptEntry{kind: kind, text: text, meta: meta, success: success})
 	return len(m.entries) - 1
@@ -1028,6 +1039,7 @@ func newModel(backend *Backend) model {
 	}
 	m.output = ""
 	m.viewport.SetContent("")
+	m.applyComposerState()
 	m.relayout()
 	return m
 }
@@ -1139,6 +1151,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.toolOutputLineOpen = false
 					m.assistantResponding = false
 					m.awaitingAssistantPrefix = false
+					m.applyComposerState()
 					m.syncViewport(true)
 					return m, textarea.Blink
 				}
@@ -1174,6 +1187,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sendPrompt(text)
 			m.assistantResponding = true
 			m.awaitingAssistantPrefix = true
+			m.applyComposerState()
 			m.syncViewport(true)
 			return m, textarea.Blink
 		default:
@@ -1201,12 +1215,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.assistantResponding = false
 		m.awaitingAssistantPrefix = false
 		m.currentAssistantEntry = -1
+		m.applyComposerState()
 		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
 		m.assistantResponding = false
 		m.currentAssistantEntry = -1
 		m.awaitingAssistantPrefix = false
+		m.applyComposerState()
 		m.appendTranscriptEntry(transcriptError, string(msg), "", false)
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
@@ -1220,6 +1236,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentToolOutputEntry = -1
 		m.toolOutputLineOpen = false
 		m.isRunning = true
+		m.applyComposerState()
 		m.currentAssistantEntry = -1
 		m.appendTranscriptEntry(transcriptToolStart, msg.name, msg.args, false)
 		m.syncViewport(follow)
@@ -1267,6 +1284,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentToolOutputEntry = -1
 			m.toolOutputLineOpen = false
 			m.isRunning = false
+			m.applyComposerState()
 			m.syncViewport(follow)
 			m.noteViewportState(follow, true)
 		}

@@ -470,6 +470,16 @@ func TestPromptViewHidesLineNumbers(t *testing.T) {
 	}
 }
 
+func TestComposerStartsReady(t *testing.T) {
+	m := newModel(nil)
+	if m.textInput.Prompt != "> " {
+		t.Fatalf("expected ready prompt marker, got %q", m.textInput.Prompt)
+	}
+	if !strings.Contains(m.textInput.Placeholder, "Type your message") {
+		t.Fatalf("expected ready placeholder, got %q", m.textInput.Placeholder)
+	}
+}
+
 func TestClearCommandResetsViewportContent(t *testing.T) {
 	m := newModel(nil)
 	m.seedTranscript("existing output")
@@ -515,6 +525,12 @@ func TestPromptSubmitShowsRespondingArtifacts(t *testing.T) {
 
 	if !submitted.assistantResponding {
 		t.Fatalf("expected submit to mark assistant as responding")
+	}
+	if submitted.textInput.Prompt != "… " {
+		t.Fatalf("expected busy prompt marker while responding, got %q", submitted.textInput.Prompt)
+	}
+	if !strings.Contains(submitted.textInput.Placeholder, "Goose is working") {
+		t.Fatalf("expected busy placeholder while responding, got %q", submitted.textInput.Placeholder)
 	}
 	for _, needle := range []string{"[RESPONDING]", "responding", "Goose is responding"} {
 		if !strings.Contains(view, needle) {
@@ -625,6 +641,25 @@ func TestResponseDoneClearsRespondingArtifacts(t *testing.T) {
 	}
 	if !strings.Contains(view, "Ready for input") {
 		t.Fatalf("expected prompt footer to return to ready state, got %q", view)
+	}
+	if done.textInput.Prompt != "> " {
+		t.Fatalf("expected ready prompt marker after response completes, got %q", done.textInput.Prompt)
+	}
+}
+
+func TestToolExecutionShowsBusyComposerState(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(toolStartMsg{id: "call_1", name: "bash", args: "command=ls"})
+	running := updated.(model)
+	if running.textInput.Prompt != "… " {
+		t.Fatalf("expected busy prompt marker while tool runs, got %q", running.textInput.Prompt)
+	}
+
+	updated, _ = running.Update(toolEndMsg{id: "call_1", success: true})
+	finished := updated.(model)
+	if finished.textInput.Prompt != "> " {
+		t.Fatalf("expected ready prompt marker after tool completes, got %q", finished.textInput.Prompt)
 	}
 }
 
