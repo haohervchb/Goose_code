@@ -104,6 +104,7 @@ backend: $(TARGET)
 
 tui:
 	cd tui && $(GO) build -o ../$(TUI_TARGET) .
+	@ln -sf "$(notdir $(TUI_TARGET))" "$(BINDIR)/goosecode"
 
 $(TUI_TARGET): tui
 	@ln -sf $(TUI_TARGET) $(BINDIR)/goosecode
