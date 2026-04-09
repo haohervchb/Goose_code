@@ -440,6 +440,9 @@ func (m model) sessionStatus() string {
 	if m.hasUnseenOutput {
 		parts = append(parts, "new output below")
 	}
+	if m.viewport.TotalLineCount() > m.viewport.Height && !m.viewport.AtBottom() {
+		parts = append(parts, fmt.Sprintf("scroll %d%%", int(m.viewport.ScrollPercent()*100)))
+	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
 }

@@ -444,6 +444,21 @@ func TestUnreadOutputHintClearsAtBottom(t *testing.T) {
 	}
 }
 
+func TestBannerShowsScrollPercentWhenReadingOlderOutput(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.viewportWidth = 120
+	m.relayout()
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.syncViewport(true)
+	m.viewport.LineUp(2)
+
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "scroll ") {
+		t.Fatalf("expected banner to show scroll percent while away from bottom, got %q", view)
+	}
+}
+
 func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
 	m := newModel(nil)
 	m.currentToolID = "call_1"
