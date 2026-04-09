@@ -120,6 +120,24 @@ func formatToolOutputChunk(chunk string, lineOpen bool) (string, bool) {
 	return out.String(), lineOpen
 }
 
+func formatToolStartLine(name, args string) string {
+	if strings.TrimSpace(args) == "" {
+		return fmt.Sprintf("\n%s[%s]%s\n", toolStyle, name, resetStyleTool)
+	}
+
+	return fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
+		toolStyle, name, resetStyleTool,
+		toolArgsStyle, args, resetStyleTool)
+}
+
+func formatToolEndLine(success bool, err string) string {
+	if success {
+		return toolArgsStyle + "└ " + resetStyleTool + toolSuccessStyle + "[✓]" + resetStyleTool + " done\n"
+	}
+
+	return toolArgsStyle + "└ " + resetStyleTool + toolErrorStyle + "[✗]" + resetStyleTool + " " + err + "\n"
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -623,9 +641,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentToolOutput = ""
 		m.toolOutputLineOpen = false
 		m.isRunning = true
-		m.output += fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
-			toolStyle, msg.name, resetStyleTool,
-			toolArgsStyle, msg.args, resetStyleTool)
+		m.output += formatToolStartLine(msg.name, msg.args)
 		m.syncViewport(follow)
 		m.noteViewportState(follow, true)
 		return m, textarea.Blink
@@ -655,12 +671,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toolEndMsg:
 		if m.currentToolID == msg.id {
 			follow := m.viewport.AtBottom()
-			if msg.success {
-				m.output += fmt.Sprintf("%s[✓]%s ", toolSuccessStyle, resetStyleTool)
-			} else {
-				m.output += fmt.Sprintf("%s[✗]%s %s", toolErrorStyle, resetStyleTool, msg.error)
+			if m.toolOutputLineOpen {
+				m.output += "\n"
+				m.toolOutputLineOpen = false
 			}
-			m.output += "\n"
+			m.output += formatToolEndLine(msg.success, msg.error)
 			m.currentTool = ""
 			m.currentToolID = ""
 			m.currentToolOutput = ""

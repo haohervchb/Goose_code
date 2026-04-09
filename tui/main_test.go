@@ -63,6 +63,19 @@ func TestFormatToolOutputChunkPrefixesNewLinesAndContinuesOpenLine(t *testing.T)
 	}
 }
 
+func TestFormatToolStartLineOmitsBlankArgs(t *testing.T) {
+	got := ansi.Strip(formatToolStartLine("bash", ""))
+	if got != "\n[bash]\n" {
+		t.Fatalf("expected tool start without blank args, got %q", got)
+	}
+}
+
+func TestFormatToolEndLineIncludesDoneState(t *testing.T) {
+	if got := ansi.Strip(formatToolEndLine(true, "")); got != "└ [✓] done\n" {
+		t.Fatalf("expected successful tool end line, got %q", got)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -285,6 +298,22 @@ func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected tool output transcript to contain %q, got %q", needle, view)
 		}
+	}
+}
+
+func TestToolEndStartsOnNewLineAfterOpenOutput(t *testing.T) {
+	m := newModel(nil)
+	m.currentToolID = "call_1"
+	m.toolOutputLineOpen = true
+	formatted, _ := formatToolOutputChunk("partial", false)
+	m.output = formatted
+
+	updated, _ := m.Update(toolEndMsg{id: "call_1", success: true})
+	after := updated.(model)
+	transcript := ansi.Strip(after.output)
+
+	if !strings.Contains(transcript, "│ partial\n└ [✓] done") {
+		t.Fatalf("expected tool result on a new line after partial output, got %q", transcript)
 	}
 }
 
