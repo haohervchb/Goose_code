@@ -98,6 +98,12 @@ func TestFormatUserPromptAddsYouPrefix(t *testing.T) {
 	}
 }
 
+func TestRenderUserEntryFormatsMultilineInput(t *testing.T) {
+	if got := ansi.Strip(renderUserEntry("hello\nthere\n")); got != "\nyou> hello\n│ there\n" {
+		t.Fatalf("expected multiline user entry block, got %q", got)
+	}
+}
+
 func TestFormatCommandFeedbackFormatsSlashCommand(t *testing.T) {
 	if got := ansi.Strip(formatCommandFeedback("model", "gpt-5")); got != "\ncmd> /model gpt-5\n" {
 		t.Fatalf("expected formatted command feedback, got %q", got)
@@ -337,6 +343,19 @@ func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
 	}
 	if strings.Contains(view, "[Sent] hello world") {
 		t.Fatalf("expected submit flow to avoid duplicate sent line, got %q", view)
+	}
+}
+
+func TestPromptSubmitRendersMultilineUserBlock(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("hello\nworld")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	submitted := updated.(model)
+	view := ansi.Strip(submitted.output)
+
+	if !strings.Contains(view, "you> hello\n│ world") {
+		t.Fatalf("expected multiline user prompt block in transcript, got %q", view)
 	}
 }
 

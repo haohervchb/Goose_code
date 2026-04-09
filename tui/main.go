@@ -221,6 +221,43 @@ func renderAssistantEntry(text string) string {
 	return rendered.String()
 }
 
+func renderUserEntry(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	var rendered strings.Builder
+	rendered.WriteByte('\n')
+	lines := strings.SplitAfter(text, "\n")
+
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		endsLine := strings.HasSuffix(line, "\n")
+		content := strings.TrimSuffix(line, "\n")
+
+		if i == 0 {
+			rendered.WriteString(promptStyle)
+			rendered.WriteString("you>")
+			rendered.WriteString(resetStyle)
+			rendered.WriteByte(' ')
+		} else {
+			rendered.WriteString(toolArgsStyle)
+			rendered.WriteString("│ ")
+			rendered.WriteString(resetStyle)
+		}
+
+		rendered.WriteString(content)
+		if endsLine {
+			rendered.WriteByte('\n')
+		}
+	}
+
+	return rendered.String()
+}
+
 func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
@@ -529,7 +566,7 @@ func (m *model) appendToTranscriptEntry(idx int, text string) {
 func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	switch entry.kind {
 	case transcriptUser:
-		return formatUserPrompt(entry.text)
+		return renderUserEntry(entry.text)
 	case transcriptAssistant:
 		return renderAssistantEntry(entry.text)
 	case transcriptCommand:
