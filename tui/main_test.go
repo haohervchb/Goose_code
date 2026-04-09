@@ -123,6 +123,13 @@ func TestFormatToolEndLineShowsTruncationState(t *testing.T) {
 	}
 }
 
+func TestRenderToolEndEntryKeepsGutterOnWrappedError(t *testing.T) {
+	got := ansi.Strip(renderToolEndEntryAtWidth(false, strings.Repeat("e", 20), false, 8))
+	if strings.Count(got, "│ ") < 2 {
+		t.Fatalf("expected wrapped tool end entry to keep gutter, got %q", got)
+	}
+}
+
 func TestFormatUserPromptAddsYouPrefix(t *testing.T) {
 	if got := ansi.Strip(formatUserPrompt("hello")); got != "\nyou> hello\n" {
 		t.Fatalf("expected formatted user prompt, got %q", got)

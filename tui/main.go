@@ -143,16 +143,20 @@ func renderToolStartEntryAtWidth(name, args string, width int) string {
 }
 
 func formatToolEndLine(success bool, err string, truncated bool) string {
+	return renderToolEndEntryAtWidth(success, err, truncated, 80)
+}
+
+func renderToolEndEntryAtWidth(success bool, err string, truncated bool, width int) string {
 	suffix := ""
 	if truncated {
 		suffix = " (output truncated)"
 	}
 
 	if success {
-		return toolArgsStyle + "└ " + resetStyleTool + toolSuccessStyle + "[✓]" + resetStyleTool + " done" + suffix + "\n"
+		return strings.TrimPrefix(renderWrappedBlockAtWidth("└", toolArgsStyle, toolSuccessStyle+"[✓]"+resetStyleTool+" done"+suffix, width), "\n")
 	}
 
-	return toolArgsStyle + "└ " + resetStyleTool + toolErrorStyle + "[✗]" + resetStyleTool + " " + err + suffix + "\n"
+	return strings.TrimPrefix(renderWrappedBlockAtWidth("└", toolArgsStyle, toolErrorStyle+"[✗]"+resetStyleTool+" "+err+suffix, width), "\n")
 }
 
 func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
@@ -707,7 +711,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptToolOutput:
 		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth())
 	case transcriptToolEnd:
-		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
+		return renderToolEndEntryAtWidth(entry.success, entry.text, entry.meta == "truncated", m.renderWidth())
 	default:
 		return renderSystemEntryAtWidth(entry.text, m.renderWidth())
 	}
