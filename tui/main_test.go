@@ -68,8 +68,15 @@ func TestFormatToolOutputChunkPrefixesNewLinesAndContinuesOpenLine(t *testing.T)
 
 func TestFormatToolStartLineOmitsBlankArgs(t *testing.T) {
 	got := ansi.Strip(formatToolStartLine("bash", ""))
-	if got != "\n[bash]\n" {
+	if got != "\ntool> bash\n" {
 		t.Fatalf("expected tool start without blank args, got %q", got)
+	}
+}
+
+func TestFormatToolStartLineShowsArgsAsIndentedBlock(t *testing.T) {
+	got := ansi.Strip(formatToolStartLine("bash", "command=ls"))
+	if got != "\ntool> bash\n│ command=ls\n" {
+		t.Fatalf("expected indented tool args, got %q", got)
 	}
 }
 

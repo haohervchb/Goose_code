@@ -121,13 +121,25 @@ func formatToolOutputChunk(chunk string, lineOpen bool) (string, bool) {
 }
 
 func formatToolStartLine(name, args string) string {
+	var line strings.Builder
+	line.WriteByte('\n')
+	line.WriteString(toolStyle)
+	line.WriteString("tool>")
+	line.WriteString(resetStyleTool)
+	line.WriteByte(' ')
+	line.WriteString(name)
+	line.WriteByte('\n')
+
 	if strings.TrimSpace(args) == "" {
-		return fmt.Sprintf("\n%s[%s]%s\n", toolStyle, name, resetStyleTool)
+		return line.String()
 	}
 
-	return fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
-		toolStyle, name, resetStyleTool,
-		toolArgsStyle, args, resetStyleTool)
+	line.WriteString(toolArgsStyle)
+	line.WriteString("│ ")
+	line.WriteString(args)
+	line.WriteString(resetStyleTool)
+	line.WriteByte('\n')
+	return line.String()
 }
 
 func formatToolEndLine(success bool, err string) string {
