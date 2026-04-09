@@ -389,11 +389,32 @@ type toolEndMsg struct {
 	error   string
 }
 
+type transcriptKind string
+
+const (
+	transcriptSystem     transcriptKind = "system"
+	transcriptUser       transcriptKind = "user"
+	transcriptAssistant  transcriptKind = "assistant"
+	transcriptCommand    transcriptKind = "command"
+	transcriptError      transcriptKind = "error"
+	transcriptToolStart  transcriptKind = "tool_start"
+	transcriptToolOutput transcriptKind = "tool_output"
+	transcriptToolEnd    transcriptKind = "tool_end"
+)
+
+type transcriptEntry struct {
+	kind    transcriptKind
+	text    string
+	meta    string
+	success bool
+}
+
 type model struct {
 	backend   *Backend
 	textInput textarea.Model
 	viewport  viewport.Model
 	output    string
+	entries   []transcriptEntry
 	planMode  bool
 	connected bool
 	quit      bool
@@ -402,6 +423,8 @@ type model struct {
 	currentTool             string
 	currentToolID           string
 	currentToolOutput       string
+	currentToolOutputEntry  int
+	currentAssistantEntry   int
 	toolOutputLineOpen      bool
 	isRunning               bool // true when a tool is executing
 	hasUnseenOutput         bool
@@ -424,6 +447,58 @@ func (m model) sendCommand(name, args string) {
 		return
 	}
 	_ = m.backend.SendCommand(name, args)
+}
+
+func (m *model) appendTranscriptEntry(kind transcriptKind, text, meta string, success bool) int {
+	m.entries = append(m.entries, transcriptEntry{kind: kind, text: text, meta: meta, success: success})
+	return len(m.entries) - 1
+}
+
+func (m *model) appendToTranscriptEntry(idx int, text string) {
+	if idx < 0 || idx >= len(m.entries) || text == "" {
+		return
+	}
+	m.entries[idx].text += text
+}
+
+func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
+	switch entry.kind {
+	case transcriptUser:
+		return formatUserPrompt(entry.text)
+	case transcriptAssistant:
+		rendered, _ := formatAssistantChunk(entry.text, true)
+		return rendered
+	case transcriptCommand:
+		return formatCommandFeedback(entry.text, entry.meta)
+	case transcriptError:
+		return formatErrorLine(entry.text)
+	case transcriptToolStart:
+		return formatToolStartLine(entry.text, entry.meta)
+	case transcriptToolOutput:
+		rendered, _ := formatToolOutputChunk(entry.text, false)
+		return rendered
+	case transcriptToolEnd:
+		return formatToolEndLine(entry.success, entry.text)
+	default:
+		return entry.text
+	}
+}
+
+func (m model) renderTranscript() string {
+	var rendered strings.Builder
+
+	for i, entry := range m.entries {
+		if entry.kind == transcriptToolEnd && i > 0 {
+			prev := m.entries[i-1]
+			if prev.kind == transcriptToolOutput && prev.text != "" && !strings.HasSuffix(prev.text, "\n") {
+				rendered.WriteByte('\n')
+			}
+		}
+
+		rendered.WriteString(wrapText(m.renderTranscriptEntry(entry), m.renderWidth()))
+	}
+
+	return rendered.String()
 }
 
 func (m model) sessionStatus() string {
@@ -515,7 +590,8 @@ func (m *model) relayout() {
 
 func (m *model) syncViewport(follow bool) {
 	offset := m.viewport.YOffset
-	m.viewport.SetContent(wrapText(m.output, m.renderWidth()))
+	m.output = m.renderTranscript()
+	m.viewport.SetContent(m.output)
 	if follow {
 		m.viewport.GotoBottom()
 		return
@@ -565,15 +641,17 @@ func newModel(backend *Backend) model {
 	vp.YOffset = 0
 
 	m := model{
-		backend:       backend,
-		textInput:     ti,
-		viewport:      vp,
-		planMode:      false,
-		connected:     false,
-		quit:          false,
-		fallback:      false,
-		viewportWidth: 80,
-		windowHeight:  29,
+		backend:                backend,
+		textInput:              ti,
+		viewport:               vp,
+		planMode:               false,
+		connected:              false,
+		quit:                   false,
+		fallback:               false,
+		currentToolOutputEntry: -1,
+		currentAssistantEntry:  -1,
+		viewportWidth:          80,
+		windowHeight:           29,
 	}
 	m.output = ""
 	m.viewport.SetContent("")
@@ -653,7 +731,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if cmdName == "clear" {
 					// Handle clear locally in TUI
+					m.entries = nil
 					m.output = ""
+					m.currentAssistantEntry = -1
+					m.currentToolOutputEntry = -1
+					m.currentToolOutput = ""
+					m.toolOutputLineOpen = false
 					m.awaitingAssistantPrefix = false
 					m.syncViewport(true)
 					return m, textarea.Blink
@@ -674,12 +757,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				m.sendCommand(cmdName, args)
 				// Show command feedback
-				m.output += formatCommandFeedback(cmdName, args)
+				m.currentAssistantEntry = -1
+				m.appendTranscriptEntry(transcriptCommand, cmdName, args, false)
 				m.syncViewport(true)
 				return m, textarea.Blink
 			}
 
-			m.output += formatUserPrompt(text)
+			m.currentAssistantEntry = -1
+			m.appendTranscriptEntry(transcriptUser, text, "", false)
 			m.sendPrompt(text)
 			m.awaitingAssistantPrefix = true
 			m.syncViewport(true)
@@ -692,16 +777,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		follow := m.viewport.AtBottom()
-		formatted, pending := formatAssistantChunk(string(msg), m.awaitingAssistantPrefix)
-		m.awaitingAssistantPrefix = pending
-		m.output += formatted
+		content := string(msg)
+		if content != "" {
+			if m.currentAssistantEntry < 0 || m.currentAssistantEntry >= len(m.entries) || m.entries[m.currentAssistantEntry].kind != transcriptAssistant {
+				m.currentAssistantEntry = m.appendTranscriptEntry(transcriptAssistant, "", "", false)
+			}
+			m.appendToTranscriptEntry(m.currentAssistantEntry, content)
+			m.awaitingAssistantPrefix = strings.IndexFunc(m.entries[m.currentAssistantEntry].text, func(r rune) bool {
+				return r != '\n'
+			}) == -1
+		}
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
+		m.currentAssistantEntry = -1
 		m.awaitingAssistantPrefix = false
-		m.output += formatErrorLine(string(msg))
+		m.appendTranscriptEntry(transcriptError, string(msg), "", false)
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
@@ -710,9 +803,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
+		m.currentToolOutputEntry = -1
 		m.toolOutputLineOpen = false
 		m.isRunning = true
-		m.output += formatToolStartLine(msg.name, msg.args)
+		m.currentAssistantEntry = -1
+		m.appendTranscriptEntry(transcriptToolStart, msg.name, msg.args, false)
 		m.syncViewport(follow)
 		m.noteViewportState(follow, true)
 		return m, textarea.Blink
@@ -730,10 +825,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if output != "" {
-				formatted, lineOpen := formatToolOutputChunk(output, m.toolOutputLineOpen)
+				if m.currentToolOutputEntry < 0 || m.currentToolOutputEntry >= len(m.entries) || m.entries[m.currentToolOutputEntry].kind != transcriptToolOutput {
+					m.currentToolOutputEntry = m.appendTranscriptEntry(transcriptToolOutput, "", "", false)
+				}
 				m.currentToolOutput += output
-				m.toolOutputLineOpen = lineOpen
-				m.output += formatted
+				m.toolOutputLineOpen = !strings.HasSuffix(m.currentToolOutput, "\n")
+				m.appendToTranscriptEntry(m.currentToolOutputEntry, output)
 			}
 			m.syncViewport(follow)
 			m.noteViewportState(follow, output != "")
@@ -742,14 +839,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toolEndMsg:
 		if m.currentToolID == msg.id {
 			follow := m.viewport.AtBottom()
-			if m.toolOutputLineOpen {
-				m.output += "\n"
-				m.toolOutputLineOpen = false
-			}
-			m.output += formatToolEndLine(msg.success, msg.error)
+			m.appendTranscriptEntry(transcriptToolEnd, msg.error, "", msg.success)
 			m.currentTool = ""
 			m.currentToolID = ""
 			m.currentToolOutput = ""
+			m.currentToolOutputEntry = -1
 			m.toolOutputLineOpen = false
 			m.isRunning = false
 			m.syncViewport(follow)
@@ -918,8 +1012,8 @@ func main() {
 	m.connected = true
 	m.activeModel = cfg.Model
 	m.activeProvider = cfg.Provider
-	m.output = fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID)
-	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
+	m.appendTranscriptEntry(transcriptSystem, fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID), "", false)
+	m.syncViewport(true)
 	m.viewport.GotoBottom()
 
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)

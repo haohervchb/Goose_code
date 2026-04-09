@@ -173,7 +173,7 @@ func TestViewLeavesRightGutterToAvoidSeparatorWrap(t *testing.T) {
 func TestPgUpAndPgDownScrollViewport(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n"))
 	m.syncViewport(true)
 	start := m.viewport.YOffset
 
@@ -193,7 +193,7 @@ func TestPgUpAndPgDownScrollViewport(t *testing.T) {
 func TestHomeAndEndJumpViewport(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n"))
 	m.syncViewport(true)
 	m.viewport.LineUp(2)
 	m.hasUnseenOutput = true
@@ -276,7 +276,7 @@ func TestPromptViewHidesLineNumbers(t *testing.T) {
 
 func TestClearCommandResetsViewportContent(t *testing.T) {
 	m := newModel(nil)
-	m.output = "existing output"
+	m.seedTranscript("existing output")
 	m.syncViewport(true)
 	m.textInput.SetValue("/clear")
 
@@ -373,10 +373,27 @@ func TestAssistantPrefixRearmsForNextReply(t *testing.T) {
 	}
 }
 
+func TestTranscriptStoresSeparateTypedEntries(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("hello")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.(model).Update(responseMsg("Hi"))
+	updated, _ = updated.(model).Update(toolStartMsg{id: "call_1", name: "bash", args: "command=ls"})
+	state := updated.(model)
+
+	if len(state.entries) < 3 {
+		t.Fatalf("expected transcript entries for user, assistant, and tool, got %d", len(state.entries))
+	}
+	if state.entries[0].kind != transcriptUser || state.entries[1].kind != transcriptAssistant || state.entries[2].kind != transcriptToolStart {
+		t.Fatalf("expected typed transcript entries, got %#v", state.entries[:3])
+	}
+}
+
 func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n"))
 	m.syncViewport(true)
 
 	updated, _ := m.Update(responseMsg("7\n"))
@@ -390,7 +407,7 @@ func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 func TestViewportPreservesScrollWhenUserScrolledUp(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n"))
 	m.syncViewport(true)
 	m.viewport.LineUp(2)
 
@@ -407,7 +424,7 @@ func TestBannerShowsUnreadOutputHintWhenScrolledUp(t *testing.T) {
 	m.viewportHeightForTest(4)
 	m.viewportWidth = 120
 	m.relayout()
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n"))
 	m.syncViewport(true)
 	m.viewport.LineUp(2)
 
@@ -427,7 +444,7 @@ func TestUnreadOutputHintClearsAtBottom(t *testing.T) {
 	m.viewportHeightForTest(4)
 	m.viewportWidth = 120
 	m.relayout()
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n"))
 	m.syncViewport(true)
 	m.viewport.LineUp(2)
 
@@ -449,7 +466,7 @@ func TestBannerShowsScrollPercentWhenReadingOlderOutput(t *testing.T) {
 	m.viewportHeightForTest(4)
 	m.viewportWidth = 120
 	m.relayout()
-	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.seedTranscript(strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n"))
 	m.syncViewport(true)
 	m.viewport.LineUp(2)
 
@@ -479,6 +496,7 @@ func TestToolEndStartsOnNewLineAfterOpenOutput(t *testing.T) {
 	m.currentToolID = "call_1"
 	m.toolOutputLineOpen = true
 	formatted, _ := formatToolOutputChunk("partial", false)
+	m.entries = []transcriptEntry{{kind: transcriptToolOutput, text: "partial"}}
 	m.output = formatted
 
 	updated, _ := m.Update(toolEndMsg{id: "call_1", success: true})
@@ -494,4 +512,11 @@ func (m *model) viewportHeightForTest(height int) {
 	m.windowHeight = height + 4 + 1 + 3 + lineCount(m.promptStatus())
 	m.viewportWidth = 20
 	m.relayout()
+}
+
+func (m *model) seedTranscript(text string) {
+	m.entries = []transcriptEntry{{kind: transcriptSystem, text: text}}
+	m.currentAssistantEntry = -1
+	m.currentToolOutputEntry = -1
+	m.output = text
 }
