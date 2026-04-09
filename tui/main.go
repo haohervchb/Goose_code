@@ -142,12 +142,17 @@ func formatToolStartLine(name, args string) string {
 	return line.String()
 }
 
-func formatToolEndLine(success bool, err string) string {
-	if success {
-		return toolArgsStyle + "└ " + resetStyleTool + toolSuccessStyle + "[✓]" + resetStyleTool + " done\n"
+func formatToolEndLine(success bool, err string, truncated bool) string {
+	suffix := ""
+	if truncated {
+		suffix = " (output truncated)"
 	}
 
-	return toolArgsStyle + "└ " + resetStyleTool + toolErrorStyle + "[✗]" + resetStyleTool + " " + err + "\n"
+	if success {
+		return toolArgsStyle + "└ " + resetStyleTool + toolSuccessStyle + "[✓]" + resetStyleTool + " done" + suffix + "\n"
+	}
+
+	return toolArgsStyle + "└ " + resetStyleTool + toolErrorStyle + "[✗]" + resetStyleTool + " " + err + suffix + "\n"
 }
 
 func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
@@ -482,6 +487,7 @@ type model struct {
 	currentTool             string
 	currentToolID           string
 	currentToolOutput       string
+	currentToolTruncated    bool
 	currentToolOutputEntry  int
 	currentAssistantEntry   int
 	toolOutputLineOpen      bool
@@ -536,7 +542,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 		rendered, _ := formatToolOutputChunk(entry.text, false)
 		return rendered
 	case transcriptToolEnd:
-		return formatToolEndLine(entry.success, entry.text)
+		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
 	default:
 		return entry.text
 	}
@@ -869,6 +875,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
+		m.currentToolTruncated = false
 		m.currentToolOutputEntry = -1
 		m.toolOutputLineOpen = false
 		m.isRunning = true
@@ -883,6 +890,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Truncate long output
 			output := msg.output
 			if len(m.currentToolOutput)+len(output) > 10000 {
+				m.currentToolTruncated = true
 				remaining := 10000 - len(m.currentToolOutput)
 				if remaining > 0 {
 					output = output[:remaining] + "... (truncated)"
@@ -905,10 +913,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case toolEndMsg:
 		if m.currentToolID == msg.id {
 			follow := m.viewport.AtBottom()
-			m.appendTranscriptEntry(transcriptToolEnd, msg.error, "", msg.success)
+			meta := ""
+			if m.currentToolTruncated {
+				meta = "truncated"
+			}
+			m.appendTranscriptEntry(transcriptToolEnd, msg.error, meta, msg.success)
 			m.currentTool = ""
 			m.currentToolID = ""
 			m.currentToolOutput = ""
+			m.currentToolTruncated = false
 			m.currentToolOutputEntry = -1
 			m.toolOutputLineOpen = false
 			m.isRunning = false

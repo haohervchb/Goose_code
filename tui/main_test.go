@@ -81,8 +81,14 @@ func TestFormatToolStartLineShowsArgsAsIndentedBlock(t *testing.T) {
 }
 
 func TestFormatToolEndLineIncludesDoneState(t *testing.T) {
-	if got := ansi.Strip(formatToolEndLine(true, "")); got != "└ [✓] done\n" {
+	if got := ansi.Strip(formatToolEndLine(true, "", false)); got != "└ [✓] done\n" {
 		t.Fatalf("expected successful tool end line, got %q", got)
+	}
+}
+
+func TestFormatToolEndLineShowsTruncationState(t *testing.T) {
+	if got := ansi.Strip(formatToolEndLine(true, "", true)); got != "└ [✓] done (output truncated)\n" {
+		t.Fatalf("expected truncation note in tool end line, got %q", got)
 	}
 }
 
@@ -546,6 +552,21 @@ func TestToolEndStartsOnNewLineAfterOpenOutput(t *testing.T) {
 
 	if !strings.Contains(transcript, "│ partial\n└ [✓] done") {
 		t.Fatalf("expected tool result on a new line after partial output, got %q", transcript)
+	}
+}
+
+func TestToolEndShowsTruncationNoteAfterLongOutput(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(toolStartMsg{id: "call_1", name: "bash", args: "command=long"})
+	started := updated.(model)
+	updated, _ = started.Update(toolOutputMsg{id: "call_1", output: strings.Repeat("x", 10050)})
+	updated, _ = updated.(model).Update(toolEndMsg{id: "call_1", success: true})
+	finished := updated.(model)
+	transcript := ansi.Strip(finished.output)
+
+	if !strings.Contains(transcript, "done (output truncated)") {
+		t.Fatalf("expected tool end line to mention truncation, got %q", transcript)
 	}
 }
 
