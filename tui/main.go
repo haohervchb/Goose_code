@@ -732,6 +732,12 @@ func (m model) sessionStatus() string {
 	if m.connected {
 		parts = append(parts, "connected")
 	}
+	if m.activeProvider != "" || m.activeModel != "" {
+		providerModel := strings.TrimPrefix(strings.TrimSpace(m.activeProvider+"/"+m.activeModel), "/")
+		if providerModel != "" {
+			parts = append(parts, providerModel)
+		}
+	}
 	if m.backend != nil && m.backend.sessionID != "" {
 		parts = append(parts, "session "+m.backend.sessionID)
 	}

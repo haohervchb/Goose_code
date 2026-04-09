@@ -315,6 +315,8 @@ func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	m.connected = true
 	m.isRunning = true
 	m.currentTool = "bash"
+	m.activeProvider = "ollama"
+	m.activeModel = "llama3"
 	m.viewportWidth = 120
 	m.entries = []transcriptEntry{{kind: transcriptSystem, text: "Connected!\nSession abc123\n"}}
 	m.syncViewport(true)
@@ -326,6 +328,9 @@ func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	}
 	if !strings.Contains(view, "session abc123") {
 		t.Fatalf("expected session status in header, got %q", view)
+	}
+	if !strings.Contains(view, "ollama/llama3") {
+		t.Fatalf("expected provider/model in header status, got %q", view)
 	}
 	if !strings.Contains(view, "running bash") {
 		t.Fatalf("expected running tool status in header, got %q", view)
