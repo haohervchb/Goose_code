@@ -421,6 +421,34 @@ func TestEscClosesHelpOverlay(t *testing.T) {
 	}
 }
 
+func TestSlashHelpOpensOverlayLocally(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("/help")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	help := updated.(model)
+
+	if !help.showHelp {
+		t.Fatalf("expected /help to open the local help overlay")
+	}
+	if strings.Contains(ansi.Strip(help.output), "cmd> /help") {
+		t.Fatalf("expected /help to stay local instead of appending command feedback, got %q", ansi.Strip(help.output))
+	}
+}
+
+func TestSlashHelpOffClosesOverlayLocally(t *testing.T) {
+	m := newModel(nil)
+	m.showHelp = true
+	m.textInput.SetValue("/help off")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	closed := updated.(model)
+
+	if closed.showHelp {
+		t.Fatalf("expected /help off to close the local help overlay")
+	}
+}
+
 func TestPromptViewHidesLineNumbers(t *testing.T) {
 	m := newModel(nil)
 	view := ansi.Strip(m.textInput.View())
