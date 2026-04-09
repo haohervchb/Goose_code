@@ -104,6 +104,12 @@ func TestRenderUserEntryFormatsMultilineInput(t *testing.T) {
 	}
 }
 
+func TestRenderCommandEntryFormatsMultilineArgs(t *testing.T) {
+	if got := ansi.Strip(renderCommandEntry("model", "gpt-5\nreasoning=high\n")); got != "\ncmd> /model gpt-5\n│ reasoning=high\n" {
+		t.Fatalf("expected multiline command block, got %q", got)
+	}
+}
+
 func TestFormatCommandFeedbackFormatsSlashCommand(t *testing.T) {
 	if got := ansi.Strip(formatCommandFeedback("model", "gpt-5")); got != "\ncmd> /model gpt-5\n" {
 		t.Fatalf("expected formatted command feedback, got %q", got)
@@ -113,6 +119,12 @@ func TestFormatCommandFeedbackFormatsSlashCommand(t *testing.T) {
 func TestFormatErrorLineAddsErrorPrefix(t *testing.T) {
 	if got := ansi.Strip(formatErrorLine("Error: boom")); got != "\nerror> Error: boom\n" {
 		t.Fatalf("expected formatted error line, got %q", got)
+	}
+}
+
+func TestRenderErrorEntryFormatsMultilineError(t *testing.T) {
+	if got := ansi.Strip(renderErrorEntry("Error: boom\ndetails\n")); got != "\nerror> Error: boom\n│ details" {
+		t.Fatalf("expected multiline error block, got %q", got)
 	}
 }
 
@@ -372,6 +384,17 @@ func TestSlashCommandUsesCommandFeedbackPrefix(t *testing.T) {
 	}
 }
 
+func TestCommandEntryRendersMultilineBlock(t *testing.T) {
+	m := newModel(nil)
+	m.appendTranscriptEntry(transcriptCommand, "model", "gpt-5\nreasoning=high", false)
+	m.syncViewport(true)
+	transcript := ansi.Strip(m.output)
+
+	if !strings.Contains(transcript, "cmd> /model gpt-5\n│ reasoning=high") {
+		t.Fatalf("expected multiline command block in transcript, got %q", transcript)
+	}
+}
+
 func TestBackendErrorsUseErrorPrefix(t *testing.T) {
 	m := newModel(nil)
 
@@ -381,6 +404,18 @@ func TestBackendErrorsUseErrorPrefix(t *testing.T) {
 
 	if !strings.Contains(transcript, "error> Error: boom") {
 		t.Fatalf("expected labeled error in transcript, got %q", transcript)
+	}
+}
+
+func TestBackendErrorsRenderMultilineBlock(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(backendErrorMsg("Error: boom\ndetails"))
+	errored := updated.(model)
+	transcript := ansi.Strip(errored.output)
+
+	if !strings.Contains(transcript, "error> Error: boom\n│ details") {
+		t.Fatalf("expected multiline error block in transcript, got %q", transcript)
 	}
 }
 

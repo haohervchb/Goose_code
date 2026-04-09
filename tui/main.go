@@ -258,6 +258,61 @@ func renderUserEntry(text string) string {
 	return rendered.String()
 }
 
+func renderLabeledBlock(label, labelColor, text string) string {
+	if text == "" {
+		return ""
+	}
+
+	var rendered strings.Builder
+	rendered.WriteByte('\n')
+	lines := strings.SplitAfter(text, "\n")
+
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		endsLine := strings.HasSuffix(line, "\n")
+		content := strings.TrimSuffix(line, "\n")
+
+		if i == 0 {
+			rendered.WriteString(labelColor)
+			rendered.WriteString(label)
+			rendered.WriteString(resetStyle)
+			rendered.WriteByte(' ')
+		} else {
+			rendered.WriteString(toolArgsStyle)
+			rendered.WriteString("│ ")
+			rendered.WriteString(resetStyle)
+		}
+
+		rendered.WriteString(content)
+		if endsLine {
+			rendered.WriteByte('\n')
+		}
+	}
+
+	return rendered.String()
+}
+
+func renderCommandEntry(name, args string) string {
+	command := "/" + name
+	if strings.TrimSpace(args) != "" {
+		command += " " + args
+	}
+
+	return renderLabeledBlock("cmd>", toolArgsStyle, command)
+}
+
+func renderErrorEntry(text string) string {
+	trimmed := strings.TrimRight(text, "\n")
+	if trimmed == "" {
+		return ""
+	}
+
+	return renderLabeledBlock("error>", errorStyle, trimmed)
+}
+
 func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
@@ -570,9 +625,9 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptAssistant:
 		return renderAssistantEntry(entry.text)
 	case transcriptCommand:
-		return formatCommandFeedback(entry.text, entry.meta)
+		return renderCommandEntry(entry.text, entry.meta)
 	case transcriptError:
-		return formatErrorLine(entry.text)
+		return renderErrorEntry(entry.text)
 	case transcriptToolStart:
 		return formatToolStartLine(entry.text, entry.meta)
 	case transcriptToolOutput:
