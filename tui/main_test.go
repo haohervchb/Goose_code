@@ -265,6 +265,47 @@ func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
 	}
 }
 
+func TestAssistantReplyGetsSinglePrefixAcrossChunks(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("hello")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	submitted := updated.(model)
+	updated, _ = submitted.Update(responseMsg("Hi"))
+	updated, _ = updated.(model).Update(responseMsg(" there"))
+	replied := updated.(model)
+	transcript := ansi.Strip(replied.output)
+
+	if strings.Count(transcript, "goose>") != 1 {
+		t.Fatalf("expected one assistant prefix for streamed reply, got %q", transcript)
+	}
+	if !strings.Contains(transcript, "goose> Hi there") {
+		t.Fatalf("expected assistant reply to be prefixed once, got %q", transcript)
+	}
+}
+
+func TestAssistantPrefixRearmsForNextReply(t *testing.T) {
+	m := newModel(nil)
+	m.textInput.SetValue("first")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.(model).Update(responseMsg("One\n"))
+	firstReply := updated.(model)
+	firstReply.textInput.SetValue("second")
+
+	updated, _ = firstReply.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.(model).Update(responseMsg("Two"))
+	secondReply := updated.(model)
+	transcript := ansi.Strip(secondReply.output)
+
+	if strings.Count(transcript, "goose>") != 2 {
+		t.Fatalf("expected assistant prefix for each reply, got %q", transcript)
+	}
+	if !strings.Contains(transcript, "goose> One") || !strings.Contains(transcript, "goose> Two") {
+		t.Fatalf("expected both replies to carry assistant prefixes, got %q", transcript)
+	}
+}
+
 func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)

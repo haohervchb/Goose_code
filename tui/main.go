@@ -138,6 +138,25 @@ func formatToolEndLine(success bool, err string) string {
 	return toolArgsStyle + "└ " + resetStyleTool + toolErrorStyle + "[✗]" + resetStyleTool + " " + err + "\n"
 }
 
+func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
+	if chunk == "" {
+		return "", pendingPrefix
+	}
+	if !pendingPrefix {
+		return chunk, false
+	}
+
+	idx := strings.IndexFunc(chunk, func(r rune) bool {
+		return r != '\n'
+	})
+	if idx == -1 {
+		return chunk, true
+	}
+
+	prefix := headerStyle + "goose>" + resetStyle + " "
+	return chunk[:idx] + prefix + chunk[idx:], false
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -358,16 +377,17 @@ type model struct {
 	quit      bool
 	fallback  bool // true if falling back to REPL
 	// Tool state
-	currentTool        string
-	currentToolID      string
-	currentToolOutput  string
-	toolOutputLineOpen bool
-	isRunning          bool // true when a tool is executing
-	hasUnseenOutput    bool
-	viewportWidth      int // current viewport width for text wrapping
-	windowHeight       int
-	activeModel        string
-	activeProvider     string
+	currentTool             string
+	currentToolID           string
+	currentToolOutput       string
+	toolOutputLineOpen      bool
+	isRunning               bool // true when a tool is executing
+	hasUnseenOutput         bool
+	awaitingAssistantPrefix bool
+	viewportWidth           int // current viewport width for text wrapping
+	windowHeight            int
+	activeModel             string
+	activeProvider          string
 }
 
 func (m model) sendPrompt(text string) {
@@ -601,6 +621,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if cmdName == "clear" {
 					// Handle clear locally in TUI
 					m.output = ""
+					m.awaitingAssistantPrefix = false
 					m.syncViewport(true)
 					return m, textarea.Blink
 				}
@@ -626,6 +647,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.output += "\n> " + text + "\n"
 			m.sendPrompt(text)
+			m.awaitingAssistantPrefix = true
 			m.syncViewport(true)
 			return m, textarea.Blink
 		default:
@@ -636,12 +658,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		follow := m.viewport.AtBottom()
-		m.output += string(msg)
+		formatted, pending := formatAssistantChunk(string(msg), m.awaitingAssistantPrefix)
+		m.awaitingAssistantPrefix = pending
+		m.output += formatted
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
+		m.awaitingAssistantPrefix = false
 		m.output += string(msg) + "\n"
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
