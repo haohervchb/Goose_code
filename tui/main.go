@@ -72,6 +72,20 @@ func formatToolArgs(args map[string]interface{}) string {
 	return strings.Join(parts, ", ")
 }
 
+func headerLine(prefix, status string, width int) string {
+	if width <= 0 {
+		return prefix + " | " + status
+	}
+
+	separator := " | "
+	available := width - ansi.StringWidth(prefix) - ansi.StringWidth(separator)
+	if available <= 0 {
+		return ansi.Truncate(prefix, width, "")
+	}
+
+	return prefix + separator + ansi.Truncate(status, available, "...")
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -577,14 +591,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var s strings.Builder
 	status := m.sessionStatus()
+	headerPrefix := ""
 
 	// Header (fixed at top)
 	if m.planMode {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.1 \033[33m[PLAN]\033[0m")
+		headerPrefix = "\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.1 \033[33m[PLAN]\033[0m"
 	} else {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m")
+		headerPrefix = "\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m"
 	}
-	s.WriteString(" | " + status + "\n")
+	s.WriteString(headerLine(headerPrefix, status, m.viewportWidth))
+	s.WriteString("\n")
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
 	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")

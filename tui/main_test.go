@@ -50,6 +50,17 @@ func TestFormatToolArgsSortsKeys(t *testing.T) {
 	}
 }
 
+func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
+	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
+
+	if got := ansi.StringWidth(line); got > 30 {
+		t.Fatalf("expected header line width <= 30, got %d", got)
+	}
+	if !strings.Contains(ansi.Strip(line), "...") {
+		t.Fatalf("expected truncated header status, got %q", ansi.Strip(line))
+	}
+}
+
 func TestWrapTextLimitsVisibleLineWidth(t *testing.T) {
 	wrapped := wrapText("\033[32m"+strings.Repeat("a", 24)+"\033[0m", 10)
 
@@ -83,6 +94,7 @@ func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	m.connected = true
 	m.isRunning = true
 	m.currentTool = "bash"
+	m.viewportWidth = 120
 
 	view := ansi.Strip(m.View())
 
