@@ -184,6 +184,30 @@ func TestPgUpAndPgDownScrollViewport(t *testing.T) {
 	}
 }
 
+func TestHomeAndEndJumpViewport(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.syncViewport(true)
+	m.viewport.LineUp(2)
+	m.hasUnseenOutput = true
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyHome})
+	atTop := updated.(model)
+	if !atTop.viewport.AtTop() {
+		t.Fatalf("expected home to jump to top")
+	}
+
+	updated, _ = atTop.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	atBottom := updated.(model)
+	if !atBottom.viewport.AtBottom() {
+		t.Fatalf("expected end to jump to bottom")
+	}
+	if atBottom.hasUnseenOutput {
+		t.Fatalf("expected end to clear unread output hint")
+	}
+}
+
 func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	m := newModel(&Backend{sessionID: "abc123"})
 	m.connected = true
@@ -228,7 +252,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "/clear resets", "transcript"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "transcript"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}

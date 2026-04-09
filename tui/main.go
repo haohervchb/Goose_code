@@ -446,6 +446,7 @@ func (m model) promptStatus() string {
 	parts := []string{
 		modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle + "  " + "\033[90mTab toggles mode\033[0m",
 		"\033[90mPgUp/PgDn scroll\033[0m",
+		"\033[90mHome/End jump\033[0m",
 		"\033[90m/clear resets transcript\033[0m",
 	}
 
@@ -596,6 +597,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.hasUnseenOutput = false
 			}
 			return m, cmd
+		case "home":
+			m.viewport.GotoTop()
+			return m, nil
+		case "end":
+			m.viewport.GotoBottom()
+			m.hasUnseenOutput = false
+			return m, nil
 		case "tab":
 			m.planMode = !m.planMode
 			m.sendCommand("plan", "")
