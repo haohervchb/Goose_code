@@ -632,16 +632,17 @@ type transcriptEntry struct {
 }
 
 type model struct {
-	backend   *Backend
-	textInput textarea.Model
-	viewport  viewport.Model
-	output    string
-	entries   []transcriptEntry
-	planMode  bool
-	connected bool
-	showHelp  bool
-	quit      bool
-	fallback  bool // true if falling back to REPL
+	backend    *Backend
+	textInput  textarea.Model
+	viewport   viewport.Model
+	output     string
+	entries    []transcriptEntry
+	planMode   bool
+	connected  bool
+	showHelp   bool
+	helpOffset int
+	quit       bool
+	fallback   bool // true if falling back to REPL
 	// Tool state
 	currentTool             string
 	currentToolID           string
@@ -880,8 +881,11 @@ func (m model) promptStatus() string {
 	if width >= 92 {
 		parts = append(parts, "\033[90m/clear resets transcript\033[0m")
 	}
+	if selected, total := m.selectedToolOutputPosition(); width >= 100 && selected > 0 {
+		parts = append(parts, fmt.Sprintf("\033[37mtool %d/%d selected\033[0m", selected, total))
+	}
 	if width >= 112 {
-		parts = append(parts, "\033[90mCtrl+O toggles last tool block\033[0m")
+		parts = append(parts, "\033[90mCtrl+O toggles selected tool block\033[0m")
 	}
 	if width >= 118 {
 		parts = append(parts, "\033[90mCtrl+P/Ctrl+N switch tool block\033[0m")
@@ -970,7 +974,7 @@ func (m *model) noteViewportState(follow, changed bool) {
 	}
 }
 
-func (m model) helpContent() string {
+func (m model) helpBody() string {
 	sections := []string{
 		headerStyle + "Help" + resetStyle,
 		"",
@@ -987,17 +991,66 @@ func (m model) helpContent() string {
 		"Esc closes help",
 		"",
 		successStyle + "Tools" + resetStyle,
-		"Ctrl+O toggles the last tool output block",
+		"Ctrl+P/Ctrl+N switch the selected tool block",
+		"Ctrl+O toggles the selected tool output block",
 		"Long tool output starts compact and can be expanded",
+		"Selected tool blocks are marked in the transcript and banner",
 		"",
 		successStyle + "Commands" + resetStyle,
+		"/help opens this overlay locally",
 		"/clear resets the transcript",
 		"/exit leaves the TUI",
 	}
 
-	vp := viewport.New(m.renderWidth(), m.viewport.Height)
-	vp.SetContent(wrapText(strings.Join(sections, "\n"), m.renderWidth()))
-	return vp.View()
+	return wrapText(strings.Join(sections, "\n"), m.renderWidth())
+}
+
+func (m model) helpLines() []string {
+	return strings.Split(m.helpBody(), "\n")
+}
+
+func (m model) helpMaxOffset() int {
+	maxOffset := len(m.helpLines()) - m.viewport.Height
+	if maxOffset < 0 {
+		return 0
+	}
+	return maxOffset
+}
+
+func clamp(value, min, max int) int {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func (m *model) moveHelp(delta int) {
+	m.helpOffset = clamp(m.helpOffset+delta, 0, m.helpMaxOffset())
+}
+
+func (m *model) pageHelp(delta int) {
+	step := m.viewport.Height
+	if step < 1 {
+		step = 1
+	}
+	m.moveHelp(delta * step)
+}
+
+func (m model) helpContent() string {
+	lines := m.helpLines()
+	start := clamp(m.helpOffset, 0, m.helpMaxOffset())
+	end := start + m.viewport.Height
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visible := append([]string{}, lines[start:end]...)
+	for len(visible) < m.viewport.Height {
+		visible = append(visible, "")
+	}
+	return strings.Join(visible, "\n")
 }
 
 const (
@@ -1063,6 +1116,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "f1":
 			m.showHelp = !m.showHelp
+			if m.showHelp {
+				m.helpOffset = 0
+			}
 			return m, nil
 		case "esc":
 			if m.showHelp {
@@ -1070,10 +1126,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "up", "pageup", "pgup":
+			if m.showHelp {
+				if msg.String() == "up" {
+					m.moveHelp(-1)
+				} else {
+					m.pageHelp(-1)
+				}
+				return m, nil
+			}
 			// Scroll up in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
 			return m, cmd
 		case "down", "pagedown", "pgdown":
+			if m.showHelp {
+				if msg.String() == "down" {
+					m.moveHelp(1)
+				} else {
+					m.pageHelp(1)
+				}
+				return m, nil
+			}
 			// Scroll down in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
 			if m.viewport.AtBottom() {
@@ -1081,9 +1153,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		case "home":
+			if m.showHelp {
+				m.helpOffset = 0
+				return m, nil
+			}
 			m.viewport.GotoTop()
 			return m, nil
 		case "end":
+			if m.showHelp {
+				m.helpOffset = m.helpMaxOffset()
+				return m, nil
+			}
 			m.viewport.GotoBottom()
 			m.hasUnseenOutput = false
 			return m, nil

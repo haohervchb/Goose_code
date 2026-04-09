@@ -366,7 +366,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Ready for input", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets tran", "script", "Ctrl+O toggles", "last tool block", "Ctrl+P/Ctrl+N", "switch tool block"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Ready for input", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets tran", "script", "Ctrl+O toggles", "selected tool block", "Ctrl+P/Ctrl+N", "switch tool block"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}
@@ -414,9 +414,27 @@ func TestF1TogglesHelpOverlay(t *testing.T) {
 	if !help.showHelp {
 		t.Fatalf("expected F1 to open help overlay")
 	}
-	for _, needle := range []string{"Help", "Navigation", "Prompt", "Tools", "Commands"} {
+	for _, needle := range []string{"Help", "Navigation", "Prompt", "Tools", "Ctrl+P/Ctrl+N switch the selected tool block", "Ctrl+O toggles the selected tool output block"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected help overlay to contain %q, got %q", needle, view)
+		}
+	}
+}
+
+func TestHelpOverlayCanScrollToCommandsSection(t *testing.T) {
+	m := newModel(nil)
+	m.viewportWidth = 120
+	m.relayout()
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyF1})
+	help := updated.(model)
+	updated, _ = help.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	scrolled := updated.(model)
+	view := ansi.Strip(scrolled.View())
+
+	for _, needle := range []string{"Commands", "/help opens this overlay locally", "/clear resets the transcript", "/exit leaves the TUI"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected scrolled help overlay to contain %q, got %q", needle, view)
 		}
 	}
 }
