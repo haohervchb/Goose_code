@@ -308,6 +308,24 @@ func (m model) sessionStatus() string {
 	return strings.Join(parts, " | ")
 }
 
+func (m *model) syncViewport(follow bool) {
+	offset := m.viewport.YOffset
+	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
+	if follow {
+		m.viewport.GotoBottom()
+		return
+	}
+
+	maxOffset := m.viewport.TotalLineCount() - m.viewport.Height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	m.viewport.SetYOffset(offset)
+}
+
 const (
 	toolStyle        = "\033[1;36m" // Bold cyan for tool name
 	toolArgsStyle    = "\033[90m"   // Dim gray for args
@@ -440,18 +458,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case responseMsg:
+		follow := m.viewport.AtBottom()
 		m.output += string(msg)
-		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-		m.viewport.YOffset = 0
-		m.viewport.GotoBottom()
+		m.syncViewport(follow)
 		return m, textarea.Blink
 	case backendErrorMsg:
+		follow := m.viewport.AtBottom()
 		m.output += string(msg) + "\n"
-		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-		m.viewport.YOffset = 0
-		m.viewport.GotoBottom()
+		m.syncViewport(follow)
 		return m, textarea.Blink
 	case toolStartMsg:
+		follow := m.viewport.AtBottom()
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
@@ -459,12 +476,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.output += fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
 			toolStyle, msg.name, resetStyleTool,
 			toolArgsStyle, msg.args, resetStyleTool)
-		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-		m.viewport.YOffset = 0
-		m.viewport.GotoBottom()
+		m.syncViewport(follow)
 		return m, textarea.Blink
 	case toolOutputMsg:
 		if m.currentToolID == msg.id {
+			follow := m.viewport.AtBottom()
 			// Truncate long output
 			output := msg.output
 			if len(m.currentToolOutput)+len(output) > 10000 {
@@ -479,13 +495,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentToolOutput += output
 				m.output += output
 			}
-			m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-			m.viewport.YOffset = 0
-			m.viewport.GotoBottom()
+			m.syncViewport(follow)
 		}
 		return m, textarea.Blink
 	case toolEndMsg:
 		if m.currentToolID == msg.id {
+			follow := m.viewport.AtBottom()
 			if msg.success {
 				m.output += fmt.Sprintf("%s[✓]%s ", toolSuccessStyle, resetStyleTool)
 			} else {
@@ -496,20 +511,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentToolID = ""
 			m.currentToolOutput = ""
 			m.isRunning = false
-			m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-			m.viewport.YOffset = 0
-			m.viewport.GotoBottom()
+			m.syncViewport(follow)
 		}
 		return m, textarea.Blink
 	case tea.WindowSizeMsg:
+		follow := m.viewport.AtBottom()
 		m.viewport.Width = msg.Width
 		m.viewport.Height = msg.Height - 11 // 4 header + 1 sep + 3 input + 3 extra
 		m.textInput.SetWidth(msg.Width)
 		m.textInput.SetHeight(3)
 		m.viewportWidth = msg.Width
-		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
-		m.viewport.YOffset = 0
-		m.viewport.GotoBottom()
+		m.syncViewport(follow)
 		return m, textarea.Blink
 	}
 

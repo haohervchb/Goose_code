@@ -100,3 +100,38 @@ func TestTabToggleDoesNotAppendTranscriptNoise(t *testing.T) {
 		t.Fatalf("expected header to reflect plan mode after tab toggle")
 	}
 }
+
+func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.syncViewport(true)
+
+	updated, _ := m.Update(responseMsg("7\n"))
+	after := updated.(model)
+
+	if !after.viewport.AtBottom() {
+		t.Fatalf("expected viewport to stay at bottom when new output arrives at bottom")
+	}
+}
+
+func TestViewportPreservesScrollWhenUserScrolledUp(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.syncViewport(true)
+	m.viewport.LineUp(2)
+
+	updated, _ := m.Update(responseMsg("7\n"))
+	after := updated.(model)
+
+	if after.viewport.AtBottom() {
+		t.Fatalf("expected viewport to preserve scroll position when user is reading older output")
+	}
+}
+
+func (m *model) viewportHeightForTest(height int) {
+	m.viewport.Height = height
+	m.viewportWidth = 20
+	m.viewport.Width = 20
+}
