@@ -174,152 +174,148 @@ func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
 	return chunk[:idx] + prefix + chunk[idx:], false
 }
 
-func renderAssistantEntry(text string) string {
+func renderWrappedBlockAtWidth(label, labelColor, text string, width int) string {
 	if text == "" {
 		return ""
 	}
+	if width <= 0 {
+		width = 1
+	}
 
 	var rendered strings.Builder
-	lines := strings.SplitAfter(text, "\n")
-	printedLabel := false
+	rendered.WriteByte('\n')
+	logicalLines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(logicalLines) == 0 {
+		logicalLines = []string{""}
+	}
 
-	for _, line := range lines {
-		if line == "" {
-			continue
+	firstPrefixWidth := ansi.StringWidth(label) + 1
+	continuationPrefixWidth := 2
+	firstContentWidth := width - firstPrefixWidth
+	if firstContentWidth < 1 {
+		firstContentWidth = 1
+	}
+	continuationContentWidth := width - continuationPrefixWidth
+	if continuationContentWidth < 1 {
+		continuationContentWidth = 1
+	}
+
+	for i, logicalLine := range logicalLines {
+		wrapped := wrapText(logicalLine, firstContentWidth)
+		if i > 0 {
+			wrapped = wrapText(logicalLine, continuationContentWidth)
+		}
+		segments := strings.Split(wrapped, "\n")
+		if len(segments) == 0 {
+			segments = []string{""}
 		}
 
-		endsLine := strings.HasSuffix(line, "\n")
-		content := strings.TrimSuffix(line, "\n")
-
-		if !printedLabel {
-			if content == "" && endsLine {
-				rendered.WriteByte('\n')
-				continue
+		for j, segment := range segments {
+			if i == 0 && j == 0 {
+				rendered.WriteString(labelColor)
+				rendered.WriteString(label)
+				rendered.WriteString(resetStyle)
+				rendered.WriteByte(' ')
+			} else {
+				rendered.WriteString(toolArgsStyle)
+				rendered.WriteString("│ ")
+				rendered.WriteString(resetStyle)
 			}
-			rendered.WriteString(headerStyle)
-			rendered.WriteString("goose>")
-			rendered.WriteString(resetStyle)
-			rendered.WriteByte(' ')
-			rendered.WriteString(content)
-			printedLabel = true
-		} else {
-			rendered.WriteString(toolArgsStyle)
-			rendered.WriteString("│ ")
-			rendered.WriteString(resetStyle)
-			rendered.WriteString(content)
-		}
-
-		if endsLine {
+			rendered.WriteString(segment)
 			rendered.WriteByte('\n')
 		}
 	}
 
-	if !printedLabel {
-		return text
+	return rendered.String()
+}
+
+func renderIndentedBlockAtWidth(text string, width int) string {
+	if text == "" {
+		return ""
+	}
+	if width <= 2 {
+		width = 2
+	}
+
+	var rendered strings.Builder
+	logicalLines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	for _, logicalLine := range logicalLines {
+		wrapped := wrapText(logicalLine, contentWidth)
+		segments := strings.Split(wrapped, "\n")
+		if len(segments) == 0 {
+			segments = []string{""}
+		}
+
+		for _, segment := range segments {
+			rendered.WriteString(toolArgsStyle)
+			rendered.WriteString("│ ")
+			rendered.WriteString(resetStyle)
+			rendered.WriteString(segment)
+			rendered.WriteByte('\n')
+		}
 	}
 
 	return rendered.String()
+}
+
+func renderAssistantEntryAtWidth(text string, width int) string {
+	return renderWrappedBlockAtWidth("goose>", headerStyle, text, width)
+}
+
+func renderAssistantEntry(text string) string {
+	return renderAssistantEntryAtWidth(text, 80)
+}
+
+func renderUserEntryAtWidth(text string, width int) string {
+	return renderWrappedBlockAtWidth("you>", promptStyle, text, width)
 }
 
 func renderUserEntry(text string) string {
-	if text == "" {
-		return ""
-	}
-
-	var rendered strings.Builder
-	rendered.WriteByte('\n')
-	lines := strings.SplitAfter(text, "\n")
-
-	for i, line := range lines {
-		if line == "" {
-			continue
-		}
-
-		endsLine := strings.HasSuffix(line, "\n")
-		content := strings.TrimSuffix(line, "\n")
-
-		if i == 0 {
-			rendered.WriteString(promptStyle)
-			rendered.WriteString("you>")
-			rendered.WriteString(resetStyle)
-			rendered.WriteByte(' ')
-		} else {
-			rendered.WriteString(toolArgsStyle)
-			rendered.WriteString("│ ")
-			rendered.WriteString(resetStyle)
-		}
-
-		rendered.WriteString(content)
-		if endsLine {
-			rendered.WriteByte('\n')
-		}
-	}
-
-	return rendered.String()
+	return renderUserEntryAtWidth(text, 80)
 }
 
-func renderLabeledBlock(label, labelColor, text string) string {
-	if text == "" {
-		return ""
-	}
-
-	var rendered strings.Builder
-	rendered.WriteByte('\n')
-	lines := strings.SplitAfter(text, "\n")
-
-	for i, line := range lines {
-		if line == "" {
-			continue
-		}
-
-		endsLine := strings.HasSuffix(line, "\n")
-		content := strings.TrimSuffix(line, "\n")
-
-		if i == 0 {
-			rendered.WriteString(labelColor)
-			rendered.WriteString(label)
-			rendered.WriteString(resetStyle)
-			rendered.WriteByte(' ')
-		} else {
-			rendered.WriteString(toolArgsStyle)
-			rendered.WriteString("│ ")
-			rendered.WriteString(resetStyle)
-		}
-
-		rendered.WriteString(content)
-		if endsLine {
-			rendered.WriteByte('\n')
-		}
-	}
-
-	return rendered.String()
-}
-
-func renderCommandEntry(name, args string) string {
+func renderCommandEntryAtWidth(name, args string, width int) string {
 	command := "/" + name
 	if strings.TrimSpace(args) != "" {
 		command += " " + args
 	}
 
-	return renderLabeledBlock("cmd>", toolArgsStyle, command)
+	return renderWrappedBlockAtWidth("cmd>", toolArgsStyle, command, width)
+}
+
+func renderCommandEntry(name, args string) string {
+	return renderCommandEntryAtWidth(name, args, 80)
+}
+
+func renderErrorEntryAtWidth(text string, width int) string {
+	trimmed := strings.TrimRight(text, "\n")
+	if trimmed == "" {
+		return ""
+	}
+
+	return renderWrappedBlockAtWidth("error>", errorStyle, trimmed, width)
 }
 
 func renderErrorEntry(text string) string {
+	return renderErrorEntryAtWidth(text, 80)
+}
+
+func renderSystemEntryAtWidth(text string, width int) string {
 	trimmed := strings.TrimRight(text, "\n")
 	if trimmed == "" {
 		return ""
 	}
 
-	return renderLabeledBlock("error>", errorStyle, trimmed)
+	return renderWrappedBlockAtWidth("info>", successStyle, trimmed, width)
 }
 
 func renderSystemEntry(text string) string {
-	trimmed := strings.TrimRight(text, "\n")
-	if trimmed == "" {
-		return ""
-	}
-
-	return renderLabeledBlock("info>", successStyle, trimmed)
+	return renderSystemEntryAtWidth(text, 80)
 }
 
 func toolOutputLineCount(text string) int {
@@ -335,13 +331,12 @@ func shouldCompactToolOutput(text string) bool {
 	return toolOutputLineCount(text) > 6 || len(text) > 500
 }
 
-func renderToolOutputEntry(text string, expanded bool) string {
+func renderToolOutputEntryAtWidth(text string, expanded bool, width int) string {
 	if text == "" {
 		return ""
 	}
 	if expanded || !shouldCompactToolOutput(text) {
-		rendered, _ := formatToolOutputChunk(text, false)
-		return rendered
+		return renderIndentedBlockAtWidth(text, width)
 	}
 
 	trimmed := strings.TrimRight(text, "\n")
@@ -355,7 +350,7 @@ func renderToolOutputEntry(text string, expanded bool) string {
 	if strings.HasSuffix(text, "\n") || previewCount < len(lines) {
 		previewText += "\n"
 	}
-	preview, _ := formatToolOutputChunk(previewText, false)
+	preview := renderIndentedBlockAtWidth(previewText, width)
 
 	hidden := len(lines) - previewCount
 	if hidden < 0 {
@@ -363,6 +358,10 @@ func renderToolOutputEntry(text string, expanded bool) string {
 	}
 
 	return preview + toolArgsStyle + "⋮ " + resetStyleTool + fmt.Sprintf("%d more line(s) hidden, Ctrl+O expands\n", hidden)
+}
+
+func renderToolOutputEntry(text string, expanded bool) string {
+	return renderToolOutputEntryAtWidth(text, expanded, 80)
 }
 
 func formatUserPrompt(text string) string {
@@ -674,36 +673,29 @@ func (m *model) appendToTranscriptEntry(idx int, text string) {
 func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	switch entry.kind {
 	case transcriptUser:
-		return renderUserEntry(entry.text)
+		return renderUserEntryAtWidth(entry.text, m.renderWidth())
 	case transcriptAssistant:
-		return renderAssistantEntry(entry.text)
+		return renderAssistantEntryAtWidth(entry.text, m.renderWidth())
 	case transcriptCommand:
-		return renderCommandEntry(entry.text, entry.meta)
+		return renderCommandEntryAtWidth(entry.text, entry.meta, m.renderWidth())
 	case transcriptError:
-		return renderErrorEntry(entry.text)
+		return renderErrorEntryAtWidth(entry.text, m.renderWidth())
 	case transcriptToolStart:
 		return formatToolStartLine(entry.text, entry.meta)
 	case transcriptToolOutput:
-		return renderToolOutputEntry(entry.text, m.showToolOutput)
+		return renderToolOutputEntryAtWidth(entry.text, m.showToolOutput, m.renderWidth())
 	case transcriptToolEnd:
 		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
 	default:
-		return renderSystemEntry(entry.text)
+		return renderSystemEntryAtWidth(entry.text, m.renderWidth())
 	}
 }
 
 func (m model) renderTranscript() string {
 	var rendered strings.Builder
 
-	for i, entry := range m.entries {
-		if entry.kind == transcriptToolEnd && i > 0 {
-			prev := m.entries[i-1]
-			if prev.kind == transcriptToolOutput && prev.text != "" && !strings.HasSuffix(prev.text, "\n") {
-				rendered.WriteByte('\n')
-			}
-		}
-
-		rendered.WriteString(wrapText(m.renderTranscriptEntry(entry), m.renderWidth()))
+	for _, entry := range m.entries {
+		rendered.WriteString(m.renderTranscriptEntry(entry))
 	}
 
 	return rendered.String()

@@ -128,9 +128,23 @@ func TestRenderUserEntryFormatsMultilineInput(t *testing.T) {
 	}
 }
 
+func TestRenderUserEntryKeepsGutterOnSoftWrap(t *testing.T) {
+	got := ansi.Strip(renderUserEntryAtWidth(strings.Repeat("a", 20), 12))
+	if !strings.Contains(got, "\n│ ") {
+		t.Fatalf("expected wrapped user entry to keep gutter, got %q", got)
+	}
+}
+
 func TestRenderCommandEntryFormatsMultilineArgs(t *testing.T) {
 	if got := ansi.Strip(renderCommandEntry("model", "gpt-5\nreasoning=high\n")); got != "\ncmd> /model gpt-5\n│ reasoning=high\n" {
 		t.Fatalf("expected multiline command block, got %q", got)
+	}
+}
+
+func TestRenderCommandEntryKeepsGutterOnSoftWrap(t *testing.T) {
+	got := ansi.Strip(renderCommandEntryAtWidth("model", strings.Repeat("x", 20), 12))
+	if !strings.Contains(got, "\n│ ") {
+		t.Fatalf("expected wrapped command entry to keep gutter, got %q", got)
 	}
 }
 
@@ -147,13 +161,20 @@ func TestFormatErrorLineAddsErrorPrefix(t *testing.T) {
 }
 
 func TestRenderErrorEntryFormatsMultilineError(t *testing.T) {
-	if got := ansi.Strip(renderErrorEntry("Error: boom\ndetails\n")); got != "\nerror> Error: boom\n│ details" {
+	if got := ansi.Strip(renderErrorEntry("Error: boom\ndetails\n")); got != "\nerror> Error: boom\n│ details\n" {
 		t.Fatalf("expected multiline error block, got %q", got)
 	}
 }
 
+func TestRenderToolOutputEntryKeepsGutterOnSoftWrap(t *testing.T) {
+	got := ansi.Strip(renderToolOutputEntryAtWidth(strings.Repeat("z", 20), true, 8))
+	if strings.Count(got, "│ ") < 2 {
+		t.Fatalf("expected wrapped tool output to keep gutter on each line, got %q", got)
+	}
+}
+
 func TestRenderSystemEntryFormatsMultilineInfo(t *testing.T) {
-	if got := ansi.Strip(renderSystemEntry("Connected!\nSession abc\n")); got != "\ninfo> Connected!\n│ Session abc" {
+	if got := ansi.Strip(renderSystemEntry("Connected!\nSession abc\n")); got != "\ninfo> Connected!\n│ Session abc\n" {
 		t.Fatalf("expected multiline system block, got %q", got)
 	}
 }
