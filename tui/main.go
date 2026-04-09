@@ -625,6 +625,7 @@ type model struct {
 	entries   []transcriptEntry
 	planMode  bool
 	connected bool
+	showHelp  bool
 	quit      bool
 	fallback  bool // true if falling back to REPL
 	// Tool state
@@ -742,6 +743,9 @@ func (m model) sessionStatus() string {
 	if m.hasCollapsedToolOutput() {
 		parts = append(parts, "tool block compact")
 	}
+	if m.showHelp {
+		parts = append(parts, "help open")
+	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
 }
@@ -770,6 +774,9 @@ func (m model) promptStatus() string {
 	}
 	if width >= 112 {
 		parts = append(parts, "\033[90mCtrl+O toggles last tool block\033[0m")
+	}
+	if width >= 128 {
+		parts = append(parts, "\033[90mF1 help overlay\033[0m")
 	}
 
 	if m.activeProvider != "" || m.activeModel != "" {
@@ -852,6 +859,36 @@ func (m *model) noteViewportState(follow, changed bool) {
 	}
 }
 
+func (m model) helpContent() string {
+	sections := []string{
+		headerStyle + "Help" + resetStyle,
+		"",
+		successStyle + "Navigation" + resetStyle,
+		"Up/Down scroll line by line",
+		"PgUp/PgDn scroll by page",
+		"Home/End jump to the top or bottom",
+		"Mouse wheel scrolls the transcript",
+		"",
+		successStyle + "Prompt" + resetStyle,
+		"Enter submits the current prompt",
+		"Tab toggles plan/build mode",
+		"F1 opens or closes this help view",
+		"Esc closes help",
+		"",
+		successStyle + "Tools" + resetStyle,
+		"Ctrl+O toggles the last tool output block",
+		"Long tool output starts compact and can be expanded",
+		"",
+		successStyle + "Commands" + resetStyle,
+		"/clear resets the transcript",
+		"/exit leaves the TUI",
+	}
+
+	vp := viewport.New(m.renderWidth(), m.viewport.Height)
+	vp.SetContent(wrapText(strings.Join(sections, "\n"), m.renderWidth()))
+	return vp.View()
+}
+
 const (
 	toolStyle        = "\033[1;36m" // Bold cyan for tool name
 	toolArgsStyle    = "\033[90m"   // Dim gray for args
@@ -911,6 +948,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.backend.SendQuit()
 			}
 			return m, tea.Quit
+		case "f1":
+			m.showHelp = !m.showHelp
+			return m, nil
+		case "esc":
+			if m.showHelp {
+				m.showHelp = false
+				return m, nil
+			}
 		case "up", "pageup", "pgup":
 			// Scroll up in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -1128,7 +1173,11 @@ func (m model) View() string {
 	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")
 
 	// Chat messages (scrollable viewport)
-	s.WriteString(m.viewport.View())
+	if m.showHelp {
+		s.WriteString(m.helpContent())
+	} else {
+		s.WriteString(m.viewport.View())
+	}
 
 	// Input area (fixed at bottom)
 	if m.planMode {

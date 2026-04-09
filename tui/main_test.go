@@ -361,6 +361,17 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 	}
 }
 
+func TestPromptStatusShowsHelpHintOnWideTerminals(t *testing.T) {
+	m := newModel(nil)
+	m.viewportWidth = 140
+	m.relayout()
+	view := ansi.Strip(m.View())
+
+	if !strings.Contains(view, "F1 help over") || !strings.Contains(view, "lay") {
+		t.Fatalf("expected footer help hint on wide terminals, got %q", view)
+	}
+}
+
 func TestPromptStatusCompactsOnNarrowTerminals(t *testing.T) {
 	m := newModel(nil)
 	m.activeProvider = "ollama"
@@ -372,10 +383,41 @@ func TestPromptStatusCompactsOnNarrowTerminals(t *testing.T) {
 	if !strings.Contains(view, "mode BUILD") {
 		t.Fatalf("expected compact prompt status to keep mode, got %q", view)
 	}
-	for _, hidden := range []string{"PgUp/PgDn scroll", "Home/End jump", "/clear resets transcript"} {
+	for _, hidden := range []string{"PgUp/PgDn scroll", "Home/End jump", "/clear resets transcript", "F1 help overlay"} {
 		if strings.Contains(view, hidden) {
 			t.Fatalf("expected compact prompt status to hide %q, got %q", hidden, view)
 		}
+	}
+}
+
+func TestF1TogglesHelpOverlay(t *testing.T) {
+	m := newModel(nil)
+	m.viewportWidth = 120
+	m.relayout()
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyF1})
+	help := updated.(model)
+	view := ansi.Strip(help.View())
+
+	if !help.showHelp {
+		t.Fatalf("expected F1 to open help overlay")
+	}
+	for _, needle := range []string{"Help", "Navigation", "Prompt", "Tools", "Commands"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected help overlay to contain %q, got %q", needle, view)
+		}
+	}
+}
+
+func TestEscClosesHelpOverlay(t *testing.T) {
+	m := newModel(nil)
+	m.showHelp = true
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	closed := updated.(model)
+
+	if closed.showHelp {
+		t.Fatalf("expected esc to close help overlay")
 	}
 }
 
