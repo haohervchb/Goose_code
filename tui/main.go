@@ -610,10 +610,11 @@ const (
 )
 
 type transcriptEntry struct {
-	kind    transcriptKind
-	text    string
-	meta    string
-	success bool
+	kind     transcriptKind
+	text     string
+	meta     string
+	success  bool
+	expanded bool
 }
 
 type model struct {
@@ -636,7 +637,6 @@ type model struct {
 	toolOutputLineOpen      bool
 	isRunning               bool // true when a tool is executing
 	hasUnseenOutput         bool
-	showToolOutput          bool
 	awaitingAssistantPrefix bool
 	viewportWidth           int // current viewport width for text wrapping
 	windowHeight            int
@@ -663,6 +663,27 @@ func (m *model) appendTranscriptEntry(kind transcriptKind, text, meta string, su
 	return len(m.entries) - 1
 }
 
+func (m *model) toggleLastToolOutputEntry() bool {
+	for i := len(m.entries) - 1; i >= 0; i-- {
+		if m.entries[i].kind == transcriptToolOutput {
+			m.entries[i].expanded = !m.entries[i].expanded
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m model) hasCollapsedToolOutput() bool {
+	for _, entry := range m.entries {
+		if entry.kind == transcriptToolOutput && shouldCompactToolOutput(entry.text) && !entry.expanded {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (m *model) appendToTranscriptEntry(idx int, text string) {
 	if idx < 0 || idx >= len(m.entries) || text == "" {
 		return
@@ -683,7 +704,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptToolStart:
 		return renderToolStartEntryAtWidth(entry.text, entry.meta, m.renderWidth())
 	case transcriptToolOutput:
-		return renderToolOutputEntryAtWidth(entry.text, m.showToolOutput, m.renderWidth())
+		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth())
 	case transcriptToolEnd:
 		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
 	default:
@@ -718,8 +739,8 @@ func (m model) sessionStatus() string {
 	if m.viewport.TotalLineCount() > m.viewport.Height && !m.viewport.AtBottom() {
 		parts = append(parts, fmt.Sprintf("scroll %d%%", int(m.viewport.ScrollPercent()*100)))
 	}
-	if !m.showToolOutput {
-		parts = append(parts, "tools compact")
+	if m.hasCollapsedToolOutput() {
+		parts = append(parts, "tool block compact")
 	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
@@ -748,7 +769,7 @@ func (m model) promptStatus() string {
 		parts = append(parts, "\033[90m/clear resets transcript\033[0m")
 	}
 	if width >= 112 {
-		parts = append(parts, "\033[90mCtrl+O toggles tool output\033[0m")
+		parts = append(parts, "\033[90mCtrl+O toggles last tool block\033[0m")
 	}
 
 	if m.activeProvider != "" || m.activeModel != "" {
@@ -864,7 +885,6 @@ func newModel(backend *Backend) model {
 		fallback:               false,
 		currentToolOutputEntry: -1,
 		currentAssistantEntry:  -1,
-		showToolOutput:         false,
 		viewportWidth:          80,
 		windowHeight:           29,
 	}
@@ -911,8 +931,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+o":
 			follow := m.viewport.AtBottom()
-			m.showToolOutput = !m.showToolOutput
-			m.syncViewport(follow)
+			if m.toggleLastToolOutputEntry() {
+				m.syncViewport(follow)
+			}
 			return m, nil
 		case "tab":
 			m.planMode = !m.planMode

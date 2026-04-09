@@ -354,7 +354,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "Ctrl+O to", "ggles tool output", "transcript"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "Ctrl+O to", "ggles last tool block", "transcript"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}
@@ -642,12 +642,10 @@ func TestBannerShowsScrollPercentWhenReadingOlderOutput(t *testing.T) {
 
 func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
 	m := newModel(nil)
-	m.showToolOutput = true
-	m.currentToolID = "call_1"
+	m.entries = []transcriptEntry{{kind: transcriptToolOutput, text: "line one\nline two\n", expanded: true}}
+	m.syncViewport(true)
 
-	updated, _ := m.Update(toolOutputMsg{id: "call_1", output: "line one\nline two\n"})
-	after := updated.(model)
-	view := ansi.Strip(after.viewport.View())
+	view := ansi.Strip(m.viewport.View())
 
 	for _, needle := range []string{"│ line one", "│ line two"} {
 		if !strings.Contains(view, needle) {
@@ -678,6 +676,12 @@ func TestLongToolOutputStartsCompactAndCtrlOTogglesExpansion(t *testing.T) {
 	}
 	if !strings.Contains(expandedTranscript, "│ 7") {
 		t.Fatalf("expected expanded tool output to show later lines, got %q", expandedTranscript)
+	}
+
+	updated, _ = expanded.Update(tea.KeyMsg{Type: tea.KeyCtrlO})
+	recollapsed := updated.(model)
+	if !strings.Contains(ansi.Strip(recollapsed.output), "4 more line(s) hidden, Ctrl+O expands") {
+		t.Fatalf("expected Ctrl+O to collapse the last tool block again, got %q", ansi.Strip(recollapsed.output))
 	}
 }
 
