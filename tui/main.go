@@ -313,6 +313,15 @@ func renderErrorEntry(text string) string {
 	return renderLabeledBlock("error>", errorStyle, trimmed)
 }
 
+func renderSystemEntry(text string) string {
+	trimmed := strings.TrimRight(text, "\n")
+	if trimmed == "" {
+		return ""
+	}
+
+	return renderLabeledBlock("info>", successStyle, trimmed)
+}
+
 func formatUserPrompt(text string) string {
 	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
 }
@@ -636,7 +645,7 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptToolEnd:
 		return formatToolEndLine(entry.success, entry.text, entry.meta == "truncated")
 	default:
-		return entry.text
+		return renderSystemEntry(entry.text)
 	}
 }
 

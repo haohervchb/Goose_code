@@ -128,6 +128,12 @@ func TestRenderErrorEntryFormatsMultilineError(t *testing.T) {
 	}
 }
 
+func TestRenderSystemEntryFormatsMultilineInfo(t *testing.T) {
+	if got := ansi.Strip(renderSystemEntry("Connected!\nSession abc\n")); got != "\ninfo> Connected!\n│ Session abc" {
+		t.Fatalf("expected multiline system block, got %q", got)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -251,6 +257,8 @@ func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	m.isRunning = true
 	m.currentTool = "bash"
 	m.viewportWidth = 120
+	m.entries = []transcriptEntry{{kind: transcriptSystem, text: "Connected!\nSession abc123\n"}}
+	m.syncViewport(true)
 
 	view := ansi.Strip(m.View())
 
@@ -262,6 +270,9 @@ func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
 	}
 	if !strings.Contains(view, "running bash") {
 		t.Fatalf("expected running tool status in header, got %q", view)
+	}
+	if !strings.Contains(view, "info> Connected!") {
+		t.Fatalf("expected system transcript block in view, got %q", view)
 	}
 }
 
