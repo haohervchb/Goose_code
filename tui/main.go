@@ -86,6 +86,40 @@ func headerLine(prefix, status string, width int) string {
 	return prefix + separator + ansi.Truncate(status, available, "...")
 }
 
+func formatToolOutputChunk(chunk string, lineOpen bool) (string, bool) {
+	if chunk == "" {
+		return "", lineOpen
+	}
+
+	var out strings.Builder
+	parts := strings.SplitAfter(chunk, "\n")
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		endsLine := strings.HasSuffix(part, "\n")
+		content := strings.TrimSuffix(part, "\n")
+
+		if !lineOpen {
+			out.WriteString(toolArgsStyle)
+			out.WriteString("│ ")
+			out.WriteString(resetStyleTool)
+		}
+
+		out.WriteString(content)
+		if endsLine {
+			out.WriteByte('\n')
+			lineOpen = false
+		} else {
+			lineOpen = true
+		}
+	}
+
+	return out.String(), lineOpen
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -306,15 +340,16 @@ type model struct {
 	quit      bool
 	fallback  bool // true if falling back to REPL
 	// Tool state
-	currentTool       string
-	currentToolID     string
-	currentToolOutput string
-	isRunning         bool // true when a tool is executing
-	hasUnseenOutput   bool
-	viewportWidth     int // current viewport width for text wrapping
-	windowHeight      int
-	activeModel       string
-	activeProvider    string
+	currentTool        string
+	currentToolID      string
+	currentToolOutput  string
+	toolOutputLineOpen bool
+	isRunning          bool // true when a tool is executing
+	hasUnseenOutput    bool
+	viewportWidth      int // current viewport width for text wrapping
+	windowHeight       int
+	activeModel        string
+	activeProvider     string
 }
 
 func (m model) sendPrompt(text string) {
@@ -586,6 +621,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
+		m.toolOutputLineOpen = false
 		m.isRunning = true
 		m.output += fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
 			toolStyle, msg.name, resetStyleTool,
@@ -607,8 +643,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if output != "" {
+				formatted, lineOpen := formatToolOutputChunk(output, m.toolOutputLineOpen)
 				m.currentToolOutput += output
-				m.output += output
+				m.toolOutputLineOpen = lineOpen
+				m.output += formatted
 			}
 			m.syncViewport(follow)
 			m.noteViewportState(follow, output != "")
@@ -626,6 +664,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentTool = ""
 			m.currentToolID = ""
 			m.currentToolOutput = ""
+			m.toolOutputLineOpen = false
 			m.isRunning = false
 			m.syncViewport(follow)
 			m.noteViewportState(follow, true)

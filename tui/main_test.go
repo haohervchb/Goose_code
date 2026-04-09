@@ -50,6 +50,19 @@ func TestFormatToolArgsSortsKeys(t *testing.T) {
 	}
 }
 
+func TestFormatToolOutputChunkPrefixesNewLinesAndContinuesOpenLine(t *testing.T) {
+	first, open := formatToolOutputChunk("hello", false)
+	second, open := formatToolOutputChunk(" world\nnext\n", open)
+
+	if open {
+		t.Fatalf("expected tool output line state to close on trailing newline")
+	}
+	joined := ansi.Strip(first + second)
+	if joined != "│ hello world\n│ next\n" {
+		t.Fatalf("expected prefixed tool output, got %q", joined)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -257,6 +270,21 @@ func TestUnreadOutputHintClearsAtBottom(t *testing.T) {
 
 	if atBottom.hasUnseenOutput {
 		t.Fatalf("expected unseen output flag to clear after returning to bottom")
+	}
+}
+
+func TestToolOutputIsPrefixedInTranscript(t *testing.T) {
+	m := newModel(nil)
+	m.currentToolID = "call_1"
+
+	updated, _ := m.Update(toolOutputMsg{id: "call_1", output: "line one\nline two\n"})
+	after := updated.(model)
+	view := ansi.Strip(after.viewport.View())
+
+	for _, needle := range []string{"│ line one", "│ line two"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected tool output transcript to contain %q, got %q", needle, view)
+		}
 	}
 }
 
