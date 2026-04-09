@@ -584,6 +584,7 @@ func (b *Backend) WaitForInit(timeout time.Duration) (*BackendResponse, error) {
 }
 
 type responseMsg string
+type responseDoneMsg struct{}
 type backendErrorMsg string
 type toolStartMsg struct {
 	id   string
@@ -641,6 +642,7 @@ type model struct {
 	currentAssistantEntry   int
 	toolOutputLineOpen      bool
 	isRunning               bool // true when a tool is executing
+	assistantResponding     bool
 	hasUnseenOutput         bool
 	awaitingAssistantPrefix bool
 	viewportWidth           int // current viewport width for text wrapping
@@ -741,6 +743,9 @@ func (m model) sessionStatus() string {
 	if m.backend != nil && m.backend.sessionID != "" {
 		parts = append(parts, "session "+m.backend.sessionID)
 	}
+	if m.assistantResponding {
+		parts = append(parts, "responding")
+	}
 	if m.isRunning && m.currentTool != "" {
 		parts = append(parts, "running "+m.currentTool)
 	}
@@ -770,6 +775,11 @@ func (m model) promptStatus() string {
 
 	parts := []string{modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle}
 	width := m.renderWidth()
+	if m.assistantResponding {
+		parts = append(parts, "\033[35mGoose is responding\033[0m")
+	} else if width >= 45 {
+		parts = append(parts, "\033[32mReady for input\033[0m")
+	}
 	if width >= 45 {
 		parts = append(parts, "\033[90mTab toggles mode\033[0m")
 	}
@@ -1033,6 +1043,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentToolOutputEntry = -1
 					m.currentToolOutput = ""
 					m.toolOutputLineOpen = false
+					m.assistantResponding = false
 					m.awaitingAssistantPrefix = false
 					m.syncViewport(true)
 					return m, textarea.Blink
@@ -1067,6 +1078,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentAssistantEntry = -1
 			m.appendTranscriptEntry(transcriptUser, text, "", false)
 			m.sendPrompt(text)
+			m.assistantResponding = true
 			m.awaitingAssistantPrefix = true
 			m.syncViewport(true)
 			return m, textarea.Blink
@@ -1091,8 +1103,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
+	case responseDoneMsg:
+		m.assistantResponding = false
+		m.awaitingAssistantPrefix = false
+		m.currentAssistantEntry = -1
+		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
+		m.assistantResponding = false
 		m.currentAssistantEntry = -1
 		m.awaitingAssistantPrefix = false
 		m.appendTranscriptEntry(transcriptError, string(msg), "", false)
@@ -1180,6 +1198,9 @@ func (m model) View() string {
 		headerPrefix = "\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.1 \033[33m[PLAN]\033[0m"
 	} else {
 		headerPrefix = "\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m"
+	}
+	if m.assistantResponding {
+		headerPrefix += " \033[35m[RESPONDING]\033[0m"
 	}
 	s.WriteString(headerLine(headerPrefix, status, m.renderWidth()))
 	s.WriteString("\n")
@@ -1272,6 +1293,7 @@ func main() {
 	}
 
 	respChan := make(chan responseMsg, 100)
+	respDoneChan := make(chan responseDoneMsg, 10)
 	errChan := make(chan backendErrorMsg, 10)
 	toolStartChan := make(chan toolStartMsg, 10)
 	toolOutputChan := make(chan toolOutputMsg, 100)
@@ -1287,9 +1309,11 @@ func main() {
 			}
 			if resp != nil {
 				if resp.Type == "response" {
-					respChan <- responseMsg(resp.Content)
+					if resp.Content != "" {
+						respChan <- responseMsg(resp.Content)
+					}
 					if resp.Done {
-						respChan <- responseMsg("\n")
+						respDoneChan <- responseDoneMsg{}
 					}
 				} else if resp.Type == "error" {
 					errChan <- backendErrorMsg(errorStyle + "Error: " + resp.Message + resetStyle)
@@ -1314,6 +1338,7 @@ func main() {
 			}
 		}
 		close(respChan)
+		close(respDoneChan)
 		close(errChan)
 		close(toolStartChan)
 		close(toolOutputChan)
@@ -1340,6 +1365,12 @@ func main() {
 	// Run goroutines to send messages to TUI
 	go func() {
 		for msg := range respChan {
+			p.Send(msg)
+		}
+	}()
+
+	go func() {
+		for msg := range respDoneChan {
 			p.Send(msg)
 		}
 	}()

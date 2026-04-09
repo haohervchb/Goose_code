@@ -366,7 +366,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets", "Ctrl+O to", "ggles last tool block", "transcript"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Ready for input", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets tran", "script", "Ctrl+O toggles", "last tool block"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}
@@ -503,6 +503,26 @@ func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
 	}
 }
 
+func TestPromptSubmitShowsRespondingArtifacts(t *testing.T) {
+	m := newModel(nil)
+	m.viewportWidth = 120
+	m.relayout()
+	m.textInput.SetValue("hello")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	submitted := updated.(model)
+	view := ansi.Strip(submitted.View())
+
+	if !submitted.assistantResponding {
+		t.Fatalf("expected submit to mark assistant as responding")
+	}
+	for _, needle := range []string{"[RESPONDING]", "responding", "Goose is responding"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected responding artifact %q in view, got %q", needle, view)
+		}
+	}
+}
+
 func TestPromptSubmitRendersMultilineUserBlock(t *testing.T) {
 	m := newModel(nil)
 	m.textInput.SetValue("hello\nworld")
@@ -580,6 +600,31 @@ func TestAssistantReplyGetsSinglePrefixAcrossChunks(t *testing.T) {
 	}
 	if !strings.Contains(transcript, "goose> Hi there") {
 		t.Fatalf("expected assistant reply to be prefixed once, got %q", transcript)
+	}
+}
+
+func TestResponseDoneClearsRespondingArtifacts(t *testing.T) {
+	m := newModel(nil)
+	m.viewportWidth = 120
+	m.relayout()
+	m.textInput.SetValue("hello")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.(model).Update(responseMsg("Hi"))
+	updated, _ = updated.(model).Update(responseDoneMsg{})
+	done := updated.(model)
+	view := ansi.Strip(done.View())
+
+	if done.assistantResponding {
+		t.Fatalf("expected responseDoneMsg to clear responding state")
+	}
+	for _, hidden := range []string{"[RESPONDING]", "Goose is responding"} {
+		if strings.Contains(view, hidden) {
+			t.Fatalf("expected responding artifact %q to clear, got %q", hidden, view)
+		}
+	}
+	if !strings.Contains(view, "Ready for input") {
+		t.Fatalf("expected prompt footer to return to ready state, got %q", view)
 	}
 }
 
