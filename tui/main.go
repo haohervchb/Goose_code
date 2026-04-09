@@ -277,6 +277,8 @@ type model struct {
 	currentToolOutput string
 	isRunning         bool // true when a tool is executing
 	viewportWidth     int  // current viewport width for text wrapping
+	activeModel       string
+	activeProvider    string
 }
 
 func (m model) sendPrompt(text string) {
@@ -306,6 +308,30 @@ func (m model) sessionStatus() string {
 	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
+}
+
+func (m model) promptStatus() string {
+	modeLabel := "build"
+	modeColor := "\033[36m"
+	if m.planMode {
+		modeLabel = "plan"
+		modeColor = "\033[33m"
+	}
+
+	parts := []string{
+		modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle + "  " + "\033[90mTab toggles mode\033[0m",
+		"\033[90mPgUp/PgDn scroll\033[0m",
+		"\033[90m/clear resets transcript\033[0m",
+	}
+
+	if m.activeProvider != "" || m.activeModel != "" {
+		providerModel := strings.TrimPrefix(strings.TrimSpace(m.activeProvider+"/"+m.activeModel), "/")
+		if providerModel != "" {
+			parts = append([]string{"\033[37m" + providerModel + "\033[0m"}, parts...)
+		}
+	}
+
+	return wrapText(strings.Join(parts, " \033[90m|\033[0m "), m.viewportWidth)
 }
 
 func (m *model) syncViewport(follow bool) {
@@ -553,6 +579,8 @@ func (m model) View() string {
 		s.WriteString("\n\033[36m" + separatorString(m.viewportWidth) + "\033[0m\n")
 	}
 	s.WriteString(m.textInput.View())
+	s.WriteString("\n")
+	s.WriteString(m.promptStatus())
 
 	return s.String()
 }
@@ -682,6 +710,8 @@ func main() {
 
 	m := newModel(backend)
 	m.connected = true
+	m.activeModel = cfg.Model
+	m.activeProvider = cfg.Provider
 	m.output = fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID)
 	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 	m.viewport.GotoBottom()

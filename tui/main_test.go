@@ -101,6 +101,20 @@ func TestTabToggleDoesNotAppendTranscriptNoise(t *testing.T) {
 	}
 }
 
+func TestViewShowsPromptStatusRow(t *testing.T) {
+	m := newModel(nil)
+	m.activeProvider = "ollama"
+	m.activeModel = "llama3"
+
+	view := ansi.Strip(m.View())
+
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Tab toggles mode", "PgUp/PgDn scroll", "/clear resets", "transcript"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
+		}
+	}
+}
+
 func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
