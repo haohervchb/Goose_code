@@ -10,12 +10,58 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// wrapText wraps text to the given width, preserving newlines
+func wrapText(text string, width int) string {
+	if width <= 0 || text == "" {
+		return text
+	}
+
+	var result strings.Builder
+	lines := strings.Split(text, "\n")
+
+	for i, line := range lines {
+		if i > 0 {
+			result.WriteByte('\n')
+		}
+
+		lineWidth := utf8.RuneCountInString(line)
+		if lineWidth <= width {
+			result.WriteString(line)
+			continue
+		}
+
+		// Wrap long lines
+		var current strings.Builder
+		runes := []rune(line)
+		for _, r := range runes {
+			if current.Len() >= width {
+				result.WriteString(current.String())
+				result.WriteByte('\n')
+				current.Reset()
+			}
+			current.WriteRune(r)
+		}
+		result.WriteString(current.String())
+	}
+
+	return result.String()
+}
+
+func separatorString(width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	return strings.Repeat("─", width)
+}
 
 type Backend struct {
 	cmd        *exec.Cmd
@@ -229,7 +275,7 @@ type toolEndMsg struct {
 
 type model struct {
 	backend   *Backend
-	textInput textinput.Model
+	textInput textarea.Model
 	viewport  viewport.Model
 	output    string
 	planMode  bool
@@ -240,6 +286,8 @@ type model struct {
 	currentTool       string
 	currentToolID     string
 	currentToolOutput string
+	isRunning         bool // true when a tool is executing
+	viewportWidth     int  // current viewport width for text wrapping
 }
 
 const (
@@ -252,12 +300,12 @@ const (
 )
 
 func newModel(backend *Backend) model {
-	ti := textinput.New()
+	ti := textarea.New()
 	ti.Placeholder = "Type your message or /command..."
 	ti.Prompt = "> "
 	ti.CharLimit = 1000
-	ti.Width = 80
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32"))
+	ti.SetWidth(80)
+	ti.SetHeight(3)
 	ti.Focus()
 
 	vp := viewport.New(80, 20)
@@ -265,20 +313,22 @@ func newModel(backend *Backend) model {
 	vp.YOffset = 0
 
 	m := model{
-		backend:   backend,
-		textInput: ti,
-		viewport:  vp,
-		planMode:  false,
-		connected: false,
-		quit:      false,
-		fallback:  false,
+		backend:       backend,
+		textInput:     ti,
+		viewport:      vp,
+		planMode:      false,
+		connected:     false,
+		quit:          false,
+		fallback:      false,
+		viewportWidth: 80,
 	}
 	m.output = ""
+	m.viewport.SetContent("")
 	return m
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return textarea.Blink
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -308,13 +358,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Update cursor color based on mode
 			if m.planMode {
 				m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
-				return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n\033[33m[PLAN mode]\033[0m\n") })
+				return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n\033[33m[PLAN mode]\033[0m\n") })
 			}
 			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
-			return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n\033[32m[BUILD mode]\033[0m\n") })
+			return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n\033[32m[BUILD mode]\033[0m\n") })
 		case "enter":
 			if m.textInput.Value() == "" {
-				return m, textinput.Blink
+				return m, textarea.Blink
 			}
 
 			text := m.textInput.Value()
@@ -337,59 +387,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if cmdName == "clear" {
 					// Handle clear locally in TUI
 					m.output = ""
-					return m, textinput.Blink
+					return m, textarea.Blink
 				}
 
 				if cmdName == "tab" {
 					m.planMode = !m.planMode
 					if m.planMode {
 						m.backend.SendCommand("plan", "")
-						return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode enabled]\n") })
+						return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode enabled]\n") })
 					}
 					m.backend.SendCommand("plan", "off")
-					return m, tea.Batch(textinput.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode disabled]\n") })
+					return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode disabled]\n") })
 				}
 
 				m.backend.SendCommand(cmdName, args)
 				// Show command feedback
 				m.output += fmt.Sprintf("\n%s[%s]%s %s\n", toolStyle, cmdName, resetStyleTool, args)
-				return m, textinput.Blink
+				return m, textarea.Blink
 			}
 
 			m.output += "\n> " + text + "\n"
 			m.backend.SendPrompt(text)
-			return m, tea.Batch(textinput.Blink, func() tea.Msg {
+			return m, tea.Batch(textarea.Blink, func() tea.Msg {
 				return responseMsg("[Sent] " + text + "\n")
 			})
 		default:
-			// Let textinput handle all other keys (typing)
+			// Let textarea handle all other keys (typing)
 			m.textInput, cmd = m.textInput.Update(msg)
 			return m, cmd
 		}
 
 	case responseMsg:
 		m.output += string(msg)
-		m.viewport.SetContent(m.output)
+		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
-		return m, textinput.Blink
+		return m, textarea.Blink
 	case backendErrorMsg:
 		m.output += string(msg) + "\n"
-		m.viewport.SetContent(m.output)
+		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
-		return m, textinput.Blink
+		return m, textarea.Blink
 	case toolStartMsg:
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
+		m.isRunning = true
 		m.output += fmt.Sprintf("\n%s[%s]%s %s%s%s\n",
 			toolStyle, msg.name, resetStyleTool,
 			toolArgsStyle, msg.args, resetStyleTool)
-		m.viewport.SetContent(m.output)
+		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
-		return m, textinput.Blink
+		return m, textarea.Blink
 	case toolOutputMsg:
 		if m.currentToolID == msg.id {
 			// Truncate long output
@@ -406,11 +457,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentToolOutput += output
 				m.output += output
 			}
-			m.viewport.SetContent(m.output)
+			m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 			m.viewport.YOffset = 0
 			m.viewport.GotoBottom()
 		}
-		return m, textinput.Blink
+		return m, textarea.Blink
 	case toolEndMsg:
 		if m.currentToolID == msg.id {
 			if msg.success {
@@ -422,18 +473,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentTool = ""
 			m.currentToolID = ""
 			m.currentToolOutput = ""
-			m.viewport.SetContent(m.output)
+			m.isRunning = false
+			m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 			m.viewport.YOffset = 0
 			m.viewport.GotoBottom()
 		}
-		return m, textinput.Blink
+		return m, textarea.Blink
 	case tea.WindowSizeMsg:
 		m.viewport.Width = msg.Width
 		m.viewport.Height = msg.Height - 11 // 4 header + 1 sep + 3 input + 3 extra
-		m.textInput.Width = msg.Width
+		m.textInput.SetWidth(msg.Width)
+		m.textInput.SetHeight(3)
+		m.viewportWidth = msg.Width
 		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
-		return m, textinput.Blink
+		return m, textarea.Blink
 	}
 
 	return m, nil
@@ -444,10 +498,15 @@ func (m model) View() string {
 
 	// Header (fixed at top)
 	if m.planMode {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.1 \033[33m[PLAN]\033[0m | /help, /exit to quit\n")
+		s.WriteString("\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.1 \033[33m[PLAN]\033[0m")
 	} else {
-		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m | /help, /exit to quit\n")
+		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m")
 	}
+	// Show running status
+	if m.isRunning && m.currentTool != "" {
+		s.WriteString(" \033[1;35m[RUNNING: " + m.currentTool + "]\033[0m")
+	}
+	s.WriteString(" | /help, /exit to quit\n")
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
 	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")
@@ -457,9 +516,9 @@ func (m model) View() string {
 
 	// Input area (fixed at bottom)
 	if m.planMode {
-		s.WriteString("\n\033[33m────────────────────────────────────────────────────────\033[0m\n")
+		s.WriteString("\n\033[33m" + separatorString(m.viewportWidth) + "\033[0m\n")
 	} else {
-		s.WriteString("\n\033[36m────────────────────────────────────────────────────────\033[0m\n")
+		s.WriteString("\n\033[36m" + separatorString(m.viewportWidth) + "\033[0m\n")
 	}
 	s.WriteString(m.textInput.View())
 
@@ -592,7 +651,7 @@ func main() {
 	m := newModel(backend)
 	m.connected = true
 	m.output = fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID)
-	m.viewport.SetContent(m.output)
+	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 	m.viewport.GotoBottom()
 
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
