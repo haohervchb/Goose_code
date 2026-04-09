@@ -181,7 +181,7 @@ func TestRenderErrorEntryFormatsMultilineError(t *testing.T) {
 }
 
 func TestRenderToolOutputEntryKeepsGutterOnSoftWrap(t *testing.T) {
-	got := ansi.Strip(renderToolOutputEntryAtWidth(strings.Repeat("z", 20), true, 8))
+	got := ansi.Strip(renderToolOutputEntryAtWidth(strings.Repeat("z", 20), true, 8, false))
 	if strings.Count(got, "│ ") < 2 {
 		t.Fatalf("expected wrapped tool output to keep gutter on each line, got %q", got)
 	}
@@ -366,7 +366,7 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 
 	view := ansi.Strip(m.View())
 
-	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Ready for input", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets tran", "script", "Ctrl+O toggles", "last tool block"} {
+	for _, needle := range []string{"ollama/llama3", "mode BUILD", "Ready for input", "Tab toggles mode", "PgUp/PgDn scroll", "Home/End jump", "/clear resets tran", "script", "Ctrl+O toggles", "last tool block", "Ctrl+P/Ctrl+N", "switch tool block"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected prompt status to contain %q, got %q", needle, view)
 		}
@@ -809,6 +809,71 @@ func TestLongToolOutputStartsCompactAndCtrlOTogglesExpansion(t *testing.T) {
 	recollapsed := updated.(model)
 	if !strings.Contains(ansi.Strip(recollapsed.output), "4 more line(s) hidden, Ctrl+O expands") {
 		t.Fatalf("expected Ctrl+O to collapse the last tool block again, got %q", ansi.Strip(recollapsed.output))
+	}
+}
+
+func TestCtrlPCtrlNSelectDifferentToolBlocks(t *testing.T) {
+	m := newModel(nil)
+	first := strings.Join([]string{"1", "2", "3", "4", "5", "6", "7"}, "\n") + "\n"
+	second := strings.Join([]string{"a", "b", "c", "d", "e", "f", "g"}, "\n") + "\n"
+	m.entries = []transcriptEntry{
+		{kind: transcriptToolOutput, text: first},
+		{kind: transcriptToolOutput, text: second},
+	}
+	m.selectedToolOutputEntry = 1
+	m.syncViewport(true)
+	state := m
+	var updated tea.Model
+
+	if state.selectedToolOutputEntry != 1 {
+		t.Fatalf("expected newest tool block to become selected")
+	}
+
+	updated, _ = state.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	selectedPrev := updated.(model)
+	if selectedPrev.selectedToolOutputEntry == state.selectedToolOutputEntry {
+		t.Fatalf("expected Ctrl+P to move selection to the previous tool block")
+	}
+	if !strings.Contains(ansi.Strip(selectedPrev.output), "[selected]") {
+		t.Fatalf("expected selected compact tool block marker, got %q", ansi.Strip(selectedPrev.output))
+	}
+
+	updated, _ = selectedPrev.Update(tea.KeyMsg{Type: tea.KeyCtrlN})
+	selectedNext := updated.(model)
+	if selectedNext.selectedToolOutputEntry != state.selectedToolOutputEntry {
+		t.Fatalf("expected Ctrl+N to move selection back to the newer tool block")
+	}
+}
+
+func TestCtrlOTogglesSelectedToolBlockNotNewest(t *testing.T) {
+	m := newModel(nil)
+	first := strings.Join([]string{"1", "2", "3", "4", "5", "6", "7"}, "\n") + "\n"
+	second := strings.Join([]string{"a", "b", "c", "d", "e", "f", "g"}, "\n") + "\n"
+	m.entries = []transcriptEntry{
+		{kind: transcriptToolOutput, text: first},
+		{kind: transcriptToolOutput, text: second},
+	}
+	m.selectedToolOutputEntry = 1
+	m.syncViewport(true)
+	state := m
+	var updated tea.Model
+	updated, _ = state.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	selectedPrev := updated.(model)
+	updated, _ = selectedPrev.Update(tea.KeyMsg{Type: tea.KeyCtrlO})
+	toggled := updated.(model)
+	transcript := ansi.Strip(toggled.output)
+
+	if strings.Count(transcript, "hidden, Ctrl+O expands") != 1 {
+		t.Fatalf("expected only one compact summary after toggling selected tool block, got %q", transcript)
+	}
+	if !strings.Contains(transcript, "│ 7") {
+		t.Fatalf("expected selected older tool block to expand, got %q", transcript)
+	}
+	if !strings.Contains(transcript, "◆ selected tool block") {
+		t.Fatalf("expected selected expanded tool block marker, got %q", transcript)
+	}
+	if toggled.entries[toggled.selectedToolOutputEntry].expanded != true {
+		t.Fatalf("expected selected tool block to toggle expanded state")
 	}
 }
 

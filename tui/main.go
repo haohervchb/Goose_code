@@ -335,12 +335,16 @@ func shouldCompactToolOutput(text string) bool {
 	return toolOutputLineCount(text) > 6 || len(text) > 500
 }
 
-func renderToolOutputEntryAtWidth(text string, expanded bool, width int) string {
+func renderToolOutputEntryAtWidth(text string, expanded bool, width int, selected bool) string {
 	if text == "" {
 		return ""
 	}
+	marker := ""
+	if selected {
+		marker = toolArgsStyle + "◆ " + resetStyleTool + "selected tool block\n"
+	}
 	if expanded || !shouldCompactToolOutput(text) {
-		return renderIndentedBlockAtWidth(text, width)
+		return marker + renderIndentedBlockAtWidth(text, width)
 	}
 
 	trimmed := strings.TrimRight(text, "\n")
@@ -361,11 +365,16 @@ func renderToolOutputEntryAtWidth(text string, expanded bool, width int) string 
 		hidden = 0
 	}
 
-	return preview + toolArgsStyle + "⋮ " + resetStyleTool + fmt.Sprintf("%d more line(s) hidden, Ctrl+O expands\n", hidden)
+	summary := fmt.Sprintf("%d more line(s) hidden, Ctrl+O expands", hidden)
+	if selected {
+		summary += " [selected]"
+	}
+
+	return marker + preview + toolArgsStyle + "⋮ " + resetStyleTool + summary + "\n"
 }
 
 func renderToolOutputEntry(text string, expanded bool) string {
-	return renderToolOutputEntryAtWidth(text, expanded, 80)
+	return renderToolOutputEntryAtWidth(text, expanded, 80, false)
 }
 
 func formatUserPrompt(text string) string {
@@ -639,6 +648,7 @@ type model struct {
 	currentToolOutput       string
 	currentToolTruncated    bool
 	currentToolOutputEntry  int
+	selectedToolOutputEntry int
 	currentAssistantEntry   int
 	toolOutputLineOpen      bool
 	isRunning               bool // true when a tool is executing
@@ -673,12 +683,75 @@ func (m *model) appendTranscriptEntry(kind transcriptKind, text, meta string, su
 func (m *model) toggleLastToolOutputEntry() bool {
 	for i := len(m.entries) - 1; i >= 0; i-- {
 		if m.entries[i].kind == transcriptToolOutput {
+			m.selectedToolOutputEntry = i
 			m.entries[i].expanded = !m.entries[i].expanded
 			return true
 		}
 	}
 
 	return false
+}
+
+func (m model) toolOutputEntryIndices() []int {
+	indices := make([]int, 0)
+	for i, entry := range m.entries {
+		if entry.kind == transcriptToolOutput {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
+func (m model) validSelectedToolOutputEntry() bool {
+	return m.selectedToolOutputEntry >= 0 && m.selectedToolOutputEntry < len(m.entries) && m.entries[m.selectedToolOutputEntry].kind == transcriptToolOutput
+}
+
+func (m *model) toggleSelectedToolOutputEntry() bool {
+	if m.validSelectedToolOutputEntry() {
+		m.entries[m.selectedToolOutputEntry].expanded = !m.entries[m.selectedToolOutputEntry].expanded
+		return true
+	}
+	return m.toggleLastToolOutputEntry()
+}
+
+func (m *model) selectToolOutputEntry(delta int) bool {
+	indices := m.toolOutputEntryIndices()
+	if len(indices) == 0 {
+		m.selectedToolOutputEntry = -1
+		return false
+	}
+	if !m.validSelectedToolOutputEntry() {
+		if delta >= 0 {
+			m.selectedToolOutputEntry = indices[0]
+		} else {
+			m.selectedToolOutputEntry = indices[len(indices)-1]
+		}
+		return true
+	}
+
+	current := 0
+	for i, idx := range indices {
+		if idx == m.selectedToolOutputEntry {
+			current = i
+			break
+		}
+	}
+	next := (current + delta + len(indices)) % len(indices)
+	m.selectedToolOutputEntry = indices[next]
+	return true
+}
+
+func (m model) selectedToolOutputPosition() (int, int) {
+	indices := m.toolOutputEntryIndices()
+	if len(indices) == 0 || !m.validSelectedToolOutputEntry() {
+		return 0, len(indices)
+	}
+	for i, idx := range indices {
+		if idx == m.selectedToolOutputEntry {
+			return i + 1, len(indices)
+		}
+	}
+	return 0, len(indices)
 }
 
 func (m model) hasCollapsedToolOutput() bool {
@@ -698,7 +771,7 @@ func (m *model) appendToTranscriptEntry(idx int, text string) {
 	m.entries[idx].text += text
 }
 
-func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
+func (m *model) renderTranscriptEntry(idx int, entry transcriptEntry) string {
 	switch entry.kind {
 	case transcriptUser:
 		return renderUserEntryAtWidth(entry.text, m.renderWidth())
@@ -711,7 +784,8 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 	case transcriptToolStart:
 		return renderToolStartEntryAtWidth(entry.text, entry.meta, m.renderWidth())
 	case transcriptToolOutput:
-		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth())
+		selected := m.validSelectedToolOutputEntry() && m.selectedToolOutputEntry == idx
+		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth(), selected)
 	case transcriptToolEnd:
 		return renderToolEndEntryAtWidth(entry.success, entry.text, entry.meta == "truncated", m.renderWidth())
 	default:
@@ -722,8 +796,8 @@ func (m *model) renderTranscriptEntry(entry transcriptEntry) string {
 func (m model) renderTranscript() string {
 	var rendered strings.Builder
 
-	for _, entry := range m.entries {
-		rendered.WriteString(m.renderTranscriptEntry(entry))
+	for i, entry := range m.entries {
+		rendered.WriteString(m.renderTranscriptEntry(i, entry))
 	}
 
 	return rendered.String()
@@ -757,6 +831,9 @@ func (m model) sessionStatus() string {
 	}
 	if m.hasCollapsedToolOutput() {
 		parts = append(parts, "tool block compact")
+	}
+	if selected, total := m.selectedToolOutputPosition(); selected > 0 {
+		parts = append(parts, fmt.Sprintf("tool %d/%d selected", selected, total))
 	}
 	if m.showHelp {
 		parts = append(parts, "help open")
@@ -794,6 +871,9 @@ func (m model) promptStatus() string {
 	}
 	if width >= 112 {
 		parts = append(parts, "\033[90mCtrl+O toggles last tool block\033[0m")
+	}
+	if width >= 118 {
+		parts = append(parts, "\033[90mCtrl+P/Ctrl+N switch tool block\033[0m")
 	}
 	if width >= 128 {
 		parts = append(parts, "\033[90mF1 help overlay\033[0m")
@@ -933,17 +1013,18 @@ func newModel(backend *Backend) model {
 	vp.YOffset = 0
 
 	m := model{
-		backend:                backend,
-		textInput:              ti,
-		viewport:               vp,
-		planMode:               false,
-		connected:              false,
-		quit:                   false,
-		fallback:               false,
-		currentToolOutputEntry: -1,
-		currentAssistantEntry:  -1,
-		viewportWidth:          80,
-		windowHeight:           29,
+		backend:                 backend,
+		textInput:               ti,
+		viewport:                vp,
+		planMode:                false,
+		connected:               false,
+		quit:                    false,
+		fallback:                false,
+		currentToolOutputEntry:  -1,
+		selectedToolOutputEntry: -1,
+		currentAssistantEntry:   -1,
+		viewportWidth:           80,
+		windowHeight:            29,
 	}
 	m.output = ""
 	m.viewport.SetContent("")
@@ -996,7 +1077,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+o":
 			follow := m.viewport.AtBottom()
-			if m.toggleLastToolOutputEntry() {
+			if m.toggleSelectedToolOutputEntry() {
+				m.syncViewport(follow)
+			}
+			return m, nil
+		case "ctrl+n":
+			follow := m.viewport.AtBottom()
+			if m.selectToolOutputEntry(1) {
+				m.syncViewport(follow)
+			}
+			return m, nil
+		case "ctrl+p":
+			follow := m.viewport.AtBottom()
+			if m.selectToolOutputEntry(-1) {
 				m.syncViewport(follow)
 			}
 			return m, nil
@@ -1041,6 +1134,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.output = ""
 					m.currentAssistantEntry = -1
 					m.currentToolOutputEntry = -1
+					m.selectedToolOutputEntry = -1
 					m.currentToolOutput = ""
 					m.toolOutputLineOpen = false
 					m.assistantResponding = false
@@ -1148,6 +1242,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if output != "" {
 				if m.currentToolOutputEntry < 0 || m.currentToolOutputEntry >= len(m.entries) || m.entries[m.currentToolOutputEntry].kind != transcriptToolOutput {
 					m.currentToolOutputEntry = m.appendTranscriptEntry(transcriptToolOutput, "", "", false)
+					m.selectedToolOutputEntry = m.currentToolOutputEntry
 				}
 				m.currentToolOutput += output
 				m.toolOutputLineOpen = !strings.HasSuffix(m.currentToolOutput, "\n")
