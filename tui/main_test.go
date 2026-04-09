@@ -1,9 +1,11 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestWindowResizeUpdatesTextInputWidth(t *testing.T) {
@@ -32,5 +34,33 @@ func TestSeparatorStringMatchesWidth(t *testing.T) {
 	got := separatorString(17)
 	if len([]rune(got)) != 17 {
 		t.Fatalf("expected separator width 17, got %d", len([]rune(got)))
+	}
+}
+
+func TestWrapTextLimitsVisibleLineWidth(t *testing.T) {
+	wrapped := wrapText("\033[32m"+strings.Repeat("a", 24)+"\033[0m", 10)
+
+	for _, line := range strings.Split(wrapped, "\n") {
+		if got := ansi.StringWidth(line); got > 10 {
+			t.Fatalf("expected wrapped line width <= 10, got %d in %q", got, ansi.Strip(line))
+		}
+	}
+}
+
+func TestWindowResizeRewrapsViewportContent(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(responseMsg(strings.Repeat("b", 30)))
+	beforeResize := updated.(model)
+	beforeLines := beforeResize.viewport.TotalLineCount()
+
+	updated, _ = beforeResize.Update(tea.WindowSizeMsg{Width: 10, Height: 20})
+	afterResize := updated.(model)
+
+	if afterResize.viewport.TotalLineCount() <= beforeLines {
+		t.Fatalf("expected viewport content to rewrap to more lines after resize, got %d then %d", beforeLines, afterResize.viewport.TotalLineCount())
+	}
+	if got := ansi.StringWidth(afterResize.viewport.View()); got <= 10 && afterResize.viewport.TotalLineCount() == 1 {
+		t.Fatalf("expected wrapped viewport content after resize")
 	}
 }

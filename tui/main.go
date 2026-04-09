@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // wrapText wraps text to the given width, preserving newlines
@@ -32,24 +32,13 @@ func wrapText(text string, width int) string {
 			result.WriteByte('\n')
 		}
 
-		lineWidth := utf8.RuneCountInString(line)
+		lineWidth := ansi.StringWidth(line)
 		if lineWidth <= width {
 			result.WriteString(line)
 			continue
 		}
 
-		// Wrap long lines
-		var current strings.Builder
-		runes := []rune(line)
-		for _, r := range runes {
-			if current.Len() >= width {
-				result.WriteString(current.String())
-				result.WriteByte('\n')
-				current.Reset()
-			}
-			current.WriteRune(r)
-		}
-		result.WriteString(current.String())
+		result.WriteString(ansi.Hardwrap(line, width, true))
 	}
 
 	return result.String()
@@ -485,6 +474,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textInput.SetWidth(msg.Width)
 		m.textInput.SetHeight(3)
 		m.viewportWidth = msg.Width
+		m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
 		m.viewport.YOffset = 0
 		m.viewport.GotoBottom()
 		return m, textarea.Blink
