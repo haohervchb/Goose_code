@@ -218,6 +218,48 @@ func TestViewportPreservesScrollWhenUserScrolledUp(t *testing.T) {
 	}
 }
 
+func TestBannerShowsUnreadOutputHintWhenScrolledUp(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.viewportWidth = 120
+	m.relayout()
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.syncViewport(true)
+	m.viewport.LineUp(2)
+
+	updated, _ := m.Update(responseMsg("7\n"))
+	after := updated.(model)
+
+	if !after.hasUnseenOutput {
+		t.Fatalf("expected unseen output flag after streaming while scrolled up")
+	}
+	if !strings.Contains(ansi.Strip(after.View()), "new output below") {
+		t.Fatalf("expected banner to show unseen output hint")
+	}
+}
+
+func TestUnreadOutputHintClearsAtBottom(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.viewportWidth = 120
+	m.relayout()
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6"}, "\n")
+	m.syncViewport(true)
+	m.viewport.LineUp(2)
+
+	updated, _ := m.Update(responseMsg("7\n"))
+	withUnread := updated.(model)
+	for !withUnread.viewport.AtBottom() {
+		updated, _ = withUnread.Update(tea.KeyMsg{Type: tea.KeyDown})
+		withUnread = updated.(model)
+	}
+	atBottom := withUnread
+
+	if atBottom.hasUnseenOutput {
+		t.Fatalf("expected unseen output flag to clear after returning to bottom")
+	}
+}
+
 func (m *model) viewportHeightForTest(height int) {
 	m.windowHeight = height + 4 + 1 + 3 + lineCount(m.promptStatus())
 	m.viewportWidth = 20

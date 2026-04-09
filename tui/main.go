@@ -310,7 +310,8 @@ type model struct {
 	currentToolID     string
 	currentToolOutput string
 	isRunning         bool // true when a tool is executing
-	viewportWidth     int  // current viewport width for text wrapping
+	hasUnseenOutput   bool
+	viewportWidth     int // current viewport width for text wrapping
 	windowHeight      int
 	activeModel       string
 	activeProvider    string
@@ -340,6 +341,9 @@ func (m model) sessionStatus() string {
 	}
 	if m.isRunning && m.currentTool != "" {
 		parts = append(parts, "running "+m.currentTool)
+	}
+	if m.hasUnseenOutput {
+		parts = append(parts, "new output below")
 	}
 	parts = append(parts, "/help", "/exit")
 	return strings.Join(parts, " | ")
@@ -417,6 +421,16 @@ func (m *model) syncViewport(follow bool) {
 	m.viewport.SetYOffset(offset)
 }
 
+func (m *model) noteViewportState(follow, changed bool) {
+	if follow || m.viewport.AtBottom() {
+		m.hasUnseenOutput = false
+		return
+	}
+	if changed {
+		m.hasUnseenOutput = true
+	}
+}
+
 const (
 	toolStyle        = "\033[1;36m" // Bold cyan for tool name
 	toolArgsStyle    = "\033[90m"   // Dim gray for args
@@ -480,6 +494,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "pagedown":
 			// Scroll down in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
+			if m.viewport.AtBottom() {
+				m.hasUnseenOutput = false
+			}
 			return m, cmd
 		case "tab":
 			m.planMode = !m.planMode
@@ -556,11 +573,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		follow := m.viewport.AtBottom()
 		m.output += string(msg)
 		m.syncViewport(follow)
+		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
 		m.output += string(msg) + "\n"
 		m.syncViewport(follow)
+		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case toolStartMsg:
 		follow := m.viewport.AtBottom()
@@ -572,6 +591,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			toolStyle, msg.name, resetStyleTool,
 			toolArgsStyle, msg.args, resetStyleTool)
 		m.syncViewport(follow)
+		m.noteViewportState(follow, true)
 		return m, textarea.Blink
 	case toolOutputMsg:
 		if m.currentToolID == msg.id {
@@ -591,6 +611,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.output += output
 			}
 			m.syncViewport(follow)
+			m.noteViewportState(follow, output != "")
 		}
 		return m, textarea.Blink
 	case toolEndMsg:
@@ -607,6 +628,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentToolOutput = ""
 			m.isRunning = false
 			m.syncViewport(follow)
+			m.noteViewportState(follow, true)
 		}
 		return m, textarea.Blink
 	case tea.WindowSizeMsg:
