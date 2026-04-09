@@ -311,6 +311,7 @@ type model struct {
 	currentToolOutput string
 	isRunning         bool // true when a tool is executing
 	viewportWidth     int  // current viewport width for text wrapping
+	windowHeight      int
 	activeModel       string
 	activeProvider    string
 }
@@ -368,6 +369,36 @@ func (m model) promptStatus() string {
 	return wrapText(strings.Join(parts, " \033[90m|\033[0m "), m.viewportWidth)
 }
 
+func lineCount(text string) int {
+	if text == "" {
+		return 0
+	}
+
+	return strings.Count(text, "\n") + 1
+}
+
+func (m *model) relayout() {
+	const headerHeight = 4
+	const separatorHeight = 1
+
+	if m.viewportWidth <= 0 {
+		m.viewportWidth = 80
+	}
+	if m.windowHeight <= 0 {
+		m.windowHeight = 29
+	}
+
+	m.textInput.SetWidth(m.viewportWidth)
+	m.textInput.SetHeight(3)
+	m.viewport.Width = m.viewportWidth
+	statusHeight := lineCount(m.promptStatus())
+	viewportHeight := m.windowHeight - headerHeight - separatorHeight - m.textInput.Height() - statusHeight
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+	m.viewport.Height = viewportHeight
+}
+
 func (m *model) syncViewport(follow bool) {
 	offset := m.viewport.YOffset
 	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
@@ -417,9 +448,11 @@ func newModel(backend *Backend) model {
 		quit:          false,
 		fallback:      false,
 		viewportWidth: 80,
+		windowHeight:  29,
 	}
 	m.output = ""
 	m.viewport.SetContent("")
+	m.relayout()
 	return m
 }
 
@@ -451,6 +484,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.planMode = !m.planMode
 			m.sendCommand("plan", "")
+			m.relayout()
 			// Update cursor color based on mode
 			if m.planMode {
 				m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
@@ -491,6 +525,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if cmdName == "tab" {
 					m.planMode = !m.planMode
+					m.relayout()
 					if m.planMode {
 						m.sendCommand("plan", "")
 						m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
@@ -577,11 +612,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textarea.Blink
 	case tea.WindowSizeMsg:
 		follow := m.viewport.AtBottom()
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 11 // 4 header + 1 sep + 3 input + 3 extra
-		m.textInput.SetWidth(msg.Width)
-		m.textInput.SetHeight(3)
 		m.viewportWidth = msg.Width
+		m.windowHeight = msg.Height
+		m.relayout()
 		m.syncViewport(follow)
 		return m, textarea.Blink
 	}

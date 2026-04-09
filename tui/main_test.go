@@ -61,6 +61,22 @@ func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	}
 }
 
+func TestWindowResizeAccountsForPromptStatusHeight(t *testing.T) {
+	m := newModel(nil)
+	m.activeProvider = "ollama"
+	m.activeModel = "llama3-super-long-name"
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	wide := updated.(model)
+
+	updated, _ = wide.Update(tea.WindowSizeMsg{Width: 40, Height: 30})
+	narrow := updated.(model)
+
+	if narrow.viewport.Height >= wide.viewport.Height {
+		t.Fatalf("expected viewport height to shrink when prompt status wraps, got %d then %d", wide.viewport.Height, narrow.viewport.Height)
+	}
+}
+
 func TestWrapTextLimitsVisibleLineWidth(t *testing.T) {
 	wrapped := wrapText("\033[32m"+strings.Repeat("a", 24)+"\033[0m", 10)
 
@@ -187,7 +203,7 @@ func TestViewportPreservesScrollWhenUserScrolledUp(t *testing.T) {
 }
 
 func (m *model) viewportHeightForTest(height int) {
-	m.viewport.Height = height
+	m.windowHeight = height + 4 + 1 + 3 + lineCount(m.promptStatus())
 	m.viewportWidth = 20
-	m.viewport.Width = 20
+	m.relayout()
 }
