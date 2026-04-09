@@ -485,6 +485,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if cmdName == "clear" {
 					// Handle clear locally in TUI
 					m.output = ""
+					m.syncViewport(true)
 					return m, textarea.Blink
 				}
 

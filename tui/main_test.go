@@ -140,6 +140,23 @@ func TestViewShowsPromptStatusRow(t *testing.T) {
 	}
 }
 
+func TestClearCommandResetsViewportContent(t *testing.T) {
+	m := newModel(nil)
+	m.output = "existing output"
+	m.syncViewport(true)
+	m.textInput.SetValue("/clear")
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	cleared := updated.(model)
+
+	if cleared.output != "" {
+		t.Fatalf("expected clear command to reset transcript output, got %q", cleared.output)
+	}
+	if strings.TrimSpace(ansi.Strip(cleared.viewport.View())) != "" {
+		t.Fatalf("expected clear command to clear viewport content, got %q", ansi.Strip(cleared.viewport.View()))
+	}
+}
+
 func TestViewportAutoFollowsWhenAlreadyAtBottom(t *testing.T) {
 	m := newModel(nil)
 	m.viewportHeightForTest(4)
