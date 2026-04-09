@@ -170,6 +170,15 @@ func formatCommandFeedback(name, args string) string {
 	return "\n" + toolArgsStyle + "cmd>" + resetStyle + " " + command + "\n"
 }
 
+func formatErrorLine(text string) string {
+	trimmed := strings.TrimRight(text, "\n")
+	if trimmed == "" {
+		return ""
+	}
+
+	return "\n" + errorStyle + "error>" + resetStyle + " " + trimmed + "\n"
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -689,7 +698,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
 		m.awaitingAssistantPrefix = false
-		m.output += string(msg) + "\n"
+		m.output += formatErrorLine(string(msg))
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink

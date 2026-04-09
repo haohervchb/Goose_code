@@ -91,6 +91,12 @@ func TestFormatCommandFeedbackFormatsSlashCommand(t *testing.T) {
 	}
 }
 
+func TestFormatErrorLineAddsErrorPrefix(t *testing.T) {
+	if got := ansi.Strip(formatErrorLine("Error: boom")); got != "\nerror> Error: boom\n" {
+		t.Fatalf("expected formatted error line, got %q", got)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -311,6 +317,18 @@ func TestSlashCommandUsesCommandFeedbackPrefix(t *testing.T) {
 
 	if !strings.Contains(transcript, "cmd> /model gpt-5") {
 		t.Fatalf("expected slash command feedback in transcript, got %q", transcript)
+	}
+}
+
+func TestBackendErrorsUseErrorPrefix(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(backendErrorMsg("Error: boom"))
+	errored := updated.(model)
+	transcript := ansi.Strip(errored.output)
+
+	if !strings.Contains(transcript, "error> Error: boom") {
+		t.Fatalf("expected labeled error in transcript, got %q", transcript)
 	}
 }
 
