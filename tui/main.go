@@ -279,6 +279,35 @@ type model struct {
 	viewportWidth     int  // current viewport width for text wrapping
 }
 
+func (m model) sendPrompt(text string) {
+	if m.backend == nil {
+		return
+	}
+	_ = m.backend.SendPrompt(text)
+}
+
+func (m model) sendCommand(name, args string) {
+	if m.backend == nil {
+		return
+	}
+	_ = m.backend.SendCommand(name, args)
+}
+
+func (m model) sessionStatus() string {
+	parts := make([]string, 0, 4)
+	if m.connected {
+		parts = append(parts, "connected")
+	}
+	if m.backend != nil && m.backend.sessionID != "" {
+		parts = append(parts, "session "+m.backend.sessionID)
+	}
+	if m.isRunning && m.currentTool != "" {
+		parts = append(parts, "running "+m.currentTool)
+	}
+	parts = append(parts, "/help", "/exit")
+	return strings.Join(parts, " | ")
+}
+
 const (
 	toolStyle        = "\033[1;36m" // Bold cyan for tool name
 	toolArgsStyle    = "\033[90m"   // Dim gray for args
@@ -343,14 +372,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		case "tab":
 			m.planMode = !m.planMode
-			m.backend.SendCommand("plan", "")
+			m.sendCommand("plan", "")
 			// Update cursor color based on mode
 			if m.planMode {
 				m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
-				return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n\033[33m[PLAN mode]\033[0m\n") })
+				return m, textarea.Blink
 			}
 			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
-			return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n\033[32m[BUILD mode]\033[0m\n") })
+			return m, textarea.Blink
 		case "enter":
 			if m.textInput.Value() == "" {
 				return m, textarea.Blink
@@ -369,7 +398,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if cmdName == "quit" || cmdName == "exit" {
 					// Clean exit - just quit without fallback
-					m.backend.SendQuit()
+					if m.backend != nil {
+						_ = m.backend.SendQuit()
+					}
 					return m, tea.Quit
 				}
 
@@ -382,21 +413,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if cmdName == "tab" {
 					m.planMode = !m.planMode
 					if m.planMode {
-						m.backend.SendCommand("plan", "")
-						return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode enabled]\n") })
+						m.sendCommand("plan", "")
+						m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
+						return m, textarea.Blink
 					}
-					m.backend.SendCommand("plan", "off")
-					return m, tea.Batch(textarea.Blink, func() tea.Msg { return responseMsg("\n[PLAN mode disabled]\n") })
+					m.sendCommand("plan", "off")
+					m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32"))
+					return m, textarea.Blink
 				}
 
-				m.backend.SendCommand(cmdName, args)
+				m.sendCommand(cmdName, args)
 				// Show command feedback
 				m.output += fmt.Sprintf("\n%s[%s]%s %s\n", toolStyle, cmdName, resetStyleTool, args)
 				return m, textarea.Blink
 			}
 
 			m.output += "\n> " + text + "\n"
-			m.backend.SendPrompt(text)
+			m.sendPrompt(text)
 			return m, tea.Batch(textarea.Blink, func() tea.Msg {
 				return responseMsg("[Sent] " + text + "\n")
 			})
@@ -485,6 +518,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var s strings.Builder
+	status := m.sessionStatus()
 
 	// Header (fixed at top)
 	if m.planMode {
@@ -492,11 +526,7 @@ func (m model) View() string {
 	} else {
 		s.WriteString("\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m")
 	}
-	// Show running status
-	if m.isRunning && m.currentTool != "" {
-		s.WriteString(" \033[1;35m[RUNNING: " + m.currentTool + "]\033[0m")
-	}
-	s.WriteString(" | /help, /exit to quit\n")
+	s.WriteString(" | " + status + "\n")
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
 	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")

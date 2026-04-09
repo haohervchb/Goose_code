@@ -64,3 +64,39 @@ func TestWindowResizeRewrapsViewportContent(t *testing.T) {
 		t.Fatalf("expected wrapped viewport content after resize")
 	}
 }
+
+func TestViewKeepsGooseBannerAndShowsStatus(t *testing.T) {
+	m := newModel(&Backend{sessionID: "abc123"})
+	m.connected = true
+	m.isRunning = true
+	m.currentTool = "bash"
+
+	view := ansi.Strip(m.View())
+
+	if !strings.Contains(view, "___( o)>") {
+		t.Fatalf("expected goose banner to remain in the header")
+	}
+	if !strings.Contains(view, "session abc123") {
+		t.Fatalf("expected session status in header, got %q", view)
+	}
+	if !strings.Contains(view, "running bash") {
+		t.Fatalf("expected running tool status in header, got %q", view)
+	}
+}
+
+func TestTabToggleDoesNotAppendTranscriptNoise(t *testing.T) {
+	m := newModel(nil)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	toggled := updated.(model)
+
+	if !toggled.planMode {
+		t.Fatalf("expected plan mode to be enabled after tab toggle")
+	}
+	if toggled.output != "" {
+		t.Fatalf("expected mode toggle to stay out of transcript, got %q", toggled.output)
+	}
+	if !strings.Contains(ansi.Strip(toggled.View()), "[PLAN]") {
+		t.Fatalf("expected header to reflect plan mode after tab toggle")
+	}
+}
