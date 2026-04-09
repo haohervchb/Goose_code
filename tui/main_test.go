@@ -14,8 +14,11 @@ func TestWindowResizeUpdatesTextInputWidth(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	wide := updated.(model)
 
-	if got := wide.textInput.Width(); got <= 80 {
+	if got := wide.textInput.Width(); got <= 79 {
 		t.Fatalf("expected text input width to grow beyond 80, got %d", got)
+	}
+	if got := wide.textInput.Width(); got != 117 {
+		t.Fatalf("expected text input width 117 after prompt/gutter sizing, got %d", got)
 	}
 
 	if got := wide.viewportWidth; got != 120 {
@@ -128,6 +131,44 @@ func TestWindowResizeRewrapsViewportContent(t *testing.T) {
 	}
 	if got := ansi.StringWidth(afterResize.viewport.View()); got <= 10 && afterResize.viewport.TotalLineCount() == 1 {
 		t.Fatalf("expected wrapped viewport content after resize")
+	}
+}
+
+func TestViewLeavesRightGutterToAvoidSeparatorWrap(t *testing.T) {
+	m := newModel(nil)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 20, Height: 12})
+	narrow := updated.(model)
+	updated, _ = narrow.Update(responseMsg(strings.Repeat("x", 80)))
+	rendered := updated.(model)
+
+	lines := strings.Split(rendered.View(), "\n")
+	for _, line := range lines[4:] {
+		if got := ansi.StringWidth(line); got >= 20 {
+			t.Fatalf("expected rendered line width < terminal width to avoid wrap, got %d in %q", got, ansi.Strip(line))
+		}
+	}
+	if !strings.Contains(ansi.Strip(rendered.View()), strings.Repeat("─", 19)) {
+		t.Fatalf("expected separator line to remain visible in rendered view")
+	}
+}
+
+func TestPgUpAndPgDownScrollViewport(t *testing.T) {
+	m := newModel(nil)
+	m.viewportHeightForTest(4)
+	m.output = strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8"}, "\n")
+	m.syncViewport(true)
+	start := m.viewport.YOffset
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	up := updated.(model)
+	if up.viewport.YOffset >= start {
+		t.Fatalf("expected pgup to move viewport up, got %d then %d", start, up.viewport.YOffset)
+	}
+
+	updated, _ = up.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	down := updated.(model)
+	if down.viewport.YOffset <= up.viewport.YOffset {
+		t.Fatalf("expected pgdown to move viewport down, got %d then %d", up.viewport.YOffset, down.viewport.YOffset)
 	}
 }
 

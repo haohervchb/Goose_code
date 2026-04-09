@@ -423,7 +423,7 @@ func (m model) promptStatus() string {
 		}
 	}
 
-	return wrapText(strings.Join(parts, " \033[90m|\033[0m "), m.viewportWidth)
+	return wrapText(strings.Join(parts, " \033[90m|\033[0m "), m.renderWidth())
 }
 
 func lineCount(text string) int {
@@ -432,6 +432,16 @@ func lineCount(text string) int {
 	}
 
 	return strings.Count(text, "\n") + 1
+}
+
+func (m model) renderWidth() int {
+	if m.viewportWidth <= 1 {
+		return 1
+	}
+
+	// Leave one spare cell to avoid terminal auto-wrap pushing the separator
+	// and prompt area around when a rendered line lands exactly on the edge.
+	return m.viewportWidth - 1
 }
 
 func (m *model) relayout() {
@@ -445,9 +455,10 @@ func (m *model) relayout() {
 		m.windowHeight = 29
 	}
 
-	m.textInput.SetWidth(m.viewportWidth)
+	renderWidth := m.renderWidth()
+	m.textInput.SetWidth(renderWidth)
 	m.textInput.SetHeight(3)
-	m.viewport.Width = m.viewportWidth
+	m.viewport.Width = renderWidth
 	statusHeight := lineCount(m.promptStatus())
 	viewportHeight := m.windowHeight - headerHeight - separatorHeight - m.textInput.Height() - statusHeight
 	if viewportHeight < 1 {
@@ -458,7 +469,7 @@ func (m *model) relayout() {
 
 func (m *model) syncViewport(follow bool) {
 	offset := m.viewport.YOffset
-	m.viewport.SetContent(wrapText(m.output, m.viewportWidth))
+	m.viewport.SetContent(wrapText(m.output, m.renderWidth()))
 	if follow {
 		m.viewport.GotoBottom()
 		return
@@ -541,11 +552,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.backend.SendQuit()
 			}
 			return m, tea.Quit
-		case "up", "pageup":
+		case "up", "pageup", "pgup":
 			// Scroll up in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
 			return m, cmd
-		case "down", "pagedown":
+		case "down", "pagedown", "pgdown":
 			// Scroll down in viewport
 			m.viewport, cmd = m.viewport.Update(msg)
 			if m.viewport.AtBottom() {
@@ -709,7 +720,7 @@ func (m model) View() string {
 	} else {
 		headerPrefix = "\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.1 \033[32m[BUILD]\033[0m"
 	}
-	s.WriteString(headerLine(headerPrefix, status, m.viewportWidth))
+	s.WriteString(headerLine(headerPrefix, status, m.renderWidth()))
 	s.WriteString("\n")
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
@@ -720,9 +731,9 @@ func (m model) View() string {
 
 	// Input area (fixed at bottom)
 	if m.planMode {
-		s.WriteString("\n\033[33m" + separatorString(m.viewportWidth) + "\033[0m\n")
+		s.WriteString("\n\033[33m" + separatorString(m.renderWidth()) + "\033[0m\n")
 	} else {
-		s.WriteString("\n\033[36m" + separatorString(m.viewportWidth) + "\033[0m\n")
+		s.WriteString("\n\033[36m" + separatorString(m.renderWidth()) + "\033[0m\n")
 	}
 	s.WriteString(m.textInput.View())
 	s.WriteString("\n")
