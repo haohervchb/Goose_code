@@ -79,6 +79,12 @@ func TestFormatToolEndLineIncludesDoneState(t *testing.T) {
 	}
 }
 
+func TestFormatUserPromptAddsYouPrefix(t *testing.T) {
+	if got := ansi.Strip(formatUserPrompt("hello")); got != "\nyou> hello\n" {
+		t.Fatalf("expected formatted user prompt, got %q", got)
+	}
+}
+
 func TestHeaderLineTruncatesStatusToWindowWidth(t *testing.T) {
 	line := headerLine("GOOSE CODE [BUILD]", "connected | session abc123 | running bash | /help | /exit", 30)
 
@@ -257,7 +263,7 @@ func TestPromptSubmitDoesNotDuplicateSentLine(t *testing.T) {
 	submitted := updated.(model)
 	view := ansi.Strip(submitted.viewport.View())
 
-	if !strings.Contains(view, "> hello world") {
+	if !strings.Contains(view, "you> hello world") {
 		t.Fatalf("expected submitted prompt to appear in transcript, got %q", view)
 	}
 	if strings.Contains(view, "[Sent] hello world") {

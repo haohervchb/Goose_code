@@ -157,6 +157,10 @@ func formatAssistantChunk(chunk string, pendingPrefix bool) (string, bool) {
 	return chunk[:idx] + prefix + chunk[idx:], false
 }
 
+func formatUserPrompt(text string) string {
+	return "\n" + promptStyle + "you>" + resetStyle + " " + text + "\n"
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -645,7 +649,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textarea.Blink
 			}
 
-			m.output += "\n> " + text + "\n"
+			m.output += formatUserPrompt(text)
 			m.sendPrompt(text)
 			m.awaitingAssistantPrefix = true
 			m.syncViewport(true)
