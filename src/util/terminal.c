@@ -409,7 +409,7 @@ void term_print_banner(void) {
     printf("    __      \n");
     printf("___( o)>    GOOSE CODE\n");
     printf("\\ <_. )     High-Performance Inference\n");
-    printf(" `---'      v0.3.1\n");
+    printf(" `---'      v0.3.2\n");
     printf(TERM_RESET);
     printf(TERM_DIM "  Type /help for commands. /exit to quit.\n\n" TERM_RESET);
     fflush(stdout);
