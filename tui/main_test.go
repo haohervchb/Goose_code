@@ -414,7 +414,7 @@ func TestF1TogglesHelpOverlay(t *testing.T) {
 	if !help.showHelp {
 		t.Fatalf("expected F1 to open help overlay")
 	}
-	for _, needle := range []string{"Help", "Navigation", "Prompt", "Tools", "Ctrl+P/Ctrl+N switch the selected tool block", "Ctrl+O toggles the selected tool output block"} {
+	for _, needle := range []string{"Help", "Overview", "Navigation", "Prompt", "While Goose is responding the composer shows a busy marker"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected help overlay to contain %q, got %q", needle, view)
 		}
@@ -432,7 +432,17 @@ func TestHelpOverlayCanScrollToCommandsSection(t *testing.T) {
 	scrolled := updated.(model)
 	view := ansi.Strip(scrolled.View())
 
-	for _, needle := range []string{"Commands", "/help opens this overlay locally", "/clear resets the transcript", "/exit leaves the TUI"} {
+	for _, needle := range []string{"Local Commands", "/help opens this overlay locally", "/clear resets the transcript", "Common Backend Commands", "/provider set <name>", "/model set <name>"} {
+		if !strings.Contains(view, needle) {
+			t.Fatalf("expected scrolled help overlay to contain %q, got %q", needle, view)
+		}
+	}
+
+	updated, _ = scrolled.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	more := updated.(model)
+	view = ansi.Strip(more.View())
+
+	for _, needle := range []string{"/review", "Examples", "/provider set ollama", "/model set llama3"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("expected scrolled help overlay to contain %q, got %q", needle, view)
 		}
