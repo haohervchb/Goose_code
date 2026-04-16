@@ -1568,7 +1568,7 @@ func main() {
 	toolStartChan := make(chan toolStartMsg, 10)
 	toolOutputChan := make(chan toolOutputMsg, 100)
 	toolEndChan := make(chan toolEndMsg, 10)
-	requestInputChan := make(chan string, 10)
+	requestInputChan := make(chan string, 100)
 
 	go func() {
 		for {
@@ -1606,11 +1606,7 @@ func main() {
 						error:   resp.Error,
 					}
 				} else if resp.Type == "request_input" {
-					// Forward to Update without blocking - Update will handle showing prompt
-					select {
-					case requestInputChan <- resp.Content:
-					default:
-					}
+					requestInputChan <- resp.Content
 				}
 			}
 		}

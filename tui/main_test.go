@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -139,6 +140,39 @@ func TestFormatUserPromptAddsYouPrefix(t *testing.T) {
 func TestRenderUserEntryFormatsMultilineInput(t *testing.T) {
 	if got := ansi.Strip(renderUserEntry("hello\nthere\n")); got != "\nyou> hello\n│ there\n" {
 		t.Fatalf("expected multiline user entry block, got %q", got)
+	}
+}
+
+func TestRequestInputMsgSetsRequestingInputState(t *testing.T) {
+	m := newModel(nil)
+	if m.requestingInput {
+		t.Fatalf("expected initially false requestingInput state")
+	}
+
+	updated, _ := m.Update(requestInputMsg{prompt: "Enter your name:"})
+	m = updated.(model)
+
+	if !m.requestingInput {
+		t.Fatalf("expected requestingInput to be true after requestInputMsg")
+	}
+	if m.requestInputPrompt != "Enter your name:" {
+		t.Fatalf("expected prompt %q, got %q", "Enter your name:", m.requestInputPrompt)
+	}
+	if len(m.entries) != 1 || m.entries[0].kind != transcriptUser {
+		t.Fatalf("expected user entry in transcript")
+	}
+}
+
+func TestRequestInputMsgBurstHandling(t *testing.T) {
+	m := newModel(nil)
+
+	for i := 0; i < 50; i++ {
+		updated, _ := m.Update(requestInputMsg{prompt: fmt.Sprintf("prompt %d", i)})
+		m = updated.(model)
+	}
+
+	if len(m.entries) != 50 {
+		t.Fatalf("expected 50 entries, got %d", len(m.entries))
 	}
 }
 
