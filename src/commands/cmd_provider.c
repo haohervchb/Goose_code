@@ -1,6 +1,7 @@
 #include "commands/commands.h"
 #include "util/terminal.h"
 #include "util/strbuf.h"
+#include "util/tui_protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +13,10 @@ static char *read_provider_value(const char *label, const char *default_value) {
         strbuf_append_fmt(&prompt, " [%s]", default_value);
     }
     strbuf_append(&prompt, ": ");
-    char *value = term_read_line_opts(prompt.data, 0, 0);
+    
+    // In TUI mode, send request to TUI and wait for response
+    char *value = tui_protocol_read_line(prompt.data, default_value);
+    
     strbuf_free(&prompt);
     if (!value) return default_value ? strdup(default_value) : strdup("");
     if (value[0] == '\0' && default_value) {

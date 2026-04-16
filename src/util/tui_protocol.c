@@ -69,6 +69,14 @@ int tui_protocol_read_request(TUIRequest *req) {
         req->type = TUI_MSG_QUIT;
     } else if (strcmp(type->valuestring, "ping") == 0) {
         req->type = TUI_MSG_PING;
+    } else if (strcmp(type->valuestring, "request_input") == 0) {
+        req->type = TUI_MSG_REQUEST_INPUT;
+        cJSON *text = cJSON_GetObjectItem(json, "text");
+        if (text && text->valuestring) req->text = strdup(text->valuestring);
+    } else if (strcmp(type->valuestring, "response") == 0) {
+        req->type = TUI_MSG_RESPONSE;
+        cJSON *text = cJSON_GetObjectItem(json, "text");
+        if (text && text->valuestring) req->response = strdup(text->valuestring);
     } else {
         req->type = TUI_MSG_INVALID;
     }
@@ -85,6 +93,7 @@ void tui_protocol_free_request(TUIRequest *req) {
     free(req->text);
     free(req->cmd_name);
     free(req->cmd_args);
+    free(req->response);
     memset(req, 0, sizeof(*req));
 }
 
@@ -164,6 +173,17 @@ void tui_protocol_send_error(const char *message) {
     cJSON_Delete(json);
 }
 
+void tui_protocol_send_request_input(const char *prompt) {
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "type", "request_input");
+    cJSON_AddStringToObject(json, "prompt", prompt);
+    char *str = cJSON_PrintUnformatted(json);
+    fprintf(tui_stdout, "%s\n", str);
+    fflush(tui_stdout);
+    free(str);
+    cJSON_Delete(json);
+}
+
 void tui_protocol_send_session_info(int message_count, int plan_mode) {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "type", "session_info");
@@ -174,6 +194,43 @@ void tui_protocol_send_session_info(int message_count, int plan_mode) {
     fflush(tui_stdout);
     free(str);
     cJSON_Delete(json);
+}
+
+char *tui_protocol_read_line(const char *prompt, const char *default_value) {
+    // Send prompt request to TUI
+    tui_protocol_send_request_input(prompt);
+    
+    // Read response from TUI
+    char line[8192];
+    if (!fgets(line, sizeof(line), tui_stdin)) {
+        return NULL;
+    }
+    
+    // Parse the response JSON
+    size_t len = strlen(line);
+    if (len > 0 && line[len-1] == '\n') {
+        line[len-1] = '\0';
+    }
+    
+    cJSON *json = cJSON_Parse(line);
+    if (!json) {
+        return NULL;
+    }
+    
+    cJSON *text = cJSON_GetObjectItem(json, "text");
+    char *result = NULL;
+    if (text && text->valuestring) {
+        result = strdup(text->valuestring);
+    }
+    cJSON_Delete(json);
+    
+    // If response is empty and we have a default, use the default
+    if ((!result || result[0] == '\0') && default_value && default_value[0]) {
+        free(result);
+        return strdup(default_value);
+    }
+    
+    return result;
 }
 
 void tui_on_text(const char *text, void *ctx) {

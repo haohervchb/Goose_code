@@ -523,6 +523,18 @@ func (b *Backend) ReadResponse() (*BackendResponse, error) {
 	return &resp, nil
 }
 
+// RequestInput reads a request_input message and returns the prompt
+func (b *Backend) RequestInput() (string, error) {
+	resp, err := b.ReadResponse()
+	if err != nil {
+		return "", err
+	}
+	if resp.Type != "request_input" {
+		return "", fmt.Errorf("expected request_input, got %s", resp.Type)
+	}
+	return resp.Content, nil
+}
+
 func (b *Backend) SendInit(workingDir string, cfg BackendConfig) error {
 	req := TUIRequest{
 		Type:       "init",
@@ -552,6 +564,10 @@ func (b *Backend) SendCommand(name, args string) error {
 
 func (b *Backend) SendQuit() error {
 	return b.Send(TUIRequest{Type: "quit"})
+}
+
+func (b *Backend) SendResponse(text string) error {
+	return b.Send(TUIRequest{Type: "response", Text: text})
 }
 
 func (b *Backend) Close() error {
@@ -609,6 +625,9 @@ type toolEndMsg struct {
 	success bool
 	error   string
 }
+type requestInputMsg struct {
+	prompt string
+}
 
 type transcriptKind string
 
@@ -660,6 +679,9 @@ type model struct {
 	windowHeight            int
 	activeModel             string
 	activeProvider          string
+	// Input request state
+	requestingInput    bool
+	requestInputPrompt string
 }
 
 func (m model) sendPrompt(text string) {
@@ -1239,6 +1261,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			text := m.textInput.Value()
 			m.textInput.Reset()
 
+			// If we're waiting for input for a backend request, send response
+			if m.requestingInput {
+				m.requestingInput = false
+				m.requestInputPrompt = ""
+				m.backend.SendResponse(text)
+				m.appendTranscriptEntry(transcriptUser, text, "", false)
+				m.syncViewport(true)
+				return m, textarea.Blink
+			}
+
 			if strings.HasPrefix(text, "/") {
 				parts := strings.SplitN(text[1:], " ", 2)
 				cmdName := parts[0]
@@ -1411,6 +1443,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.relayout()
 		m.syncViewport(follow)
 		return m, textarea.Blink
+	case requestInputMsg:
+		// Show the prompt and wait for user input
+		follow := m.viewport.AtBottom()
+		m.appendTranscriptEntry(transcriptUser, msg.prompt, "", false)
+		m.syncViewport(follow)
+		m.requestInputPrompt = msg.prompt
+		m.requestingInput = true
+		m.textInput.Focus()
+		m.applyComposerState()
+		return m, textarea.Blink
 	}
 
 	return m, nil
@@ -1526,6 +1568,7 @@ func main() {
 	toolStartChan := make(chan toolStartMsg, 10)
 	toolOutputChan := make(chan toolOutputMsg, 100)
 	toolEndChan := make(chan toolEndMsg, 10)
+	requestInputChan := make(chan string, 10)
 
 	go func() {
 		for {
@@ -1562,9 +1605,16 @@ func main() {
 						success: resp.Success,
 						error:   resp.Error,
 					}
+				} else if resp.Type == "request_input" {
+					// Forward to Update without blocking - Update will handle showing prompt
+					select {
+					case requestInputChan <- resp.Content:
+					default:
+					}
 				}
 			}
 		}
+		close(requestInputChan)
 		close(respChan)
 		close(respDoneChan)
 		close(errChan)
@@ -1624,6 +1674,15 @@ func main() {
 	go func() {
 		for msg := range toolEndChan {
 			p.Send(msg)
+		}
+	}()
+
+	go func() {
+		for prompt := range requestInputChan {
+			// Send prompt to TUI and wait for user input
+			p.Send(requestInputMsg{prompt: prompt})
+			// Wait for user input from requestInputRespChan
+			// The actual reading of input happens in the Update function
 		}
 	}()
 
