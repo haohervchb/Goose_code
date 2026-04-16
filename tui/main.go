@@ -1395,11 +1395,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			follow := m.viewport.AtBottom()
 			// Truncate long output
 			output := msg.output
-			if len(m.currentToolOutput)+len(output) > 10000 {
+			const truncationSuffix = "... (truncated)"
+			const maxToolOutput = 10000
+
+			if len(m.currentToolOutput)+len(output) > maxToolOutput {
 				m.currentToolTruncated = true
-				remaining := 10000 - len(m.currentToolOutput)
+				remaining := maxToolOutput - len(m.currentToolOutput) - len(truncationSuffix)
 				if remaining > 0 {
-					output = output[:remaining] + "... (truncated)"
+					output = output[:remaining] + truncationSuffix
 				} else {
 					output = ""
 				}
