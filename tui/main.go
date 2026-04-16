@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -1610,13 +1611,6 @@ func main() {
 				}
 			}
 		}
-		close(requestInputChan)
-		close(respChan)
-		close(respDoneChan)
-		close(errChan)
-		close(toolStartChan)
-		close(toolOutputChan)
-		close(toolEndChan)
 	}()
 
 	m := newModel(backend)
@@ -1636,44 +1630,60 @@ func main() {
 
 	p := tea.NewProgram(&m, tea.WithAltScreen(), tea.WithInput(tty), tea.WithOutput(tty))
 
+	var wg sync.WaitGroup
+
 	// Run goroutines to send messages to TUI
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range respChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range respDoneChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range errChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range toolStartChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range toolOutputChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for msg := range toolEndChan {
 			p.Send(msg)
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for prompt := range requestInputChan {
 			// Send prompt to TUI and wait for user input
 			p.Send(requestInputMsg{prompt: prompt})
@@ -1687,4 +1697,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", runErr)
 		os.Exit(1)
 	}
+
+	// Close all channels to signal goroutines to exit
+	close(respChan)
+	close(respDoneChan)
+	close(errChan)
+	close(toolStartChan)
+	close(toolOutputChan)
+	close(toolEndChan)
+	close(requestInputChan)
+
+	// Wait for all goroutines to finish before exiting
+	wg.Wait()
 }
