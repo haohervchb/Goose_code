@@ -652,6 +652,7 @@ type transcriptEntry struct {
 }
 
 type model struct {
+	mu   sync.Mutex // Protects concurrent access to model fields
 	backend    *Backend
 	textInput  textarea.Model
 	viewport   viewport.Model
@@ -1348,6 +1349,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		follow := m.viewport.AtBottom()
 		content := string(msg)
 		if content != "" {
+			m.mu.Lock()
 			if m.currentAssistantEntry < 0 || m.currentAssistantEntry >= len(m.entries) || m.entries[m.currentAssistantEntry].kind != transcriptAssistant {
 				m.currentAssistantEntry = m.appendTranscriptEntry(transcriptAssistant, "", "", false)
 			}
@@ -1355,28 +1357,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.awaitingAssistantPrefix = strings.IndexFunc(m.entries[m.currentAssistantEntry].text, func(r rune) bool {
 				return r != '\n'
 			}) == -1
+			m.mu.Unlock()
 		}
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case responseDoneMsg:
+		m.mu.Lock()
 		m.assistantResponding = false
 		m.awaitingAssistantPrefix = false
 		m.currentAssistantEntry = -1
 		m.applyComposerState()
+		m.mu.Unlock()
 		return m, textarea.Blink
 	case backendErrorMsg:
 		follow := m.viewport.AtBottom()
+		m.mu.Lock()
 		m.assistantResponding = false
 		m.currentAssistantEntry = -1
 		m.awaitingAssistantPrefix = false
 		m.applyComposerState()
 		m.appendTranscriptEntry(transcriptError, string(msg), "", false)
+		m.mu.Unlock()
 		m.syncViewport(follow)
 		m.noteViewportState(follow, msg != "")
 		return m, textarea.Blink
 	case toolStartMsg:
 		follow := m.viewport.AtBottom()
+		m.mu.Lock()
 		m.currentTool = msg.name
 		m.currentToolID = msg.id
 		m.currentToolOutput = ""
@@ -1387,10 +1395,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyComposerState()
 		m.currentAssistantEntry = -1
 		m.appendTranscriptEntry(transcriptToolStart, msg.name, msg.args, false)
+		m.mu.Unlock()
 		m.syncViewport(follow)
 		m.noteViewportState(follow, true)
 		return m, textarea.Blink
 	case toolOutputMsg:
+		m.mu.Lock()
 		if m.currentToolID == msg.id {
 			follow := m.viewport.AtBottom()
 			// Truncate long output
@@ -1416,11 +1426,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toolOutputLineOpen = !strings.HasSuffix(m.currentToolOutput, "\n")
 				m.appendToTranscriptEntry(m.currentToolOutputEntry, output)
 			}
+			m.mu.Unlock()
 			m.syncViewport(follow)
 			m.noteViewportState(follow, output != "")
+		} else {
+			m.mu.Unlock()
 		}
 		return m, textarea.Blink
 	case toolEndMsg:
+		m.mu.Lock()
 		if m.currentToolID == msg.id {
 			follow := m.viewport.AtBottom()
 			meta := ""
@@ -1436,26 +1450,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toolOutputLineOpen = false
 			m.isRunning = false
 			m.applyComposerState()
+			m.mu.Unlock()
 			m.syncViewport(follow)
 			m.noteViewportState(follow, true)
+		} else {
+			m.mu.Unlock()
 		}
 		return m, textarea.Blink
 	case tea.WindowSizeMsg:
 		follow := m.viewport.AtBottom()
+		m.mu.Lock()
 		m.viewportWidth = msg.Width
 		m.windowHeight = msg.Height
 		m.relayout()
+		m.mu.Unlock()
 		m.syncViewport(follow)
 		return m, textarea.Blink
 	case requestInputMsg:
 		// Show the prompt and wait for user input
 		follow := m.viewport.AtBottom()
+		m.mu.Lock()
 		m.appendTranscriptEntry(transcriptUser, msg.prompt, "", false)
-		m.syncViewport(follow)
 		m.requestInputPrompt = msg.prompt
 		m.requestingInput = true
 		m.textInput.Focus()
 		m.applyComposerState()
+		m.mu.Unlock()
+		m.syncViewport(follow)
 		return m, textarea.Blink
 	}
 
