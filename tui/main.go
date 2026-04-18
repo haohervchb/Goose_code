@@ -1466,25 +1466,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
 			return m, textarea.Blink
-		case "i":
-			// Connection wizard: ignore failed connection and proceed
-			if m.connectionState != nil && m.connectionState.step == 3 && !m.connectionState.testSuccess {
-				// Apply anyway
-				m.activeProvider = m.connectionState.providerName
-				m.activeModel = m.connectionState.model
-				m.activeBaseURL = m.connectionState.baseURL
-				saveProviderToSettings(providerInfo{
-					name:    m.connectionState.providerName,
-					baseURL: m.connectionState.baseURL,
-					model:   m.connectionState.model,
-					apiKey:  m.connectionState.apiKey,
-				})
-				if m.backend != nil {
-					m.backend.SendConfig(m.connectionState.providerName, m.connectionState.baseURL, m.connectionState.model)
-				}
-				m.connectionState = nil
-				return m, nil
-			}
 		case "enter":
 			// Connection wizard handling
 			if m.connectionState != nil {
@@ -1953,12 +1934,10 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return false, fmt.Sprintf("Connection failed: %v", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return true, fmt.Sprintf("OK (HTTP %d)", resp.StatusCode)
-	}
 	io.ReadAll(resp.Body) // drain body
-	return false, fmt.Sprintf("Failed (HTTP %d)", resp.StatusCode)
+
+	// Any HTTP response means server is reachable
+	return true, fmt.Sprintf("Server reachable (HTTP %d)", resp.StatusCode)
 }
 
 func (m model) renderConnectionGuide() string {
@@ -2029,7 +2008,7 @@ func (m model) renderConnectionGuide() string {
 		if m.connectionState.testSuccess {
 			s.WriteString("  \033[32m[Enter] Accept and connect  [Esc] Go back\033[0m\n")
 		} else {
-			s.WriteString("  \033[31mConnection failed! [i] Ignore and connect anyway  [Enter] Go back to edit  [Esc] cancel\033[0m\n")
+			s.WriteString(fmt.Sprintf("  \033[31mConnection issue: %s  [Enter] Go back to edit  [Esc] cancel\033[0m\n", m.connectionState.testResult))
 		}
 	}
 
