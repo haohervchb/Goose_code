@@ -90,7 +90,7 @@ ALL_DEPS  = $(ALL_OBJS:.o=.d)
 
 TARGET    = $(BINDIR)/goosecode-backend
 TUI_TARGET = $(BINDIR)/goosecode-tui
-GO        = $(HOME)/go/bin/go
+GO        ?= $(shell command -v go)
 
 .PHONY: all clean test install uninstall tui
 
