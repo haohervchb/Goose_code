@@ -847,6 +847,8 @@ type model struct {
 	activeBaseURL           string
 	// Connection wizard state
 	connectionState *connectionState
+	// Tab toggle debounce
+	tabTogglePending bool
 	// Input request state
 	requestingInput    bool
 	requestInputPrompt string
@@ -1456,21 +1458,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-			m.planMode = !m.planMode
-			// Send "off" when disabling plan mode, empty when enabling (backend handles both)
 			if m.planMode {
-				m.sendCommand("plan", "")
-			} else {
 				m.sendCommand("plan", "off")
+			} else {
+				m.sendCommand("plan", "")
 			}
 			m.relayout()
-			// Update cursor color based on mode
-			if m.planMode {
-				m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
-				return m, textarea.Blink
-			}
-			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
-			return m, textarea.Blink
+			return m, nil
 		case "enter":
 			// Connection wizard handling
 			if m.connectionState != nil {
@@ -1744,16 +1738,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if cmdName == "tab" {
-					m.planMode = !m.planMode
-					m.relayout()
 					if m.planMode {
+						m.sendCommand("plan", "off")
+					} else {
 						m.sendCommand("plan", "")
-						m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-						return m, textarea.Blink
 					}
-					m.sendCommand("plan", "off")
-					m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32"))
-					return m, textarea.Blink
+					m.relayout()
+					return m, nil
 				}
 
 				m.sendCommand(cmdName, args)
@@ -1915,6 +1906,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mu.Unlock()
 		m.syncViewport(follow)
 		return m, textarea.Blink
+	case bool:
+		// Sync plan mode from backend's authoritative state via session_info
+		m.mu.Lock()
+		m.planMode = msg
+		if msg {
+			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("33")) // Yellow for plan
+		} else {
+			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
+		}
+		m.mu.Unlock()
+		m.relayout()
+		return m, nil
 	}
 
 	return m, nil
@@ -2225,6 +2228,7 @@ func main() {
 	toolOutputChan := make(chan toolOutputMsg, 100)
 	toolEndChan := make(chan toolEndMsg, 10)
 	requestInputChan := make(chan string, 100)
+	planModeChan := make(chan bool, 10)
 
 	go func() {
 		for {
@@ -2263,6 +2267,9 @@ func main() {
 					}
 				} else if resp.Type == "request_input" {
 					requestInputChan <- resp.Content
+				} else if resp.Type == "session_info" {
+					// Sync plan mode from backend's authoritative state - send to channel
+					planModeChan <- resp.PlanMode
 				}
 			}
 		}
@@ -2366,11 +2373,19 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for prompt := range requestInputChan {
+		for msg := range requestInputChan {
 			// Send prompt to TUI and wait for user input
-			p.Send(requestInputMsg{prompt: prompt})
+			p.Send(requestInputMsg{prompt: msg})
 			// Wait for user input from requestInputRespChan
 			// The actual reading of input happens in the Update function
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for planMode := range planModeChan {
+			p.Send(planMode)
 		}
 	}()
 
@@ -2388,6 +2403,7 @@ func main() {
 	close(toolOutputChan)
 	close(toolEndChan)
 	close(requestInputChan)
+	close(planModeChan)
 
 	// Wait for all goroutines to finish before exiting
 	wg.Wait()
