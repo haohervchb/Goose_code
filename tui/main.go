@@ -1920,7 +1920,7 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return false, "Base URL is empty"
 	}
 
-	req, err := http.NewRequest("GET", baseURL, nil)
+	req, err := http.NewRequest("GET", baseURL+"/v1/models", nil)
 	if err != nil {
 		return false, fmt.Sprintf("Invalid URL: %v", err)
 	}
