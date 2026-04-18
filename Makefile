@@ -119,7 +119,6 @@ install: $(TARGET) tui
 	@install -m 755 "$(TUI_TARGET)" "$(INSTALL_BINDIR)/goosecode-tui"
 	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode-backend"
 	@ln -sf "$(INSTALL_BINDIR)/goosecode-tui" "$(INSTALL_BINDIR)/goosecode"
-	@ln -sf "$(INSTALL_BINDIR)/goosecode-backend" "$(INSTALL_BINDIR)/goosecode-backend"
 	@printf 'Installed goosecode to %s/goosecode and %s/goosecode-tui\n' "$(INSTALL_BINDIR)" "$(INSTALL_BINDIR)"
 
 uninstall:
