@@ -1920,8 +1920,17 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return false, "Base URL is empty"
 	}
 
-	req, err := http.NewRequest("GET", baseURL+"/v1/models", nil)
+	testURL := baseURL
+	if !strings.HasSuffix(testURL, "/") {
+		testURL += "/"
+	}
+	testURL += "v1/models"
+
+	req, err := http.NewRequest("GET", testURL, nil)
 	if err != nil {
+		if strings.Contains(err.Error(), "invalid URL") || strings.Contains(err.Error(), "unsupported protocol scheme") {
+			return false, fmt.Sprintf("Invalid URL format: %s", baseURL)
+		}
 		return false, fmt.Sprintf("Invalid URL: %v", err)
 	}
 	if apiKey != "" {
@@ -1931,6 +1940,15 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			return false, fmt.Sprintf("Connection refused - is the server running at %s?", baseURL)
+		}
+		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "lookup") {
+			return false, fmt.Sprintf("Host not found: %s", baseURL)
+		}
+		if strings.Contains(err.Error(), "timeout") {
+			return false, fmt.Sprintf("Connection timeout - is the server running at %s?", baseURL)
+		}
 		return false, fmt.Sprintf("Connection failed: %v", err)
 	}
 	defer resp.Body.Close()
@@ -1941,7 +1959,7 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return true, fmt.Sprintf("OK (HTTP %d)", resp.StatusCode)
 	}
 	// 404 or other errors mean the endpoint doesn't exist
-	return false, fmt.Sprintf("HTTP %d - /v1/models not found on this server", resp.StatusCode)
+	return false, fmt.Sprintf("HTTP %d - /v1/models endpoint not found", resp.StatusCode)
 }
 
 func (m model) renderConnectionGuide() string {
