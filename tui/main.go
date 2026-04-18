@@ -1457,7 +1457,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.planMode = !m.planMode
-			m.sendCommand("plan", "")
+			// Send "off" when disabling plan mode, empty when enabling (backend handles both)
+			if m.planMode {
+				m.sendCommand("plan", "")
+			} else {
+				m.sendCommand("plan", "off")
+			}
 			m.relayout()
 			// Update cursor color based on mode
 			if m.planMode {
