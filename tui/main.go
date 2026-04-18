@@ -1493,15 +1493,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if m.connectionState.step == 1 {
-					// Apply pending input to current field, then advance
+					// Apply pending input to current field (only if not empty)
 					text := m.connectionState.pendingInput
-					switch m.connectionState.fieldIndex {
-					case 0:
-						m.connectionState.providerName = text
-					case 1:
-						m.connectionState.baseURL = text
-					case 2:
-						m.connectionState.model = text
+					if text != "" {
+						switch m.connectionState.fieldIndex {
+						case 0:
+							m.connectionState.providerName = text
+						case 1:
+							m.connectionState.baseURL = text
+						case 2:
+							m.connectionState.model = text
+						}
 					}
 					m.connectionState.pendingInput = ""
 					m.textInput.Reset()
