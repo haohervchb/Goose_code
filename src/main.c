@@ -413,6 +413,11 @@ static int run_tui_mode(int argc, char *argv[]) {
                         tui_protocol_send_response_chunk(result, 1);
                         free(result);
                     }
+                    // Send updated session info after commands that may change state
+                    tui_protocol_send_session_info(
+                        cJSON_GetArraySize(g_agent->session->messages),
+                        g_agent->session->plan_mode
+                    );
                 }
                 break;
                 
