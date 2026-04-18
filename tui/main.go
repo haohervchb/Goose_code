@@ -1526,7 +1526,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.textInput.Reset()
 
 					// Run connection test
-					ok, result := testConnection(m.connectionState.baseURL, m.connectionState.apiKey)
+					ok, result := testConnection(m.connectionState.baseURL, m.connectionState.apiKey, m.connectionState.model)
 					m.connectionState.testSuccess = ok
 					m.connectionState.testResult = result
 
@@ -1915,7 +1915,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func testConnection(baseURL, apiKey string) (bool, string) {
+func testConnection(baseURL, apiKey, modelName string) (bool, string) {
 	if baseURL == "" {
 		return false, "Base URL is empty"
 	}
@@ -1946,10 +1946,9 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return false, fmt.Sprintf("Connection failed: %v", err)
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body) // drain body
+	io.ReadAll(resp.Body)
 
-	// Base URL is reachable (got HTTP response)
-	// Step 2: Check models endpoint
+	// Step 2: Check models endpoint and verify model name
 	modelEndpoints := []string{"/v1/models", "/models"}
 	var modelErr error
 	for _, ep := range modelEndpoints {
@@ -1968,10 +1967,41 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 			modelErr = err
 			continue
 		}
-		defer resp2.Body.Close()
-		io.ReadAll(resp2.Body)
+		body, _ := io.ReadAll(resp2.Body)
+		resp2.Body.Close()
 
 		if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+			// Parse models list and check if model name matches
+			if modelName != "" {
+				var modelsData map[string]interface{}
+				if json.Unmarshal(body, &modelsData) == nil {
+					if data, ok := modelsData["data"].([]interface{}); ok {
+						found := false
+						for _, m := range data {
+							if mmap, ok := m.(map[string]interface{}); ok {
+								if id, ok := mmap["id"].(string); ok {
+									if id == modelName || strings.HasSuffix(id, "/"+modelName) || id == modelName+"-4bit" {
+										found = true
+										break
+									}
+								}
+							}
+						}
+						if !found {
+							// Try partial match - show available models
+							var modelList []string
+							for _, m := range data {
+								if mmap, ok := m.(map[string]interface{}); ok {
+									if id, ok := mmap["id"].(string); ok {
+										modelList = append(modelList, id)
+									}
+								}
+							}
+							return false, fmt.Sprintf("Model '%s' not found. Available: %s", modelName, strings.Join(modelList, ", "))
+						}
+					}
+				}
+			}
 			return true, fmt.Sprintf("OK (HTTP %d) - server and models endpoint working", resp2.StatusCode)
 		}
 		modelErr = fmt.Errorf("HTTP %d", resp2.StatusCode)
