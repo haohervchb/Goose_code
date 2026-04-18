@@ -354,7 +354,8 @@ static int run_tui_mode(int argc, char *argv[]) {
     dup2(saved_stdout, STDOUT_FILENO);
     close(saved_stdout);
     
-    tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir);
+    tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir,
+                              g_agent->config.provider, g_agent->config.base_url, g_agent->config.model);
     
     while (1) {
         TUIRequest req;

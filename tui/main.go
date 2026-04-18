@@ -543,6 +543,12 @@ type BackendResponse struct {
 	Success    bool   `json:"success,omitempty"`
 	Error      string `json:"error,omitempty"`
 	Message    string `json:"message,omitempty"`
+	// Config from backend
+	Config *struct {
+		Model    string `json:"model,omitempty"`
+		Provider string `json:"provider,omitempty"`
+		BaseURL  string `json:"base_url,omitempty"`
+	} `json:"config,omitempty"`
 	// Tool-related fields
 	ToolName   string                 `json:"name,omitempty"`
 	ToolID     string                 `json:"id,omitempty"`
@@ -2103,9 +2109,22 @@ func main() {
 
 	m := newModel(backend)
 	m.connected = true
-	m.activeModel = cfg.Model
-	m.activeProvider = cfg.Provider
-	m.activeBaseURL = cfg.BaseURL
+	// Use command-line flags first, but override with backend's actual config if available
+	if resp.Config != nil {
+		if resp.Config.Provider != "" {
+			m.activeProvider = resp.Config.Provider
+		}
+		if resp.Config.Model != "" {
+			m.activeModel = resp.Config.Model
+		}
+		if resp.Config.BaseURL != "" {
+			m.activeBaseURL = resp.Config.BaseURL
+		}
+	} else {
+		m.activeModel = cfg.Model
+		m.activeProvider = cfg.Provider
+		m.activeBaseURL = cfg.BaseURL
+	}
 
 	// First-run detection: if no provider configured, trigger connection wizard
 	if cfg.Provider == "" && cfg.Model == "" && !hasConfiguredProvider() {

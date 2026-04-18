@@ -31,7 +31,8 @@ void tui_protocol_cleanup(void);
 int tui_protocol_read_request(TUIRequest *req);
 void tui_protocol_free_request(TUIRequest *req);
 
-void tui_protocol_send_init_ok(const char *session_id, const char *session_dir);
+void tui_protocol_send_init_ok(const char *session_id, const char *session_dir,
+                               const char *provider, const char *base_url, const char *model);
 void tui_protocol_send_response_chunk(const char *content, int done);
 void tui_protocol_send_tool_start(const char *name, const char *id, const char *args_json);
 void tui_protocol_send_tool_output(const char *id, const char *output);

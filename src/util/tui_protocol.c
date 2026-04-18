@@ -97,11 +97,15 @@ void tui_protocol_free_request(TUIRequest *req) {
     memset(req, 0, sizeof(*req));
 }
 
-void tui_protocol_send_init_ok(const char *session_id, const char *session_dir) {
+void tui_protocol_send_init_ok(const char *session_id, const char *session_dir,
+                               const char *provider, const char *base_url, const char *model) {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "type", "init_ok");
     cJSON_AddStringToObject(json, "session_id", session_id);
     cJSON_AddStringToObject(json, "session_dir", session_dir);
+    if (provider) cJSON_AddStringToObject(json, "provider", provider);
+    if (base_url) cJSON_AddStringToObject(json, "base_url", base_url);
+    if (model) cJSON_AddStringToObject(json, "model", model);
     char *str = cJSON_PrintUnformatted(json);
     fprintf(tui_stdout, "%s\n", str);
     fflush(tui_stdout);
