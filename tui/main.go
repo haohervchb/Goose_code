@@ -37,6 +37,107 @@ func newConnectionState() *connectionState {
 	}
 }
 
+func getSettingsPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	if home == "" {
+		home = "/tmp"
+	}
+	return filepath.Join(home, ".goosecode", "settings.json")
+}
+
+type settingsJSON struct {
+	Provider         string                     `json:"provider"`
+	BaseURL          string                     `json:"base_url"`
+	Model            string                     `json:"model"`
+	ProviderProfiles map[string]providerProfile `json:"provider_profiles"`
+}
+
+type providerProfile struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"api_key"`
+}
+
+func hasConfiguredProvider() bool {
+	path := getSettingsPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var settings settingsJSON
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return false
+	}
+	if settings.Provider != "" && settings.Model != "" {
+		return true
+	}
+	if settings.ProviderProfiles != nil && len(settings.ProviderProfiles) > 0 {
+		for _, p := range settings.ProviderProfiles {
+			if p.Model != "" && p.BaseURL != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func loadProvidersFromSettings() []providerInfo {
+	path := getSettingsPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var settings settingsJSON
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil
+	}
+	providers := []providerInfo{}
+	if settings.ProviderProfiles != nil {
+		for name, p := range settings.ProviderProfiles {
+			providers = append(providers, providerInfo{
+				name:    name,
+				baseURL: p.BaseURL,
+				model:   p.Model,
+				apiKey:  p.APIKey,
+			})
+		}
+	}
+	return providers
+}
+
+func saveProviderToSettings(p providerInfo) error {
+	path := getSettingsPath()
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	var settings settingsJSON
+	data, err := os.ReadFile(path)
+	if err == nil {
+		json.Unmarshal(data, &settings)
+	}
+	if settings.ProviderProfiles == nil {
+		settings.ProviderProfiles = make(map[string]providerProfile)
+	}
+
+	settings.Provider = p.name
+	settings.ProviderProfiles[p.name] = providerProfile{
+		BaseURL: p.baseURL,
+		Model:   p.model,
+		APIKey:  p.apiKey,
+	}
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, out, 0644)
+}
+
 // wrapText wraps text to the given width, preserving newlines
 func wrapText(text string, width int) string {
 	if width <= 0 || text == "" {
@@ -1686,6 +1787,20 @@ func main() {
 	m.connected = true
 	m.activeModel = cfg.Model
 	m.activeProvider = cfg.Provider
+	m.activeBaseURL = cfg.BaseURL
+
+	// First-run detection: if no provider configured, trigger connection wizard
+	if cfg.Provider == "" && cfg.Model == "" && !hasConfiguredProvider() {
+		m.connectionState = newConnectionState()
+		m.connectionState.providers = loadProvidersFromSettings()
+		if m.connectionState.providers == nil {
+			m.connectionState.providers = append([]providerInfo{}, providerPresets...)
+		} else {
+			// Append presets to saved providers
+			m.connectionState.providers = append(m.connectionState.providers, providerPresets...)
+		}
+	}
+
 	m.appendTranscriptEntry(transcriptSystem, fmt.Sprintf("\033[32mConnected!\033[0m Session: %s\n\n", resp.SessionID), "", false)
 	m.syncViewport(true)
 	m.viewport.GotoBottom()
