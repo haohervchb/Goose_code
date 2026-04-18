@@ -1854,6 +1854,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toolOutputLineOpen = !strings.HasSuffix(m.currentToolOutput, "\n")
 				m.appendToTranscriptEntry(m.currentToolOutputEntry, output)
 			}
+			m.relayout()
 			m.mu.Unlock()
 			m.syncViewport(follow)
 			m.noteViewportState(follow, output != "")
@@ -1878,6 +1879,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toolOutputLineOpen = false
 			m.isRunning = false
 			m.applyComposerState()
+			m.relayout()
 			m.mu.Unlock()
 			m.syncViewport(follow)
 			m.noteViewportState(follow, true)
