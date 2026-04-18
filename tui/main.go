@@ -543,12 +543,10 @@ type BackendResponse struct {
 	Success    bool   `json:"success,omitempty"`
 	Error      string `json:"error,omitempty"`
 	Message    string `json:"message,omitempty"`
-	// Config from backend
-	Config *struct {
-		Model    string `json:"model,omitempty"`
-		Provider string `json:"provider,omitempty"`
-		BaseURL  string `json:"base_url,omitempty"`
-	} `json:"config,omitempty"`
+	// Config from backend (flat structure to match backend's init_ok)
+	Provider string `json:"provider,omitempty"`
+	BaseURL  string `json:"base_url,omitempty"`
+	Model    string `json:"model,omitempty"`
 	// Tool-related fields
 	ToolName   string                 `json:"name,omitempty"`
 	ToolID     string                 `json:"id,omitempty"`
@@ -2110,15 +2108,15 @@ func main() {
 	m := newModel(backend)
 	m.connected = true
 	// Use command-line flags first, but override with backend's actual config if available
-	if resp.Config != nil {
-		if resp.Config.Provider != "" {
-			m.activeProvider = resp.Config.Provider
+	if resp.Provider != "" || resp.Model != "" || resp.BaseURL != "" {
+		if resp.Provider != "" {
+			m.activeProvider = resp.Provider
 		}
-		if resp.Config.Model != "" {
-			m.activeModel = resp.Config.Model
+		if resp.Model != "" {
+			m.activeModel = resp.Model
 		}
-		if resp.Config.BaseURL != "" {
-			m.activeBaseURL = resp.Config.BaseURL
+		if resp.BaseURL != "" {
+			m.activeBaseURL = resp.BaseURL
 		}
 	} else {
 		m.activeModel = cfg.Model
