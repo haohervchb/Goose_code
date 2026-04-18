@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== goosecode installer ==="
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Detect OS
 OS="$(uname -s)"
@@ -10,6 +10,52 @@ if [ -f /etc/os-release ]; then
     DISTRO="$(. /etc/os-release && echo "$ID")"
 fi
 
+# Handle --uninstall flag
+if [ "$1" = "--uninstall" ] || [ "$1" = "-u" ]; then
+    echo "=== goosecode uninstaller ==="
+    echo ""
+
+    # Remove binaries
+    if [ -d "$HOME/.local/bin" ]; then
+        rm -f "$HOME/.local/bin/goosecode"
+        rm -f "$HOME/.local/bin/goosecode-tui"
+        rm -f "$HOME/.local/bin/goosecode-backend"
+        echo "Removed binaries from ~/.local/bin/"
+    fi
+
+    # Remove PATH lines from bashrc/zshrc
+    for rcfile in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [ -f "$rcfile" ]; then
+            # Remove goosecode PATH additions
+            temp=$(mktemp)
+            keeping=false
+            in_goose_section=false
+            while IFS= read -r line; do
+                if [ "$line" = "# goosecode" ]; then
+                    in_goose_section=true
+                    continue
+                fi
+                if $in_goose_section && [[ "$line" == *"export PATH="*".local/bin"* ]]; then
+                    continue
+                fi
+                if $in_goose_section && [[ "$line" != "" ]]; then
+                    in_goose_section=false
+                fi
+                if ! $in_goose_section; then
+                    echo "$line" >> "$temp"
+                fi
+            done < "$rcfile"
+            mv "$temp" "$rcfile"
+            echo "Cleaned PATH from $rcfile"
+        fi
+    done
+
+    echo ""
+    echo "Uninstall complete! Restart your terminal to complete PATH cleanup."
+    exit 0
+fi
+
+echo "=== goosecode installer ==="
 echo "Detected: $OS ($DISTRO)"
 
 # Install dependencies
@@ -47,7 +93,7 @@ fi
 
 # Build
 echo "Building..."
-cd "$(dirname "$0")"
+cd "$SCRIPT_DIR"
 make clean
 make
 
@@ -87,3 +133,5 @@ echo ""
 # Apply PATH to current session
 export PATH="$HOME/.local/bin:$PATH"
 echo "PATH updated for this session. Run 'goosecode' to start."
+echo ""
+echo "To uninstall: ./install.sh --uninstall"
