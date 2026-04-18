@@ -1920,64 +1920,69 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 		return false, "Base URL is empty"
 	}
 
-	// Try multiple model list endpoints
-	endpoints := []string{"v1/models", "models"}
-
 	base := strings.TrimSuffix(baseURL, "/")
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	var lastErr error
-	for _, endpoint := range endpoints {
-		testURL := base + "/" + endpoint
+	// Step 1: Check if base URL is reachable
+	req, err := http.NewRequest("GET", base, nil)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid URL: %s", baseURL)
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
-		req, err := http.NewRequest("GET", testURL, nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			return false, fmt.Sprintf("Connection refused - is the server running at %s?", baseURL)
+		}
+		if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "lookup") {
+			return false, fmt.Sprintf("Host not found: %s", baseURL)
+		}
+		if strings.Contains(err.Error(), "timeout") {
+			return false, fmt.Sprintf("Connection timeout - is the server running at %s?", baseURL)
+		}
+		return false, fmt.Sprintf("Connection failed: %v", err)
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body) // drain body
+
+	// Base URL is reachable (got HTTP response)
+	// Step 2: Check models endpoint
+	modelEndpoints := []string{"/v1/models", "/models"}
+	var modelErr error
+	for _, ep := range modelEndpoints {
+		modelURL := base + ep
+		req2, err := http.NewRequest("GET", modelURL, nil)
 		if err != nil {
-			lastErr = err
+			modelErr = err
 			continue
 		}
 		if apiKey != "" {
-			req.Header.Set("Authorization", "Bearer "+apiKey)
+			req2.Header.Set("Authorization", "Bearer "+apiKey)
 		}
 
-		resp, err := client.Do(req)
+		resp2, err := client.Do(req2)
 		if err != nil {
-			lastErr = err
-			if strings.Contains(err.Error(), "connection refused") {
-				return false, fmt.Sprintf("Connection refused - is the server running at %s?", baseURL)
-			}
-			if strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "lookup") {
-				return false, fmt.Sprintf("Host not found: %s", baseURL)
-			}
-			if strings.Contains(err.Error(), "timeout") {
-				return false, fmt.Sprintf("Connection timeout - is the server running at %s?", baseURL)
-			}
+			modelErr = err
 			continue
 		}
-		defer resp.Body.Close()
-		io.ReadAll(resp.Body) // drain body
+		defer resp2.Body.Close()
+		io.ReadAll(resp2.Body)
 
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return true, fmt.Sprintf("OK (HTTP %d) - %s endpoint works", resp.StatusCode, endpoint)
+		if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+			return true, fmt.Sprintf("OK (HTTP %d) - server and models endpoint working", resp2.StatusCode)
 		}
-		// 404 on one endpoint might mean try another
-		lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+		modelErr = fmt.Errorf("HTTP %d", resp2.StatusCode)
 	}
 
-	// All endpoints failed
-	if lastErr != nil {
-		if strings.Contains(lastErr.Error(), "connection refused") {
-			return false, fmt.Sprintf("Connection refused - is the server running at %s?", baseURL)
+	// Base URL works but models endpoint doesn't
+	if modelErr != nil {
+		if strings.Contains(modelErr.Error(), "HTTP 404") {
+			return false, fmt.Sprintf("Server reachable (HTTP %d) but /v1/models not found - check model name", resp.StatusCode)
 		}
-		if strings.Contains(lastErr.Error(), "no such host") || strings.Contains(lastErr.Error(), "lookup") {
-			return false, fmt.Sprintf("Host not found: %s", baseURL)
-		}
-		if strings.Contains(lastErr.Error(), "timeout") {
-			return false, fmt.Sprintf("Connection timeout - is the server running at %s?", baseURL)
-		}
-		if strings.Contains(lastErr.Error(), "HTTP 404") {
-			return false, fmt.Sprintf("HTTP 404 - server reached but /v1/models not found. Check if provider/URL is correct.")
-		}
-		return false, fmt.Sprintf("Connection failed: %v", lastErr)
+		return false, fmt.Sprintf("Server reachable (HTTP %d) but models endpoint failed: %v", resp.StatusCode, modelErr)
 	}
 
 	return false, "Unknown error"
@@ -2046,12 +2051,25 @@ func (m model) renderConnectionGuide() string {
 		s.WriteString(fmt.Sprintf("  Base URL: \033[32m%s\033[0m\n", m.connectionState.baseURL))
 		s.WriteString(fmt.Sprintf("  Model: \033[32m%s\033[0m\n", m.connectionState.model))
 		s.WriteString("\n  Testing connection...\n")
-		s.WriteString(fmt.Sprintf("  \033[90m%s\033[0m\n", m.connectionState.testResult))
-		s.WriteString("\n")
+
+		// Check if it's a real failure (can't connect) vs warning (models endpoint issue)
+		result := m.connectionState.testResult
+		isRealFailure := strings.Contains(result, "Connection refused") ||
+			strings.Contains(result, "Host not found") ||
+			strings.Contains(result, "Connection timeout") ||
+			strings.Contains(result, "Connection failed") ||
+			strings.Contains(result, "Invalid URL")
+
 		if m.connectionState.testSuccess {
+			s.WriteString(fmt.Sprintf("  \033[32m%s\033[0m\n", result))
 			s.WriteString("  \033[32m[Enter] Accept and connect  [Esc] Go back\033[0m\n")
+		} else if isRealFailure {
+			s.WriteString(fmt.Sprintf("  \033[31m%s\033[0m\n", result))
+			s.WriteString("  \033[31m[Enter] Go back to edit  [Esc] cancel\033[0m\n")
 		} else {
-			s.WriteString(fmt.Sprintf("  \033[31mConnection issue: %s  [Enter] Go back to edit  [Esc] cancel\033[0m\n", m.connectionState.testResult))
+			// Base URL reachable but models endpoint issue - warning but can proceed
+			s.WriteString(fmt.Sprintf("  \033[33m%s\033[0m\n", result))
+			s.WriteString("  \033[33m[Enter] Accept anyway  [Esc] Go back\033[0m\n")
 		}
 	}
 
