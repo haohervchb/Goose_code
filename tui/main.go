@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1518,12 +1520,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if m.connectionState.step == 2 {
-					// API key step - save and apply
+					// API key step - test connection first
 					m.connectionState.apiKey = m.connectionState.pendingInput
 					m.connectionState.pendingInput = ""
 					m.textInput.Reset()
 
-					// Apply to model
+					// Run connection test
+					ok, result := testConnection(m.connectionState.baseURL, m.connectionState.apiKey)
+					m.connectionState.testSuccess = ok
+					m.connectionState.testResult = result
+
+					// Go to test result step
+					m.connectionState.step = 3
+					return m, nil
+				}
+				if m.connectionState.step == 3 {
+					if !m.connectionState.testSuccess {
+						// Bad connection - go back to edit
+						m.connectionState.step = 1
+						return m, nil
+					}
+					// Good connection - apply and exit
 					m.activeProvider = m.connectionState.providerName
 					m.activeModel = m.connectionState.model
 					m.activeBaseURL = m.connectionState.baseURL
@@ -1898,6 +1915,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func testConnection(baseURL, apiKey string) (bool, string) {
+	if baseURL == "" {
+		return false, "Base URL is empty"
+	}
+
+	req, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid URL: %v", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Sprintf("Connection failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true, fmt.Sprintf("OK (HTTP %d)", resp.StatusCode)
+	}
+	io.ReadAll(resp.Body) // drain body
+	return false, fmt.Sprintf("Failed (HTTP %d)", resp.StatusCode)
+}
+
 func (m model) renderConnectionGuide() string {
 	if m.connectionState == nil {
 		return ""
@@ -1955,6 +1999,19 @@ func (m model) renderConnectionGuide() string {
 			s.WriteString("\033[90m[empty for none]\033[0m")
 		}
 		s.WriteString("\n")
+	} else if m.connectionState.step == 3 {
+		// Connection test result
+		s.WriteString(fmt.Sprintf("  Provider: \033[32m%s\033[0m\n", m.connectionState.providerName))
+		s.WriteString(fmt.Sprintf("  Base URL: \033[32m%s\033[0m\n", m.connectionState.baseURL))
+		s.WriteString(fmt.Sprintf("  Model: \033[32m%s\033[0m\n", m.connectionState.model))
+		s.WriteString("\n  Testing connection...\n")
+		s.WriteString(fmt.Sprintf("  \033[90m%s\033[0m\n", m.connectionState.testResult))
+		s.WriteString("\n")
+		if m.connectionState.testSuccess {
+			s.WriteString("  \033[32m[Enter] Accept and connect  [Esc] Go back\033[0m\n")
+		} else {
+			s.WriteString("  \033[31mConnection failed! [Enter] Go back to edit  [Esc] cancel\033[0m\n")
+		}
 	}
 
 	s.WriteString("  \033[36m" + strings.Repeat("─", width) + "\033[0m\n")
