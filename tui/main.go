@@ -1936,8 +1936,12 @@ func testConnection(baseURL, apiKey string) (bool, string) {
 	defer resp.Body.Close()
 	io.ReadAll(resp.Body) // drain body
 
-	// Any HTTP response means server is reachable
-	return true, fmt.Sprintf("Server reachable (HTTP %d)", resp.StatusCode)
+	// Check for success - models endpoint should return 200
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true, fmt.Sprintf("OK (HTTP %d)", resp.StatusCode)
+	}
+	// 404 or other errors mean the endpoint doesn't exist
+	return false, fmt.Sprintf("HTTP %d - /v1/models not found on this server", resp.StatusCode)
 }
 
 func (m model) renderConnectionGuide() string {
