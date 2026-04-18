@@ -1917,20 +1917,24 @@ func (m model) renderConnectionGuide() string {
 		}
 		s.WriteString("\n\033[90m[Up/Down] navigate  [Enter] select  [Esc] cancel\033[0m\n")
 	} else if m.connectionState.step == 1 {
-		// Edit provider details
-		s.WriteString(fmt.Sprintf("Provider: \033[33m%s\033[0m\n", m.connectionState.providerName))
-		s.WriteString(fmt.Sprintf("Base URL: \033[33m%s\033[0m\n", m.connectionState.baseURL))
-		s.WriteString(fmt.Sprintf("Model: \033[33m%s\033[0m\n", m.connectionState.model))
-		s.WriteString("\n\033[90mUse [Tab] to cycle fields, type new values, then [Enter] to advance\033[0m\n")
-		s.WriteString(fmt.Sprintf("\033[90mCurrent field: "))
-		switch m.connectionState.fieldIndex {
-		case 0:
-			s.WriteString("Provider\033[0m\n")
-		case 1:
-			s.WriteString("Base URL\033[0m\n")
-		case 2:
-			s.WriteString("Model\033[0m\n")
+		// Edit provider details with arrow indicator
+		fields := []struct {
+			label    string
+			value    string
+			isActive bool
+		}{
+			{"Provider", m.connectionState.providerName, m.connectionState.fieldIndex == 0},
+			{"Base URL", m.connectionState.baseURL, m.connectionState.fieldIndex == 1},
+			{"Model", m.connectionState.model, m.connectionState.fieldIndex == 2},
 		}
+		for _, f := range fields {
+			prefix := "  "
+			if f.isActive {
+				prefix = "\033[32m> \033[0m"
+			}
+			s.WriteString(fmt.Sprintf("%s%s: \033[33m%s\033[0m\n", prefix, f.label, f.value))
+		}
+		s.WriteString("\n\033[90m[Tab] next field  [Enter] advance  [Esc] cancel\033[0m\n")
 	} else if m.connectionState.step == 2 {
 		// API key
 		s.WriteString(fmt.Sprintf("\nProvider: \033[32m%s\033[0m\n", m.connectionState.providerName))
