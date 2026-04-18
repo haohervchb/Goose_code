@@ -116,13 +116,15 @@ test: $(TARGET)
 
 install: $(TARGET) tui
 	@mkdir -p "$(INSTALL_BINDIR)"
-	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode"
 	@install -m 755 "$(TUI_TARGET)" "$(INSTALL_BINDIR)/goosecode-tui"
+	@install -m 755 "$(TARGET)" "$(INSTALL_BINDIR)/goosecode-backend"
+	@ln -sf "$(INSTALL_BINDIR)/goosecode-tui" "$(INSTALL_BINDIR)/goosecode"
+	@ln -sf "$(INSTALL_BINDIR)/goosecode-backend" "$(INSTALL_BINDIR)/goosecode-backend"
 	@printf 'Installed goosecode to %s/goosecode and %s/goosecode-tui\n' "$(INSTALL_BINDIR)" "$(INSTALL_BINDIR)"
 
 uninstall:
-	@rm -f "$(INSTALL_BINDIR)/goosecode"
-	@printf 'Removed %s/goosecode\n' "$(INSTALL_BINDIR)"
+	@rm -f "$(INSTALL_BINDIR)/goosecode" "$(INSTALL_BINDIR)/goosecode-tui" "$(INSTALL_BINDIR)/goosecode-backend"
+	@printf 'Removed goosecode from %s\n' "$(INSTALL_BINDIR)"
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET) build/test_runner
