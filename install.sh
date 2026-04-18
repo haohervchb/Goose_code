@@ -83,10 +83,12 @@ if [ "$1" = "--install" ]; then
     fi
 
     echo ""
-    echo "=== IMPORTANT: Restart your terminal or run this to refresh PATH ==="
-    echo 'export PATH="$HOME/.local/bin:$PATH"'
+    echo "Done! goosecode is now installed."
     echo ""
-    echo "Done! After restarting terminal, run 'goosecode' to start."
+
+    # Apply PATH to current session
+    export PATH="$HOME/.local/bin:$PATH"
+    echo "PATH updated for this session. Run 'goosecode' to start."
 else
     echo ""
     echo "Build complete!"
