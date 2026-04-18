@@ -5,6 +5,7 @@ goosecode
 # Local binaries
 goosecode-tui
 goosecode-backend
+goosecode-tui-new
 tui/goosecode-tui
 tui/goosecode-backend
 tui/test_build
@@ -15,3 +16,12 @@ sum_1_to_n.py
 
 # If this is just a local test file
 tui/test_textarea.go
+
+# Go installation (downloaded by setup scripts)
+go*.tar.gz
+
+# Session files
+*.json
+
+# Documentation (not part of build)
+docs/
