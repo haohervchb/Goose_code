@@ -77,6 +77,17 @@ int tui_protocol_read_request(TUIRequest *req) {
         req->type = TUI_MSG_RESPONSE;
         cJSON *text = cJSON_GetObjectItem(json, "text");
         if (text && text->valuestring) req->response = strdup(text->valuestring);
+    } else if (strcmp(type->valuestring, "config") == 0) {
+        req->type = TUI_MSG_CONFIG;
+        cJSON *cfg = cJSON_GetObjectItem(json, "config");
+        if (cfg) {
+            cJSON *model = cJSON_GetObjectItem(cfg, "model");
+            if (model && model->valuestring) req->model = strdup(model->valuestring);
+            cJSON *provider = cJSON_GetObjectItem(cfg, "provider");
+            if (provider && provider->valuestring) req->provider = strdup(provider->valuestring);
+            cJSON *base_url = cJSON_GetObjectItem(cfg, "base_url");
+            if (base_url && base_url->valuestring) req->base_url = strdup(base_url->valuestring);
+        }
     } else {
         req->type = TUI_MSG_INVALID;
     }

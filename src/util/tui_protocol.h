@@ -8,6 +8,7 @@ typedef enum {
     TUI_MSG_INIT,
     TUI_MSG_PROMPT,
     TUI_MSG_COMMAND,
+    TUI_MSG_CONFIG,
     TUI_MSG_QUIT,
     TUI_MSG_PING,
     TUI_MSG_REQUEST_INPUT,

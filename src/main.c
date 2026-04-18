@@ -388,6 +388,24 @@ static int run_tui_mode(int argc, char *argv[]) {
                     g_agent->api_cfg.model = g_agent->config.model;
                 }
                 break;
+
+            case TUI_MSG_CONFIG:
+                // Apply provider first (sets defaults), then override with explicit config
+                if (req.provider) {
+                    provider_apply_preset(&g_agent->config, req.provider, 1);
+                }
+                if (req.base_url) {
+                    free(g_agent->config.base_url);
+                    g_agent->config.base_url = strdup(req.base_url);
+                    g_agent->api_cfg.base_url = g_agent->config.base_url;
+                }
+                // Model must be set AFTER provider (so it doesn't get overwritten)
+                if (req.model) {
+                    free(g_agent->config.model);
+                    g_agent->config.model = strdup(req.model);
+                    g_agent->api_cfg.model = g_agent->config.model;
+                }
+                break;
                 
             case TUI_MSG_PROMPT:
                 if (req.text) {
