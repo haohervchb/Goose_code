@@ -54,21 +54,41 @@ make
 # Install
 if [ "$1" = "--install" ]; then
     echo "Installing to ~/.local/bin..."
-    mkdir -p "$HOME/.local/bin"
-    install -m 755 goosecode-tui "$HOME/.local/bin/"
-    install -m 755 goosecode-backend "$HOME/.local/bin/"
-    ln -sf "$HOME/.local/bin/goosecode-tui" "$HOME/.local/bin/goosecode"
-    ln -sf "$HOME/.local/bin/goosecode-backend" "$HOME/.local/bin/goosecode-backend"
+    make install
 
-    # Add to PATH if not already there
-    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        echo ""
-        echo "=== Add this to your ~/.bashrc or ~/.zshrc ==="
-        echo 'export PATH="$HOME/.local/bin:$PATH"'
+    # Add to PATH automatically in ~/.bashrc
+    PROFILE_SNIPPET='export PATH="$HOME/.local/bin:$PATH"'
+    BASHRC="$HOME/.bashrc"
+    ZSHRC="$HOME/.zshrc"
+
+    add_to_path() {
+        local rcfile="$1"
+        if [ -f "$rcfile" ] && ! grep -q "export PATH=.*\.local/bin" "$rcfile" 2>/dev/null; then
+            echo "" >> "$rcfile"
+            echo "# goosecode" >> "$rcfile"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rcfile"
+            echo "Added PATH update to $rcfile"
+        elif [ ! -f "$rcfile" ]; then
+            echo "# goosecode" >> "$rcfile"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rcfile"
+            echo "Created $rcfile with PATH update"
+        fi
+    }
+
+    if [ -f "$BASHRC" ] || [ ! -f "$ZSHRC" ]; then
+        add_to_path "$BASHRC"
     fi
-    echo "Done! Run 'goosecode' to start."
+    if [ -f "$ZSHRC" ]; then
+        add_to_path "$ZSHRC"
+    fi
+
+    echo ""
+    echo "=== IMPORTANT: Restart your terminal or run this to refresh PATH ==="
+    echo 'export PATH="$HOME/.local/bin:$PATH"'
+    echo ""
+    echo "Done! After restarting terminal, run 'goosecode' to start."
 else
     echo ""
     echo "Build complete!"
-    echo "Run './goosecode' to start, or './goosecode --install' to install to ~/.local/bin"
+    echo "Run './goosecode' to start, or './install.sh --install' to install globally"
 fi
