@@ -20,6 +20,23 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+var providerPresets = []providerInfo{
+	{"openai", "https://api.openai.com/v1", "gpt-4o", ""},
+	{"ollama", "http://localhost:11434/v1", "llama3", ""},
+	{"vllm", "http://localhost:8000/v1", "model", ""},
+	{"llama.cpp", "http://localhost:8080/v1", "model", ""},
+	{"ik-llama", "http://localhost:8080/v1", "model", ""},
+}
+
+func newConnectionState() *connectionState {
+	return &connectionState{
+		step:          0,
+		providers:     append([]providerInfo{}, providerPresets...),
+		selectedIndex: 0,
+		fieldIndex:    0,
+	}
+}
+
 // wrapText wraps text to the given width, preserving newlines
 func wrapText(text string, width int) string {
 	if width <= 0 || text == "" {
@@ -651,8 +668,30 @@ type transcriptEntry struct {
 	expanded bool
 }
 
+type providerInfo struct {
+	name    string
+	baseURL string
+	model   string
+	apiKey  string
+}
+
+type connectionState struct {
+	step          int
+	providers     []providerInfo
+	selectedIndex int
+	editing       providerInfo
+	editingIndex  int
+	providerName  string
+	baseURL       string
+	model         string
+	apiKey        string
+	testResult    string
+	testSuccess   bool
+	fieldIndex    int
+}
+
 type model struct {
-	mu   sync.Mutex // Protects concurrent access to model fields
+	mu         sync.Mutex // Protects concurrent access to model fields
 	backend    *Backend
 	textInput  textarea.Model
 	viewport   viewport.Model
@@ -681,6 +720,9 @@ type model struct {
 	windowHeight            int
 	activeModel             string
 	activeProvider          string
+	activeBaseURL           string
+	// Connection wizard state
+	connectionState *connectionState
 	// Input request state
 	requestingInput    bool
 	requestInputPrompt string
