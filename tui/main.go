@@ -685,6 +685,21 @@ func (b *Backend) SendQuit() error {
 	return b.Send(TUIRequest{Type: "quit"})
 }
 
+func (b *Backend) SendConfig(provider, baseURL, model string) error {
+	return b.Send(TUIRequest{
+		Type: "config",
+		Config: &struct {
+			Model    string `json:"model,omitempty"`
+			Provider string `json:"provider,omitempty"`
+			BaseURL  string `json:"base_url,omitempty"`
+		}{
+			Model:    model,
+			Provider: provider,
+			BaseURL:  baseURL,
+		},
+	})
+}
+
 func (b *Backend) SendResponse(text string) error {
 	return b.Send(TUIRequest{Type: "response", Text: text})
 }
@@ -789,6 +804,7 @@ type connectionState struct {
 	testResult    string
 	testSuccess   bool
 	fieldIndex    int
+	pendingInput  string
 }
 
 type model struct {
@@ -1330,7 +1346,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 				return m, nil
 			}
+			// Connection wizard: cancel and exit
+			if m.connectionState != nil {
+				m.connectionState = nil
+				return m, nil
+			}
 		case "up", "pageup", "pgup":
+			if m.connectionState != nil {
+				// Connection wizard navigation
+				if m.connectionState.step == 0 {
+					if msg.String() == "up" {
+						m.connectionState.selectedIndex--
+						if m.connectionState.selectedIndex < 0 {
+							m.connectionState.selectedIndex = len(m.connectionState.providers) - 1
+						}
+					} else {
+						m.connectionState.selectedIndex = 0
+					}
+					return m, nil
+				}
+				return m, nil
+			}
 			if m.showHelp {
 				if msg.String() == "up" {
 					m.moveHelp(-1)
@@ -1343,6 +1379,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport, cmd = m.viewport.Update(msg)
 			return m, cmd
 		case "down", "pagedown", "pgdown":
+			if m.connectionState != nil {
+				// Connection wizard navigation
+				if m.connectionState.step == 0 {
+					if msg.String() == "down" {
+						m.connectionState.selectedIndex++
+						if m.connectionState.selectedIndex >= len(m.connectionState.providers) {
+							m.connectionState.selectedIndex = 0
+						}
+					} else {
+						m.connectionState.selectedIndex = len(m.connectionState.providers) - 1
+					}
+					return m, nil
+				}
+				return m, nil
+			}
 			if m.showHelp {
 				if msg.String() == "down" {
 					m.moveHelp(1)
@@ -1391,6 +1442,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "tab":
+			if m.connectionState != nil {
+				// Connection wizard: cycle through fields in edit mode
+				if m.connectionState.step == 1 {
+					m.connectionState.fieldIndex = (m.connectionState.fieldIndex + 1) % 3
+				}
+				return m, nil
+			}
 			m.planMode = !m.planMode
 			m.sendCommand("plan", "")
 			m.relayout()
@@ -1402,6 +1460,85 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("32")) // Green for build
 			return m, textarea.Blink
 		case "enter":
+			// Connection wizard handling
+			if m.connectionState != nil {
+				if m.connectionState.step == 0 {
+					// Select provider from list and go to edit mode
+					idx := m.connectionState.selectedIndex
+					if idx >= 0 && idx < len(m.connectionState.providers) {
+						p := m.connectionState.providers[idx]
+						m.connectionState.editing = p
+						m.connectionState.editingIndex = idx
+						m.connectionState.providerName = p.name
+						m.connectionState.baseURL = p.baseURL
+						m.connectionState.model = p.model
+						m.connectionState.apiKey = p.apiKey
+					} else {
+						// New provider - clear fields
+						m.connectionState.editing = providerInfo{}
+						m.connectionState.providerName = ""
+						m.connectionState.baseURL = ""
+						m.connectionState.model = ""
+						m.connectionState.apiKey = ""
+					}
+					m.connectionState.step = 1
+					m.connectionState.fieldIndex = 0
+					m.connectionState.pendingInput = ""
+					m.textInput.Reset()
+					return m, nil
+				}
+				if m.connectionState.step == 1 {
+					// Apply pending input to current field, then advance
+					text := m.connectionState.pendingInput
+					switch m.connectionState.fieldIndex {
+					case 0:
+						m.connectionState.providerName = text
+					case 1:
+						m.connectionState.baseURL = text
+					case 2:
+						m.connectionState.model = text
+					}
+					m.connectionState.pendingInput = ""
+					m.textInput.Reset()
+
+					// Move to next field or finish
+					if m.connectionState.fieldIndex < 2 {
+						m.connectionState.fieldIndex++
+					} else {
+						// All fields filled - go to API key step
+						m.connectionState.step = 2
+					}
+					return m, nil
+				}
+				if m.connectionState.step == 2 {
+					// API key step - save and apply
+					m.connectionState.apiKey = m.connectionState.pendingInput
+					m.connectionState.pendingInput = ""
+					m.textInput.Reset()
+
+					// Apply to model
+					m.activeProvider = m.connectionState.providerName
+					m.activeModel = m.connectionState.model
+					m.activeBaseURL = m.connectionState.baseURL
+
+					// Save to settings
+					saveProviderToSettings(providerInfo{
+						name:    m.connectionState.providerName,
+						baseURL: m.connectionState.baseURL,
+						model:   m.connectionState.model,
+						apiKey:  m.connectionState.apiKey,
+					})
+
+					// Send config to backend
+					m.backend.SendConfig(m.connectionState.providerName, m.connectionState.baseURL, m.connectionState.model)
+
+					// Exit wizard
+					m.connectionState = nil
+					return m, nil
+				}
+				return m, nil
+			}
+
 			if m.textInput.Value() == "" {
 				return m, textarea.Blink
 			}
@@ -1456,6 +1593,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, textarea.Blink
 				}
 
+				if cmdName == "connect" {
+					m.connectionState = newConnectionState()
+					m.connectionState.providers = loadProvidersFromSettings()
+					if m.connectionState.providers == nil {
+						m.connectionState.providers = append([]providerInfo{}, providerPresets...)
+					} else {
+						m.connectionState.providers = append(m.connectionState.providers, providerPresets...)
+					}
+					return m, nil
+				}
+
 				if cmdName == "tab" {
 					m.planMode = !m.planMode
 					m.relayout()
@@ -1488,6 +1636,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			// Let textarea handle all other keys (typing)
 			m.textInput, cmd = m.textInput.Update(msg)
+			// Capture typed input in connection wizard
+			if m.connectionState != nil && (m.connectionState.step == 1 || m.connectionState.step == 2) {
+				m.connectionState.pendingInput = m.textInput.Value()
+			}
 			return m, cmd
 		}
 
@@ -1629,6 +1781,59 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) renderConnectionGuide() string {
+	if m.connectionState == nil {
+		return ""
+	}
+
+	var s strings.Builder
+
+	s.WriteString("\n\033[1;36m=== Connection Guide ===\033[0m\n\n")
+
+	if m.connectionState.step == 0 {
+		// Provider list
+		s.WriteString("Select a provider:\n\n")
+		for i, p := range m.connectionState.providers {
+			prefix := "  "
+			if i == m.connectionState.selectedIndex {
+				prefix = "\033[32m> \033[0m"
+			}
+			s.WriteString(fmt.Sprintf("%s%s  %s | %s | %s\n", prefix, p.name, p.baseURL, p.model, p.apiKey))
+		}
+		s.WriteString("\n\033[90m[Up/Down] navigate  [Enter] select  [Esc] cancel\033[0m\n")
+	} else if m.connectionState.step == 1 {
+		// Edit provider details
+		s.WriteString(fmt.Sprintf("Provider: \033[33m%s\033[0m\n", m.connectionState.providerName))
+		s.WriteString(fmt.Sprintf("Base URL: \033[33m%s\033[0m\n", m.connectionState.baseURL))
+		s.WriteString(fmt.Sprintf("Model: \033[33m%s\033[0m\n", m.connectionState.model))
+		s.WriteString("\n\033[90mUse [Tab] to cycle fields, type new values, then [Enter] to advance\033[0m\n")
+		s.WriteString(fmt.Sprintf("\033[90mCurrent field: "))
+		switch m.connectionState.fieldIndex {
+		case 0:
+			s.WriteString("Provider\033[0m\n")
+		case 1:
+			s.WriteString("Base URL\033[0m\n")
+		case 2:
+			s.WriteString("Model\033[0m\n")
+		}
+	} else if m.connectionState.step == 2 {
+		// API key
+		s.WriteString(fmt.Sprintf("\nProvider: \033[32m%s\033[0m\n", m.connectionState.providerName))
+		s.WriteString(fmt.Sprintf("Base URL: \033[32m%s\033[0m\n", m.connectionState.baseURL))
+		s.WriteString(fmt.Sprintf("Model: \033[32m%s\033[0m\n", m.connectionState.model))
+		s.WriteString("\nAPI Key (optional): ")
+		if m.connectionState.pendingInput != "" {
+			s.WriteString(fmt.Sprintf("\033[33m%s\033[0m", m.connectionState.pendingInput))
+		} else {
+			s.WriteString("\033[90m[empty for none]\033[0m")
+		}
+		s.WriteString("\n\n\033[90mPress [Enter] to save and connect\033[0m\n")
+	}
+
+	s.WriteString("\n")
+	return s.String()
+}
+
 func (m model) View() string {
 	var s strings.Builder
 	status := m.sessionStatus()
@@ -1650,7 +1855,9 @@ func (m model) View() string {
 	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")
 
 	// Chat messages (scrollable viewport)
-	if m.showHelp {
+	if m.connectionState != nil {
+		s.WriteString(m.renderConnectionGuide())
+	} else if m.showHelp {
 		s.WriteString(m.helpContent())
 	} else {
 		s.WriteString(m.viewport.View())
