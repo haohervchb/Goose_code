@@ -1531,7 +1531,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					})
 
 					// Send config to backend
-					m.backend.SendConfig(m.connectionState.providerName, m.connectionState.baseURL, m.connectionState.model)
+					if m.backend != nil {
+						m.backend.SendConfig(m.connectionState.providerName, m.connectionState.baseURL, m.connectionState.model)
+					}
 
 					// Exit wizard
 					m.connectionState = nil
@@ -1551,7 +1553,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.requestingInput {
 				m.requestingInput = false
 				m.requestInputPrompt = ""
-				m.backend.SendResponse(text)
+				if m.backend != nil {
+					m.backend.SendResponse(text)
+				}
 				m.appendTranscriptEntry(transcriptUser, text, "", false)
 				m.syncViewport(true)
 				return m, textarea.Blink
@@ -1650,6 +1654,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 						m.appendTranscriptEntry(transcriptError, "Unknown provider: "+providerName+". Use /provider list for available presets.", "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					// Pass to backend for other cases
+					m.sendCommand(cmdName, args)
+					m.appendTranscriptEntry(transcriptCommand, cmdName, args, false)
+					m.syncViewport(true)
+					return m, nil
+				}
+
+				if cmdName == "model" {
+					// Handle /model command locally
+					if args == "" || args == "show" {
+						// Show current model
+						info := fmt.Sprintf("Current model: %s\nProvider: %s\n", m.activeModel, m.activeProvider)
+						m.appendTranscriptEntry(transcriptCommand, "model", args, false)
+						m.appendTranscriptEntry(transcriptSystem, info, "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					if args == "list" {
+						// Let backend handle listing models (it knows the API)
+						m.appendTranscriptEntry(transcriptCommand, "model", "list", false)
+						m.syncViewport(true)
+						if m.backend != nil {
+							m.sendCommand("model", "list")
+						}
+						return m, nil
+					}
+					if strings.HasPrefix(args, "set ") {
+						modelName := strings.TrimPrefix(args, "set ")
+						// Switch model without saving to settings
+						m.activeModel = modelName
+						if m.backend != nil {
+							m.backend.SendConfig(m.activeProvider, m.activeBaseURL, modelName)
+						}
+						m.appendTranscriptEntry(transcriptCommand, "model", args, false)
+						info := fmt.Sprintf("Model switched to: %s\n", modelName)
+						m.appendTranscriptEntry(transcriptSystem, info, "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					// /model <name> - treat as set
+					if args != "" && !strings.Contains(args, " ") {
+						m.activeModel = args
+						if m.backend != nil {
+							m.backend.SendConfig(m.activeProvider, m.activeBaseURL, args)
+						}
+						m.appendTranscriptEntry(transcriptCommand, "model", args, false)
+						info := fmt.Sprintf("Model switched to: %s\n", args)
+						m.appendTranscriptEntry(transcriptSystem, info, "", false)
 						m.syncViewport(true)
 						return m, nil
 					}
