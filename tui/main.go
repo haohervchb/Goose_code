@@ -882,7 +882,7 @@ func (m model) renderTranscript() string {
 }
 
 func (m model) sessionStatus() string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 5)
 	if m.connected {
 		parts = append(parts, "connected")
 	}
@@ -891,6 +891,9 @@ func (m model) sessionStatus() string {
 		if providerModel != "" {
 			parts = append(parts, providerModel)
 		}
+	}
+	if m.activeBaseURL != "" {
+		parts = append(parts, m.activeBaseURL)
 	}
 	if m.backend != nil && m.backend.sessionID != "" {
 		parts = append(parts, "session "+m.backend.sessionID)
