@@ -58,10 +58,16 @@ HttpResponse http_get(const char *url, const char *auth_token) {
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     struct curl_slist *headers = NULL;
-    if (auth_token) {
-        char auth[512];
-        snprintf(auth, sizeof(auth), "Authorization: Bearer %s", auth_token);
-        headers = curl_slist_append(headers, auth);
+    // Only add auth header if auth_token is non-empty (not NULL, not empty, not just whitespace)
+    if (auth_token && auth_token[0] != '\0') {
+        // Skip leading whitespace
+        const char *p = auth_token;
+        while (*p && (*p == ' ' || *p == '\t')) p++;
+        if (*p != '\0') {
+            char auth[512];
+            snprintf(auth, sizeof(auth), "Authorization: Bearer %s", p);
+            headers = curl_slist_append(headers, auth);
+        }
     }
     if (headers) curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     HttpResponse resp = do_request(curl, &ctx);
@@ -79,10 +85,15 @@ HttpResponse http_post(const char *url, const char *auth_token, const char *cont
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(body));
     struct curl_slist *headers = NULL;
-    if (auth_token) {
-        char auth[512];
-        snprintf(auth, sizeof(auth), "Authorization: Bearer %s", auth_token);
-        headers = curl_slist_append(headers, auth);
+    // Only add auth header if auth_token is non-empty (not NULL, not empty, not just whitespace)
+    if (auth_token && auth_token[0] != '\0') {
+        const char *p = auth_token;
+        while (*p && (*p == ' ' || *p == '\t')) p++;
+        if (*p != '\0') {
+            char auth[512];
+            snprintf(auth, sizeof(auth), "Authorization: Bearer %s", p);
+            headers = curl_slist_append(headers, auth);
+        }
     }
     if (content_type) {
         char ct[256];
