@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1601,6 +1602,61 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					} else {
 						m.connectionState.providers = append(m.connectionState.providers, providerPresets...)
 					}
+					return m, nil
+				}
+
+				if cmdName == "provider" {
+					// Handle /provider command locally
+					if args == "" || args == "show" {
+						// Show current provider config
+						info := fmt.Sprintf("Current provider:\n  provider: %s\n  base_url: %s\n  model: %s\n",
+							m.activeProvider, m.activeBaseURL, m.activeModel)
+						m.appendTranscriptEntry(transcriptSystem, info, "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					if args == "list" {
+						// List available presets
+						var list bytes.Buffer
+						list.WriteString("Available provider presets:\n")
+						for _, p := range providerPresets {
+							list.WriteString(fmt.Sprintf("  - %s -> %s (%s)\n", p.name, p.baseURL, p.model))
+						}
+						m.appendTranscriptEntry(transcriptSystem, list.String(), "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					if strings.HasPrefix(args, "set ") {
+						providerName := strings.TrimPrefix(args, "set ")
+						// Find the provider preset
+						for i, p := range providerPresets {
+							if p.name == providerName {
+								// Open connection wizard with this provider preselected
+								m.connectionState = newConnectionState()
+								m.connectionState.providers = loadProvidersFromSettings()
+								if m.connectionState.providers == nil {
+									m.connectionState.providers = append([]providerInfo{}, providerPresets...)
+								} else {
+									m.connectionState.providers = append(m.connectionState.providers, providerPresets...)
+								}
+								m.connectionState.selectedIndex = i
+								m.connectionState.step = 1
+								m.connectionState.fieldIndex = 0
+								m.connectionState.providerName = p.name
+								m.connectionState.baseURL = p.baseURL
+								m.connectionState.model = p.model
+								m.connectionState.apiKey = ""
+								return m, nil
+							}
+						}
+						m.appendTranscriptEntry(transcriptError, "Unknown provider: "+providerName+". Use /provider list for available presets.", "", false)
+						m.syncViewport(true)
+						return m, nil
+					}
+					// Pass to backend for other cases
+					m.sendCommand(cmdName, args)
+					m.appendTranscriptEntry(transcriptCommand, cmdName, args, false)
+					m.syncViewport(true)
 					return m, nil
 				}
 
