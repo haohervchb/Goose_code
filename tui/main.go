@@ -1903,28 +1903,25 @@ func (m model) renderConnectionGuide() string {
 
 	var s strings.Builder
 	width := m.renderWidth()
-	if width < 40 {
+	if width < 50 {
 		width = 50
 	}
+	borderTop := "\n\033[1;36m  Connection Guide\033[0m\n" +
+		"\033[36m  " + strings.Repeat("─", width) + "\033[0m\n"
 
-	header := "\033[1;36m┌─ Connection Guide ─┐\033[0m"
-	s.WriteString("\n" + header + "\n")
+	s.WriteString(borderTop)
 
 	if m.connectionState.step == 0 {
 		// Provider list
-		s.WriteString("│ Select a provider:                                              │\n")
-		s.WriteString("│                                                              │\n")
+		s.WriteString("  Select a provider:\n\n")
 		for i, p := range m.connectionState.providers {
-			prefix := "│   "
+			prefix := "    "
 			if i == m.connectionState.selectedIndex {
-				prefix = "│ \033[32m▶\033[0m "
+				prefix = "\033[32m  ▶ \033[0m"
 			}
-			line := fmt.Sprintf("%s%s  %s | %s | %s", prefix, p.name, p.baseURL, p.model, p.apiKey)
-			line = ansi.Truncate(line, width-2, "")
-			s.WriteString(line + " │\n")
+			s.WriteString(fmt.Sprintf("%s%s  %s | %s | %s\n", prefix, p.name, p.baseURL, p.model, p.apiKey))
 		}
-		s.WriteString("│                                                              │\n")
-		s.WriteString("│ \033[90m[↑/↓] navigate  [Enter] select  [Esc] cancel\033[0m                │\n")
+		s.WriteString("\n  \033[90m[↑/↓] navigate  [Enter] select  [Esc] cancel\033[0m\n")
 	} else if m.connectionState.step == 1 {
 		// Edit provider details with arrow indicator
 		fields := []struct {
@@ -1937,43 +1934,28 @@ func (m model) renderConnectionGuide() string {
 			{"Model", m.connectionState.model, m.connectionState.fieldIndex == 2},
 		}
 		for _, f := range fields {
-			prefix := "│   "
+			prefix := "    "
 			if f.isActive {
-				prefix = "│ \033[32m▶\033[0m "
+				prefix = "\033[32m  ▶ \033[0m"
 			}
-			line := fmt.Sprintf("%s%s: %s", prefix, f.label, f.value)
-			line = ansi.Truncate(line, width-2, "")
-			s.WriteString(line + " │\n")
+			s.WriteString(fmt.Sprintf("%s%s: \033[33m%s\033[0m\n", prefix, f.label, f.value))
 		}
-		s.WriteString("│                                                              │\n")
-		s.WriteString("│ \033[90m[Tab] next field  [Enter] advance  [Esc] cancel\033[0m       │\n")
+		s.WriteString("\n  \033[90m[Tab] next field  [Enter] advance  [Esc] cancel\033[0m\n")
 	} else if m.connectionState.step == 2 {
 		// API key
-		s.WriteString(fmt.Sprintf("│ Provider: \033[32m%s\033[0m", m.connectionState.providerName))
-		pad := width - 16 - len(m.connectionState.providerName)
-		s.WriteString(strings.Repeat(" ", pad) + "│\n")
-		s.WriteString(fmt.Sprintf("│ Base URL: \033[32m%s\033[0m", m.connectionState.baseURL))
-		pad = width - 14 - len(m.connectionState.baseURL)
-		s.WriteString(strings.Repeat(" ", pad) + "│\n")
-		s.WriteString(fmt.Sprintf("│ Model: \033[32m%s\033[0m", m.connectionState.model))
-		pad = width - 11 - len(m.connectionState.model)
-		s.WriteString(strings.Repeat(" ", pad) + "│\n")
-		s.WriteString("│                                                              │\n")
-		s.WriteString("│ API Key (optional): ")
+		s.WriteString(fmt.Sprintf("  Provider: \033[32m%s\033[0m\n", m.connectionState.providerName))
+		s.WriteString(fmt.Sprintf("  Base URL: \033[32m%s\033[0m\n", m.connectionState.baseURL))
+		s.WriteString(fmt.Sprintf("  Model: \033[32m%s\033[0m\n", m.connectionState.model))
+		s.WriteString("\n  API Key (optional): ")
 		if m.connectionState.pendingInput != "" {
 			s.WriteString(fmt.Sprintf("\033[33m%s\033[0m", m.connectionState.pendingInput))
 		} else {
 			s.WriteString("\033[90m[empty for none]\033[0m")
 		}
-		pad = width - 23 - len(m.connectionState.pendingInput)
-		if pad < 1 {
-			pad = 1
-		}
-		s.WriteString(strings.Repeat(" ", pad) + "│\n")
+		s.WriteString("\n")
 	}
 
-	s.WriteString("│                                                              │\n")
-	s.WriteString("└" + strings.Repeat("─", width) + "┘\n")
+	s.WriteString("  \033[36m" + strings.Repeat("─", width) + "\033[0m\n")
 	return s.String()
 }
 
