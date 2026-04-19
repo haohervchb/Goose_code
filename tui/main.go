@@ -1081,42 +1081,29 @@ func (m model) sessionStatus() string {
 }
 
 func (m model) promptStatus() string {
-	modeLabel := "build"
-	modeColor := "\033[36m"
-	if m.planMode {
-		modeLabel = "plan"
-		modeColor = "\033[33m"
-	}
-
-	parts := []string{modeColor + "mode " + strings.ToUpper(modeLabel) + resetStyle}
 	width := m.renderWidth()
+	parts := []string{}
 	if m.assistantResponding {
 		parts = append(parts, "\033[35mGoose is responding\033[0m")
 	} else if width >= 45 {
 		parts = append(parts, "\033[32mReady for input\033[0m")
 	}
 	if width >= 45 {
-		parts = append(parts, "\033[90mTab toggles mode\033[0m")
-	}
-	if width >= 60 {
 		parts = append(parts, "\033[90mPgUp/PgDn scroll\033[0m")
 	}
-	if width >= 74 {
+	if width >= 60 {
 		parts = append(parts, "\033[90mHome/End jump\033[0m")
 	}
-	if width >= 92 {
+	if width >= 74 {
 		parts = append(parts, "\033[90m/clear resets transcript\033[0m")
 	}
-	if selected, total := m.selectedToolOutputPosition(); width >= 100 && selected > 0 {
-		parts = append(parts, fmt.Sprintf("\033[37mtool %d/%d selected\033[0m", selected, total))
+	if width >= 86 {
+		parts = append(parts, "\033[90mCtrl+O toggle tool\033[0m")
+	}
+	if width >= 100 {
+		parts = append(parts, "\033[90mCtrl+P/N switch tool\033[0m")
 	}
 	if width >= 112 {
-		parts = append(parts, "\033[90mCtrl+O toggles selected tool block\033[0m")
-	}
-	if width >= 118 {
-		parts = append(parts, "\033[90mCtrl+P/Ctrl+N switch tool block\033[0m")
-	}
-	if width >= 128 {
 		parts = append(parts, "\033[90mF1 help overlay\033[0m")
 	}
 
