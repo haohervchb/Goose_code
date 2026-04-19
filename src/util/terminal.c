@@ -404,13 +404,18 @@ void term_print_tool_result(const char *name, int is_error) {
     fflush(stdout);
 }
 
-void term_print_banner(void) {
+void term_print_banner(const char *model, const char *base_url) {
     printf(TERM_BOLD TERM_GREEN);
     printf("    __      \n");
     printf("___( o)>    GOOSE CODE\n");
     printf("\\ <_. )     High-Performance Inference\n");
     printf(" `---'      v0.3.3\n");
     printf(TERM_RESET);
+    if (model || base_url) {
+        printf(TERM_DIM "  model: %s | base: %s\n",
+               model ? model : "(none)",
+               base_url ? base_url : "(none)");
+    }
     printf(TERM_DIM "  Type /help for commands. /exit to quit.\n\n" TERM_RESET);
     fflush(stdout);
 }

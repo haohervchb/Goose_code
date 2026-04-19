@@ -1043,15 +1043,6 @@ func (m model) sessionStatus() string {
 	if m.connected {
 		parts = append(parts, "connected")
 	}
-	if m.activeProvider != "" || m.activeModel != "" {
-		providerModel := strings.TrimPrefix(strings.TrimSpace(m.activeProvider+"/"+m.activeModel), "/")
-		if providerModel != "" {
-			parts = append(parts, providerModel)
-		}
-	}
-	if m.activeBaseURL != "" {
-		parts = append(parts, m.activeBaseURL)
-	}
 	if m.backend != nil && m.backend.sessionID != "" {
 		parts = append(parts, "session "+m.backend.sessionID)
 	}
@@ -2150,8 +2141,19 @@ func (m model) View() string {
 	}
 	s.WriteString(headerLine(headerPrefix, status, m.renderWidth()))
 	s.WriteString("\n")
-	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
-	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
+	// Model name after first ASCII art line
+	modelLine := ""
+	if m.activeModel != "" {
+		modelLine = fmt.Sprintf(" \033[90m%s\033[0m", m.activeModel)
+	}
+	s.WriteString(fmt.Sprintf("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗%s\n", modelLine))
+	
+	// URL after second ASCII art line
+	urlLine := ""
+	if m.activeBaseURL != "" {
+		urlLine = fmt.Sprintf(" \033[90m%s\033[0m", m.activeBaseURL)
+	}
+	s.WriteString(fmt.Sprintf("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ %s\n", urlLine))
 	// Context token count on same line as ASCII art line 3
 	if m.totalContextTokens > 0 {
 		var ctxStr string

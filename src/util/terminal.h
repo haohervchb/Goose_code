@@ -44,6 +44,6 @@ char *term_format_prompt(const char *working_dir, int plan_mode);
 void term_print_block_header(const char *label, const char *color);
 void term_print_tool_call(const char *name, const char *args);
 void term_print_tool_result(const char *name, int is_error);
-void term_print_banner(void);
+void term_print_banner(const char *model, const char *base_url);
 
 #endif

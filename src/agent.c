@@ -607,12 +607,7 @@ collector_free(&calls);
 }
 
 int agent_run_repl(Agent *agent) {
-    term_print_banner();
-    const ProviderProfile *profile = provider_profile_detect(&agent->config);
-    printf(TERM_DIM "  provider: %s | model: %s | base: %s\n\n" TERM_RESET,
-           profile ? profile->name : "unknown",
-           agent->config.model ? agent->config.model : "(none)",
-           agent->config.base_url ? agent->config.base_url : "(none)");
+    term_print_banner(agent->config.model, agent->config.base_url);
 
     while (agent->running) {
         char *input = NULL;
