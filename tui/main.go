@@ -1120,13 +1120,6 @@ func (m model) promptStatus() string {
 		parts = append(parts, "\033[90mF1 help overlay\033[0m")
 	}
 
-	if m.activeProvider != "" || m.activeModel != "" {
-		providerModel := strings.TrimPrefix(strings.TrimSpace(m.activeProvider+"/"+m.activeModel), "/")
-		if providerModel != "" {
-			parts = append([]string{"\033[37m" + providerModel + "\033[0m"}, parts...)
-		}
-	}
-
 	return wrapText(strings.Join(parts, " \033[90m|\033[0m "), m.renderWidth())
 }
 
