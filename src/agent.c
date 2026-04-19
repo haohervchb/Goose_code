@@ -485,11 +485,11 @@ int agent_run_turn(Agent *agent, const char *user_input) {
         cJSON_Delete(messages);
 
         if (status != API_OK) {
+            cJSON_Delete(tools_def);
             if (status == API_ERROR_INTERRUPTED) {
                 printf("\n" TERM_YELLOW "[Interrupted]" TERM_RESET "\n");
                 collector_free(&calls);
                 api_response_free(&resp);
-                cJSON_Delete(tools_def);
                 return 0;
             }
             printf("\n" TERM_RED "Error: %s" TERM_RESET "\n", api_status_str(status));
@@ -578,6 +578,31 @@ collector_free(&calls);
 
     session_memory_update(&agent->config, agent->session, &agent->api_cfg);
     cJSON_Delete(tools_def);
+
+    // Make non-stream call to get real token counts
+    cJSON *count_messages = prompt_build_messages_with_tools(
+        agent->system_message, agent->session->messages, NULL);
+    if (count_messages) {
+        ApiResponse real_resp = api_send_message(&agent->api_cfg, count_messages, NULL);
+        if (real_resp.input_tokens > 0 || real_resp.output_tokens > 0) {
+            agent->session->total_input_tokens = real_resp.input_tokens;
+            agent->session->total_output_tokens = real_resp.output_tokens;
+            agent->session->total_cache_read_tokens = real_resp.cache_read_tokens;
+            agent->session->total_cache_creation_tokens = real_resp.cache_creation_tokens;
+            if (agent->tui_mode) {
+                tui_protocol_send_token_update(
+                    agent->session->total_input_tokens,
+                    agent->session->total_output_tokens,
+                    agent->session->total_cache_read_tokens,
+                    agent->session->total_cache_creation_tokens,
+                    agent->config.context_window
+                );
+            }
+        }
+        api_response_free(&real_resp);
+        cJSON_Delete(count_messages);
+    }
+
     return 0;
 }
 
