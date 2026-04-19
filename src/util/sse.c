@@ -103,8 +103,16 @@ SseEvent sse_parse_line(SseParser *p, const char *line, size_t len) {
                 ev.type = SSE_EVENT_DONE;
                 has_primary_event = 1;
             } else {
-                cJSON *json = cJSON_Parse(p->data_buf);
+cJSON *json = cJSON_Parse(p->data_buf);
                 if (json) {
+                    // Parse usage
+                    cJSON *usage = cJSON_GetObjectItem(json, "usage");
+                    if (usage) {
+                        p->usage_input_tokens = json_get_int(usage, "prompt_tokens", 0);
+                        p->usage_output_tokens = json_get_int(usage, "completion_tokens", 0);
+                        p->usage_cache_read_tokens = json_get_int(usage, "cache_read_input_tokens", 0);
+                        p->usage_cache_creation_tokens = json_get_int(usage, "cache_creation_input_tokens", 0);
+                    }
                     cJSON *error = cJSON_GetObjectItem(json, "error");
                     if (error && cJSON_IsString(error)) {
                         ev.type = SSE_EVENT_ERROR;
@@ -232,4 +240,12 @@ void sse_event_free(SseEvent *e) {
     free(e->tool_name);
     free(e->tool_args);
     free(e->error);
+}
+
+long sse_parser_usage_input_tokens(SseParser *p) {
+    return p->usage_input_tokens;
+}
+
+long sse_parser_usage_output_tokens(SseParser *p) {
+    return p->usage_output_tokens;
 }

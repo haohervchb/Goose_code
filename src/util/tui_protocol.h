@@ -40,6 +40,9 @@ void tui_protocol_send_tool_output(const char *id, const char *output);
 void tui_protocol_send_tool_end(const char *id, int success, const char *error);
 void tui_protocol_send_error(const char *message);
 void tui_protocol_send_session_info(int message_count, int plan_mode);
+void tui_protocol_send_token_update(long input, long output,
+                                     long cache_read, long cache_creation,
+                                     int context_window);
 char *tui_protocol_read_line(const char *prompt, const char *default_value);
 
 // Callback functions for agent streaming

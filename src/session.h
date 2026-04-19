@@ -13,6 +13,8 @@ typedef struct {
     cJSON *messages;
     long total_input_tokens;
     long total_output_tokens;
+    long total_cache_read_tokens;
+    long total_cache_creation_tokens;
     int turn_count;
     int plan_mode;
     char *plan_content;

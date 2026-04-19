@@ -59,6 +59,12 @@ typedef struct {
     int finish_reason_tool_calls;
     PendingToolCall pending_tool;
     char retry_after[64];
+    // Token usage from streaming
+    long usage_input_tokens;
+    long usage_output_tokens;
+    long usage_cache_read_tokens;
+    long usage_cache_creation_tokens;
+    size_t total_output_len;
 } StreamCtx;
 
 static void pending_tool_emit(StreamCtx *sctx) {
@@ -97,6 +103,7 @@ static int sse_event_present(const SseEvent *ev) {
 
 static void stream_handle_event(StreamCtx *sctx, SseEvent *ev) {
     if (ev->type == SSE_EVENT_TEXT && ev->text && sctx->cb->on_text) {
+        sctx->total_output_len += strlen(ev->text);
         sctx->cb->on_text(ev->text, strlen(ev->text), sctx->cb->ctx);
     } else if (ev->type == SSE_EVENT_TOOL_CALL && ev->tool_call_id && ev->tool_name) {
         if (sctx->pending_tool.name[0] &&
@@ -204,6 +211,13 @@ ApiStatus api_chat_completions(const ApiConfig *cfg, const cJSON *messages, cons
             sctx.retry_after[0] = '\0';
             sse_parser_init(&sctx.parser);
             HttpResponse http_resp = http_post_stream_interruptible(url, cfg->api_key, body, stream_chunk_cb, &sctx, callbacks->abort_flag);
+            // Extract usage from streaming
+            resp->input_tokens = sse_parser_usage_input_tokens(&sctx.parser);
+            resp->output_tokens = sse_parser_usage_output_tokens(&sctx.parser);
+            // Estimate output tokens if we got nothing (VLLM streaming issue)
+            if (resp->output_tokens == 0 && sctx.total_output_len > 0) {
+                resp->output_tokens = sctx.total_output_len / 4;
+            }
             resp->finish_reason_stop = sctx.finish_reason_stop;
             resp->finish_reason_tool_calls = sctx.finish_reason_tool_calls;
             sse_parser_free(&sctx.parser);

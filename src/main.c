@@ -353,7 +353,10 @@ static int run_tui_mode(int argc, char *argv[]) {
     // Restore stdout for protocol output
     dup2(saved_stdout, STDOUT_FILENO);
     close(saved_stdout);
-    
+
+    // Reinit tui_protocol since stdout was redirected before init
+    tui_protocol_init();
+
     tui_protocol_send_init_ok(g_agent->session->id, g_agent->config.session_dir,
                               g_agent->config.provider, g_agent->config.base_url, g_agent->config.model);
     

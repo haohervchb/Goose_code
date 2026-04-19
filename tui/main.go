@@ -521,6 +521,21 @@ func formatErrorLine(text string) string {
 	return "\n" + errorStyle + "error>" + resetStyle + " " + trimmed + "\n"
 }
 
+func formatTokenCount(n int64) string {
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+	result := make([]byte, 0, len(s)+(len(s)-1)/3)
+	for i, digit := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			result = append(result, ',')
+		}
+		result = append(result, byte(digit))
+	}
+	return string(result)
+}
+
 type Backend struct {
 	cmd        *exec.Cmd
 	stdin      *os.File
@@ -554,6 +569,12 @@ type BackendResponse struct {
 	ToolID     string                 `json:"id,omitempty"`
 	ToolOutput string                 `json:"output,omitempty"`
 	ToolArgs   map[string]interface{} `json:"args,omitempty"`
+	// Token tracking
+	InputTokens         int64 `json:"input_tokens,omitempty"`
+	OutputTokens        int64 `json:"output_tokens,omitempty"`
+	CacheReadTokens     int64 `json:"cache_read_tokens,omitempty"`
+	CacheCreationTokens int64 `json:"cache_creation_tokens,omitempty"`
+	ContextWindow       int64 `json:"context_window,omitempty"`
 }
 
 type TUIRequest struct {
@@ -769,6 +790,13 @@ type toolEndMsg struct {
 type requestInputMsg struct {
 	prompt string
 }
+type tokenUpdateMsg struct {
+	inputTokens         int64
+	outputTokens        int64
+	cacheReadTokens     int64
+	cacheCreationTokens int64
+	contextWindow       int64
+}
 
 type transcriptKind string
 
@@ -852,6 +880,9 @@ type model struct {
 	// Input request state
 	requestingInput    bool
 	requestInputPrompt string
+	// Token tracking
+	totalContextTokens int64
+	contextWindow      int64
 }
 
 func (m model) sendPrompt(text string) {
@@ -1920,6 +1951,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mu.Unlock()
 		m.relayout()
 		return m, nil
+	case tokenUpdateMsg:
+		m.mu.Lock()
+		m.totalContextTokens = msg.inputTokens + msg.outputTokens + msg.cacheReadTokens + msg.cacheCreationTokens
+		m.contextWindow = msg.contextWindow
+		m.mu.Unlock()
+		return m, nil
 	}
 
 	return m, nil
@@ -2135,7 +2172,19 @@ func (m model) View() string {
 	s.WriteString("\n")
 	s.WriteString("\033[1m___( o)>  \033[0m  ╔═╗╔═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗╔╦╗╔═╗\n")
 	s.WriteString("\033[1m\\ <_. )   \033[0m  ║ ╦║ ║║ ║╚═╗║╣   ║  ║ ║ ║║║╣ \n")
-	s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")
+	// Context token count on same line as ASCII art line 3
+	if m.totalContextTokens > 0 {
+		var ctxStr string
+		if m.contextWindow > 0 {
+			pct := int((m.totalContextTokens * 100) / m.contextWindow)
+			ctxStr = fmt.Sprintf("\033[90m%s (%d%%)\033[0m", formatTokenCount(m.totalContextTokens), pct)
+		} else {
+			ctxStr = fmt.Sprintf("\033[90m%s\033[0m", formatTokenCount(m.totalContextTokens))
+		}
+		s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝  " + ctxStr + "\n")
+	} else {
+		s.WriteString("\033[1m `---'    \033[0m  ╚═╝╚═╝╚═╝╚═╝╚═╝  ╚═╝╚═╝═╩╝╚═╝\n")
+	}
 
 	// Chat messages (scrollable viewport)
 	if m.connectionState != nil {
@@ -2231,6 +2280,7 @@ func main() {
 	toolEndChan := make(chan toolEndMsg, 10)
 	requestInputChan := make(chan string, 100)
 	planModeChan := make(chan bool, 10)
+	tokenUpdateChan := make(chan tokenUpdateMsg, 10)
 
 	go func() {
 		for {
@@ -2272,6 +2322,14 @@ func main() {
 				} else if resp.Type == "session_info" {
 					// Sync plan mode from backend's authoritative state - send to channel
 					planModeChan <- resp.PlanMode
+				} else if resp.Type == "token_update" {
+					tokenUpdateChan <- tokenUpdateMsg{
+						inputTokens:         resp.InputTokens,
+						outputTokens:        resp.OutputTokens,
+						cacheReadTokens:     resp.CacheReadTokens,
+						cacheCreationTokens: resp.CacheCreationTokens,
+						contextWindow:       resp.ContextWindow,
+					}
 				}
 			}
 		}
@@ -2391,6 +2449,14 @@ func main() {
 		}
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range tokenUpdateChan {
+			p.Send(msg)
+		}
+	}()
+
 	// Run the TUI program
 	if _, runErr := p.Run(); runErr != nil {
 		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", runErr)
@@ -2406,6 +2472,7 @@ func main() {
 	close(toolEndChan)
 	close(requestInputChan)
 	close(planModeChan)
+	close(tokenUpdateChan)
 
 	// Wait for all goroutines to finish before exiting
 	wg.Wait()

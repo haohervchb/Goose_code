@@ -211,6 +211,23 @@ void tui_protocol_send_session_info(int message_count, int plan_mode) {
     cJSON_Delete(json);
 }
 
+void tui_protocol_send_token_update(long input, long output,
+                                     long cache_read, long cache_creation,
+                                     int context_window) {
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "type", "token_update");
+    cJSON_AddNumberToObject(json, "input_tokens", input);
+    cJSON_AddNumberToObject(json, "output_tokens", output);
+    cJSON_AddNumberToObject(json, "cache_read_tokens", cache_read);
+    cJSON_AddNumberToObject(json, "cache_creation_tokens", cache_creation);
+    cJSON_AddNumberToObject(json, "context_window", context_window);
+    char *str = cJSON_PrintUnformatted(json);
+    fprintf(tui_stdout, "%s\n", str);
+    fflush(tui_stdout);
+    free(str);
+    cJSON_Delete(json);
+}
+
 char *tui_protocol_read_line(const char *prompt, const char *default_value) {
     // Send prompt request to TUI
     tui_protocol_send_request_input(prompt);

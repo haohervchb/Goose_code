@@ -19,6 +19,10 @@ typedef struct {
     char *error;
     int finish_reason_stop;
     int finish_reason_tool_calls;
+    long usage_input_tokens;
+    long usage_output_tokens;
+    long usage_cache_read_tokens;
+    long usage_cache_creation_tokens;
 } SseEvent;
 
 #define SSE_MAX_TOOL_CALLS 16
@@ -43,6 +47,11 @@ typedef struct {
     SseEvent queued_events[SSE_MAX_TOOL_CALLS];
     int queued_event_count;
     int queued_event_index;
+    // Usage fields
+    long usage_input_tokens;
+    long usage_output_tokens;
+    long usage_cache_read_tokens;
+    long usage_cache_creation_tokens;
 } SseParser;
 
 void sse_parser_init(SseParser *p);
@@ -50,5 +59,7 @@ void sse_parser_free(SseParser *p);
 SseEvent sse_parse_line(SseParser *p, const char *line, size_t len);
 SseEvent sse_parser_next_event(SseParser *p);
 void sse_event_free(SseEvent *e);
+long sse_parser_usage_input_tokens(SseParser *p);
+long sse_parser_usage_output_tokens(SseParser *p);
 
 #endif

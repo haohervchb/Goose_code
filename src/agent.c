@@ -10,6 +10,7 @@
 #include "util/json_util.h"
 #include "util/strbuf.h"
 #include "util/terminal.h"
+#include "util/tui_protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -504,10 +505,20 @@ int agent_run_turn(Agent *agent, const char *user_input) {
 
         retry_count = 0;
 
-        if (resp.input_tokens > 0 || resp.output_tokens > 0) {
-            agent->session->total_input_tokens += resp.input_tokens;
-            agent->session->total_output_tokens += resp.output_tokens;
-        }
+        // Track all token types
+        agent->session->total_input_tokens += resp.input_tokens;
+        agent->session->total_output_tokens += resp.output_tokens;
+        agent->session->total_cache_read_tokens += resp.cache_read_tokens;
+        agent->session->total_cache_creation_tokens += resp.cache_creation_tokens;
+
+        // Send token update to TUI
+        tui_protocol_send_token_update(
+            agent->session->total_input_tokens,
+            agent->session->total_output_tokens,
+            agent->session->total_cache_read_tokens,
+            agent->session->total_cache_creation_tokens,
+            agent->config.context_window
+        );
 
         if (resp.finish_reason_stop) {
             if (resp.text_content.data && resp.text_content.len > 0) {
