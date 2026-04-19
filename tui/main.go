@@ -2161,9 +2161,9 @@ func (m model) View() string {
 
 	// Header (fixed at top)
 	if m.planMode {
-		headerPrefix = "\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.2 \033[33m[PLAN]\033[0m"
+		headerPrefix = "\033[1m    __      \033[0m  \033[1;33mGOOSE CODE\033[0m v0.3.3 \033[33m[PLAN]\033[0m"
 	} else {
-		headerPrefix = "\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.2 \033[32m[BUILD]\033[0m"
+		headerPrefix = "\033[1m    __      \033[0m  \033[1;36mGOOSE CODE\033[0m v0.3.3 \033[32m[BUILD]\033[0m"
 	}
 	if m.assistantResponding {
 		headerPrefix += " \033[35m[RESPONDING]\033[0m"
