@@ -2177,7 +2177,7 @@ func (m model) View() string {
 		var ctxStr string
 		if m.contextWindow > 0 {
 			pct := int((m.totalContextTokens * 100) / m.contextWindow)
-			ctxStr = fmt.Sprintf("\033[90m%s (%d%%)\033[0m", formatTokenCount(m.totalContextTokens), pct)
+			ctxStr = fmt.Sprintf("\033[90m%s (%d%% / %s)\033[0m", formatTokenCount(m.totalContextTokens), pct, formatTokenCount(m.contextWindow))
 		} else {
 			ctxStr = fmt.Sprintf("\033[90m%s\033[0m", formatTokenCount(m.totalContextTokens))
 		}

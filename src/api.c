@@ -350,3 +350,42 @@ const char *api_status_str(ApiStatus s) {
         default: return "unknown";
     }
 }
+
+int api_get_model_context_window(const ApiConfig *cfg, const char *model) {
+    if (!cfg || !model) return 0;
+
+    // Try the models list endpoint
+    char url[1024];
+    snprintf(url, sizeof(url), "%s/models", cfg->base_url);
+
+    HttpResponse http_resp = http_get(url, cfg->api_key);
+    if (http_resp.status_code == 200 && http_resp.body.data) {
+        cJSON *json = cJSON_Parse(http_resp.body.data);
+        if (json) {
+            cJSON *data = cJSON_GetObjectItem(json, "data");
+            if (data && cJSON_IsArray(data)) {
+                int count = cJSON_GetArraySize(data);
+                for (int i = 0; i < count; i++) {
+                    cJSON *m = cJSON_GetArrayItem(data, i);
+                    cJSON *id = cJSON_GetObjectItem(m, "id");
+                    if (id && id->valuestring && strcmp(id->valuestring, model) == 0) {
+                        // Try different fields for context length
+                        int ctx = json_get_int(m, "max_model_len", 0);
+                        if (!ctx) ctx = json_get_int(m, "context_window", 0);
+                        cJSON *meta = cJSON_GetObjectItem(m, "meta");
+                        if (!ctx && meta) {
+                            ctx = json_get_int(meta, "max_model_len", 0);
+                            if (!ctx) ctx = json_get_int(meta, "context_window", 0);
+                        }
+                        cJSON_Delete(json);
+                        http_response_free(&http_resp);
+                        return ctx;
+                    }
+                }
+            }
+            cJSON_Delete(json);
+        }
+    }
+    http_response_free(&http_resp);
+    return 0;
+}

@@ -56,4 +56,7 @@ ApiResponse api_send_message(const ApiConfig *cfg, const cJSON *messages, const 
 void api_response_free(ApiResponse *resp);
 const char *api_status_str(ApiStatus s);
 
+// Get model context window from API
+int api_get_model_context_window(const ApiConfig *cfg, const char *model);
+
 #endif

@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "api.h"
 #include "tools/bash_security.h"
 #include "util/early_input.h"
 #include "compact.h"
@@ -43,6 +44,14 @@ Agent *agent_init(const char *working_dir) {
     agent->api_cfg.max_tokens = agent->config.max_tokens;
     agent->api_cfg.temperature = agent->config.temperature;
     agent->api_cfg.max_retries = 3;
+
+    // Try to get model context window from API
+    if (agent->config.model && agent->config.base_url) {
+        int ctx = api_get_model_context_window(&agent->api_cfg, agent->config.model);
+        if (ctx > 0) {
+            agent->config.context_window = ctx;
+        }
+    }
 
     agent->session = session_new();
     session_memory_ensure(&agent->config, agent->session);
@@ -526,11 +535,11 @@ int agent_run_turn(Agent *agent, const char *user_input) {
                 session_add_message(agent->session, assistant_msg);
                 cJSON_Delete(assistant_msg);
             }
-            collector_free(&calls);
-            api_response_free(&resp);
-            session_memory_update(&agent->config, agent->session, &agent->api_cfg);
-            printf("\n");
-            break;
+collector_free(&calls);
+        api_response_free(&resp);
+        session_memory_update(&agent->config, agent->session, &agent->api_cfg);
+        printf("\n");
+        break;
         }
 
         if (calls.count > 0) {
