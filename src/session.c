@@ -516,8 +516,11 @@ char *session_list(const char *session_dir) {
     // Inform user about older sessions if there are more than 10
     if (count > 10) {
         strbuf_append_fmt(&out, "\n  ... and %d older session(s).\n", count - 10);
-        strbuf_append(&out, "  Use 'ls -lt %s' to list all sessions sorted by time.\n", session_dir);
+        strbuf_append_fmt(&out, "  Use 'ls -lt %s' to list all sessions sorted by time.\n", session_dir);
     }
+    
+    // Add instruction on how to resume a session
+    strbuf_append_fmt(&out, "\n  To resume a session: use --session <id> on command line, or /session <id> in TUI.\n");
     
     if (count == 0) strbuf_append(&out, "  (none)\n");
     
