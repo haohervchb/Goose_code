@@ -457,7 +457,7 @@ func shouldCompactToolOutput(text string) bool {
 	return toolOutputLineCount(text) > 6 || len(text) > 500
 }
 
-func renderToolOutputEntryAtWidth(text string, expanded bool, width int, selected bool) string {
+func renderToolOutputEntryAtWidth(text string, expanded bool, width int, selected bool, toolName string) string {
 	if text == "" {
 		return ""
 	}
@@ -465,6 +465,12 @@ func renderToolOutputEntryAtWidth(text string, expanded bool, width int, selecte
 	if selected {
 		marker = toolArgsStyle + "◆ " + resetStyleTool + "selected tool block\n"
 	}
+	
+	// Add tool name header for compacted outputs
+	if toolName != "" && !expanded {
+		marker += toolStyle + "tool>" + resetStyleTool + " " + toolName + "\n"
+	}
+	
 	if expanded || !shouldCompactToolOutput(text) {
 		return marker + renderIndentedBlockAtWidth(text, width)
 	}
@@ -496,7 +502,7 @@ func renderToolOutputEntryAtWidth(text string, expanded bool, width int, selecte
 }
 
 func renderToolOutputEntry(text string, expanded bool) string {
-	return renderToolOutputEntryAtWidth(text, expanded, 80, false)
+	return renderToolOutputEntryAtWidth(text, expanded, 80, false, "")
 }
 
 func formatUserPrompt(text string) string {
@@ -817,6 +823,7 @@ type transcriptEntry struct {
 	meta     string
 	success  bool
 	expanded bool
+	toolName string // tool name for tool_output entries
 }
 
 type providerInfo struct {
@@ -1020,7 +1027,7 @@ func (m *model) renderTranscriptEntry(idx int, entry transcriptEntry) string {
 		return renderToolStartEntryAtWidth(entry.text, entry.meta, m.renderWidth())
 	case transcriptToolOutput:
 		selected := m.validSelectedToolOutputEntry() && m.selectedToolOutputEntry == idx
-		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth(), selected)
+		return renderToolOutputEntryAtWidth(entry.text, entry.expanded, m.renderWidth(), selected, entry.toolName)
 	case transcriptToolEnd:
 		return renderToolEndEntryAtWidth(entry.success, entry.text, entry.meta == "truncated", m.renderWidth())
 	default:
@@ -1849,7 +1856,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if output != "" {
 				if m.currentToolOutputEntry < 0 || m.currentToolOutputEntry >= len(m.entries) || m.entries[m.currentToolOutputEntry].kind != transcriptToolOutput {
-					m.currentToolOutputEntry = m.appendTranscriptEntry(transcriptToolOutput, "", "", false)
+					m.currentToolOutputEntry = m.appendTranscriptEntry(transcriptToolOutput, "", m.currentTool, false)
 					m.selectedToolOutputEntry = m.currentToolOutputEntry
 				}
 				m.currentToolOutput += output
