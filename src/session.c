@@ -489,9 +489,11 @@ char *session_list(const char *session_dir) {
         qsort(sessions, count, sizeof(SessionInfo), session_info_cmp_desc);
     }
     
-    // Second pass: display sessions in sorted order
+    // Second pass: display sessions in sorted order (top 10 only)
     StrBuf out = strbuf_from("Saved sessions:\n");
-    for (int i = 0; i < count; i++) {
+    int display_count = count < 10 ? count : 10;
+    
+    for (int i = 0; i < display_count; i++) {
         char datetime[64] = "unknown";
         if (sessions[i].timestamp > 0) {
             struct tm *tm = localtime(&sessions[i].timestamp);
@@ -511,8 +513,14 @@ char *session_list(const char *session_dir) {
         free(sessions[i].id);
     }
     
-    free(sessions);
+    // Inform user about older sessions if there are more than 10
+    if (count > 10) {
+        strbuf_append_fmt(&out, "\n  ... and %d older session(s).\n", count - 10);
+        strbuf_append(&out, "  Use 'ls -lt %s' to list all sessions sorted by time.\n", session_dir);
+    }
     
     if (count == 0) strbuf_append(&out, "  (none)\n");
+    
+    free(sessions);
     return strbuf_detach(&out);
 }
