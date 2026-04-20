@@ -430,13 +430,30 @@ static int parse_session_id_datetime(const char *id, struct tm *tm_out) {
     return -1;
 }
 
+typedef struct {
+    char *id;
+    time_t timestamp;
+} SessionInfo;
+
+static int session_info_cmp_desc(const void *a, const void *b) {
+    const SessionInfo *sa = (const SessionInfo *)a;
+    const SessionInfo *sb = (const SessionInfo *)b;
+    // Descending order: latest first
+    if (sa->timestamp > sb->timestamp) return -1;
+    if (sa->timestamp < sb->timestamp) return 1;
+    return 0;
+}
+
 char *session_list(const char *session_dir) {
     DIR *dir = opendir(session_dir);
     if (!dir) return strdup("No sessions found.");
 
-    StrBuf out = strbuf_from("Saved sessions:\n");
-    struct dirent *ent;
+    // First pass: collect all session IDs and their timestamps
+    SessionInfo *sessions = NULL;
     int count = 0;
+    int capacity = 0;
+    struct dirent *ent;
+    
     while ((ent = readdir(dir)) != NULL) {
         size_t nlen = strlen(ent->d_name);
         if (nlen > 5 && strcmp(ent->d_name + nlen - 5, ".json") == 0) {
@@ -446,21 +463,56 @@ char *session_list(const char *session_dir) {
 
             Session *s = session_load(session_dir, id);
             if (s) {
-                char datetime[64] = "unknown";
-                struct tm tm_info;
-                if (parse_session_id_datetime(id, &tm_info) == 0) {
-                    strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M", &tm_info);
+                // Expand array if needed
+                if (count >= capacity) {
+                    capacity = capacity == 0 ? 16 : capacity * 2;
+                    sessions = realloc(sessions, capacity * sizeof(SessionInfo));
                 }
                 
-                const char *summary = s->summary ? s->summary : "(no summary)";
-                strbuf_append_fmt(&out, "  %-16s  %-16s  %-25s  %d msgs\n",
-                                  id, datetime, summary, cJSON_GetArraySize(s->messages));
+                sessions[count].id = strdup(id);
+                sessions[count].timestamp = 0;
+                
+                struct tm tm_info;
+                if (parse_session_id_datetime(id, &tm_info) == 0) {
+                    sessions[count].timestamp = mktime(&tm_info);
+                }
+                
                 session_free(s);
                 count++;
             }
         }
     }
     closedir(dir);
+    
+    // Sort by timestamp in descending order (latest first)
+    if (count > 0) {
+        qsort(sessions, count, sizeof(SessionInfo), session_info_cmp_desc);
+    }
+    
+    // Second pass: display sessions in sorted order
+    StrBuf out = strbuf_from("Saved sessions:\n");
+    for (int i = 0; i < count; i++) {
+        char datetime[64] = "unknown";
+        if (sessions[i].timestamp > 0) {
+            struct tm *tm = localtime(&sessions[i].timestamp);
+            if (tm) {
+                strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M", tm);
+            }
+        }
+        
+        Session *s = session_load(session_dir, sessions[i].id);
+        if (s) {
+            const char *summary = s->summary ? s->summary : "(no summary)";
+            strbuf_append_fmt(&out, "  %-16s  %-16s  %-25s  %d msgs\n",
+                              sessions[i].id, datetime, summary, cJSON_GetArraySize(s->messages));
+            session_free(s);
+        }
+        
+        free(sessions[i].id);
+    }
+    
+    free(sessions);
+    
     if (count == 0) strbuf_append(&out, "  (none)\n");
     return strbuf_detach(&out);
 }
